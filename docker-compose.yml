@@ -1,0 +1,45 @@
+# Tenant container template
+# Usage: TENANT_ID=acme TENANT_DOMAIN=acme.fullstp.com docker compose -p tenant-acme up -d
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: tenant-${TENANT_ID:-default}
+    environment:
+      - PAYLOAD_SECRET=${PAYLOAD_SECRET:-change-me-in-production}
+      - DATABASE_URI=file:./data/database.db
+      - NEXT_PUBLIC_SITE_URL=https://${TENANT_DOMAIN:-localhost}
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+    volumes:
+      - tenant-${TENANT_ID:-default}-data:/app/data
+    networks:
+      - caddy-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "fullstp.tenant=${TENANT_ID:-default}"
+      - "fullstp.domain=${TENANT_DOMAIN:-localhost}"
+
+volumes:
+  tenant-${TENANT_ID:-default}-data:
+
+networks:
+  caddy-net:
+    external: true

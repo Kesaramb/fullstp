@@ -1,0 +1,48 @@
+{
+  "name": "fullstp-golden-image",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "generate:types": "payload generate:types",
+    "status": "bash scripts/status.sh",
+    "verify": "bash scripts/verify.sh",
+    "verify:feature": "bash scripts/verify-feature.sh",
+    "doctor": "bash scripts/doctor.sh",
+    "changed-files": "bash scripts/changed-files.sh",
+    "close-session": "bash scripts/close-session.sh",
+    "deploy:preview": "bash scripts/deploy-preview.sh",
+    "deploy:production": "bash scripts/deploy-production.sh",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "@payloadcms/db-sqlite": "^3.12.0",
+    "@payloadcms/next": "^3.12.0",
+    "@payloadcms/richtext-lexical": "^3.12.0",
+    "@payloadcms/storage-s3": "^3.12.0",
+    "next": "15.4.11",
+    "payload": "^3.12.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "15.4.11",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

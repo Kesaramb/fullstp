@@ -1,0 +1,32 @@
+# FullStop Caddy Configuration (reference)
+# This file is deployed on the Pod node, not inside tenant containers.
+#
+# On-Demand TLS: certificates are obtained at first TLS handshake.
+# The `ask` endpoint verifies the domain is a legitimate tenant.
+
+{
+	on_demand_tls {
+		ask http://localhost:5000/api/check-domain
+		interval 2m
+		burst 5
+	}
+}
+
+# Catch-all for all tenant domains
+https:// {
+	tls {
+		on_demand
+	}
+
+	# Dynamic reverse proxy — routes to tenant container by hostname.
+	# In production, use Caddy's admin API to add routes dynamically:
+	#   POST http://localhost:2019/config/apps/http/servers/srv0/routes
+	#
+	# For static config, list each tenant:
+	# @tenant-acme host acme.fullstp.com
+	# handle @tenant-acme {
+	#     reverse_proxy tenant-acme:3000
+	# }
+
+	respond "Tenant not found" 404
+}
