@@ -1,28 +1,49 @@
 #!/bin/bash
+# deploy-preview.sh — Start a local preview of the Golden Image via PM2
+#
+# Phase 1: Uses PM2 (not Docker) to start a preview process on port 3001.
+# This matches the production Phase 1 runtime (PM2 fork mode, 512MB limit).
+#
+# Usage:
+#   npm run deploy:preview
+#   bash scripts/deploy-preview.sh [port]
+#
+# Requires: pm2 installed globally (npm install -g pm2)
 set -e
 
-TAG=${1:-preview-$(date +%s)}
-echo "=== Deploy Preview: $TAG ==="
+PORT="${1:-3001}"
+PROCESS_NAME="fullstp-preview"
 
-echo "Step 1: Running verify..."
+echo "=== Deploy Preview (PM2) ==="
+
+echo "Step 1/3: Running verify..."
 bash scripts/verify.sh
 
-echo "Step 2: Building Docker image..."
-docker build -t fullstp-tenant:$TAG .
+echo "Step 2/3: Building standalone output..."
+npm run build
 
-echo "Step 3: Starting preview container..."
-docker run -d \
-  --name fullstp-preview-$TAG \
-  --memory=256m \
-  --cpus=0.5 \
-  -p 3001:3000 \
-  -e PAYLOAD_SECRET=preview-secret-key-for-testing-only \
-  -e DATABASE_URI=file:./data/database.db \
-  fullstp-tenant:$TAG
+echo "Step 3/3: Starting PM2 preview process on port $PORT..."
+
+# Stop existing preview if running
+pm2 delete "$PROCESS_NAME" 2>/dev/null || true
+
+pm2 start .next/standalone/server.js \
+  --name "$PROCESS_NAME" \
+  --max-memory-restart 512M \
+  -- \
+  --env PORT="$PORT" \
+  --env HOSTNAME="0.0.0.0" \
+  --env NODE_ENV="production" \
+  --env PAYLOAD_SECRET="preview-secret-for-local-testing-only" \
+  --env DATABASE_URI="file:./data/preview.db"
+
+# PM2 env vars must be set via env_production or inline
+pm2 set "$PROCESS_NAME:PORT" "$PORT"
 
 echo ""
-echo "Preview running at: http://localhost:3001"
-echo "Admin panel: http://localhost:3001/admin"
-echo "Container: fullstp-preview-$TAG"
+echo "Preview running at: http://localhost:$PORT"
+echo "Admin panel:        http://localhost:$PORT/admin"
+echo "PM2 process:        $PROCESS_NAME"
 echo ""
-echo "To stop: docker stop fullstp-preview-$TAG && docker rm fullstp-preview-$TAG"
+echo "To view logs: pm2 logs $PROCESS_NAME"
+echo "To stop:      pm2 delete $PROCESS_NAME"

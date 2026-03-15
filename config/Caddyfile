@@ -1,8 +1,27 @@
 # FullStop Caddy Configuration (reference)
-# This file is deployed on the Pod node, not inside tenant containers.
+# Deployed on the host node (not inside tenant processes or containers).
 #
 # On-Demand TLS: certificates are obtained at first TLS handshake.
-# The `ask` endpoint verifies the domain is a legitimate tenant.
+# The `ask` endpoint verifies the domain is a legitimate tenant before issuing a cert.
+#
+# Routes are managed dynamically via the Caddy admin API — never edit at runtime.
+#   POST http://localhost:2019/config/apps/http/servers/srv0/routes
+#
+# ── Phase 1 (PM2, 0-100 tenants) ─────────────────────────────────────────────
+# Routes point to localhost:{port} where each tenant is a PM2 process.
+# Example route payload:
+#   {
+#     "match": [{"host": ["acme.fullstp.com"]}],
+#     "handle": [{"handler": "reverse_proxy", "upstreams": [{"dial": "localhost:3001"}]}]
+#   }
+#
+# ── Phase 2 (Docker, 100+ tenants) ───────────────────────────────────────────
+# Routes point to container names on caddy-net: tenant-acme:3000
+# Example route payload:
+#   {
+#     "match": [{"host": ["acme.fullstp.com"]}],
+#     "handle": [{"handler": "reverse_proxy", "upstreams": [{"dial": "tenant-acme:3000"}]}]
+#   }
 
 {
 	on_demand_tls {
@@ -18,15 +37,7 @@ https:// {
 		on_demand
 	}
 
-	# Dynamic reverse proxy — routes to tenant container by hostname.
-	# In production, use Caddy's admin API to add routes dynamically:
-	#   POST http://localhost:2019/config/apps/http/servers/srv0/routes
-	#
-	# For static config, list each tenant:
-	# @tenant-acme host acme.fullstp.com
-	# handle @tenant-acme {
-	#     reverse_proxy tenant-acme:3000
-	# }
-
+	# Routes are injected by provision-tenant.sh via Caddy admin API.
+	# This catch-all returns 404 for domains not yet registered.
 	respond "Tenant not found" 404
 }

@@ -82,18 +82,66 @@ export const RenderBlocks = ({ blocks }) => (
 | **S2** | Data Blocks | Features, Testimonials, Pricing, Gallery blocks |
 | **S3** | Collections & Globals | Pages, Media, Navigation collections + SiteSettings global |
 | **S4** | Tenant Identity | Theme config, logo upload, color system, font selection |
-| **S5** | Deploy | Docker build, Caddy route, R2 storage, health checks |
+| **S5** | Deploy | PM2 process via provision-tenant.sh, Caddy route, R2 storage |
 
 ## Data Flow
 
 ```
-Client Brief
+Client Brief (via Chat UI)
   -> Block Inventory (manifest.json)
     -> Block Schemas (config.ts per block)
       -> Page Model (Pages collection with blocks field)
         -> Front-End Renderer (RenderBlocks.tsx)
-          -> Deployed Container (Docker + Caddy + R2)
+          -> PM2 Process (Phase 1) / Docker Container (Phase 2)
+            -> Caddy (TLS + routing) -> Cloudflare (CDN + R2)
 ```
+
+## Client Interface Pattern
+
+**Zero-Dashboard**: SME clients never interact with Payload CMS directly.
+
+```
+Client (chat message)
+  -> Zero-Dashboard Chat UI
+    -> Digital Team Agent (interprets intent)
+      -> Payload Local API (creates/updates content)
+        -> Live tenant site
+          -> Client sees result in browser
+```
+
+Rules:
+- Agents are the sole operators of the admin panel
+- Client messages are natural language, not CMS instructions
+- Agent confirms every destructive operation (delete, unpublish) before executing
+- Payload admin panel is an internal tool only — never shared with clients
+
+## Platform Update Strategy
+
+### Phase 1: Option A (Hard Fork)
+
+Each tenant is a standalone cloned repo. Bug fixes are applied via bash loop:
+
+```bash
+# Apply a critical fix to all Phase 1 tenants
+for dir in /var/fullstp/tenants/*/; do
+  tenant=$(basename "$dir")
+  cd "$dir"
+  git pull origin main  # or: patch -p1 < /tmp/fix.patch
+  npm run build
+  pm2 reload "tenant-$tenant"
+  echo "Updated: $tenant"
+done
+```
+
+Feature updates are applied to new tenants only. Existing tenants receive features on scheduled sprints (negotiated with client).
+
+### Phase 2: Option B (Package-based)
+
+Triggered when tenant count justifies overhead (target: 50+ tenants):
+- Core blocks extracted to `@fullstp/blocks` npm package
+- Tenants depend on `@fullstp/blocks`
+- Bug fixes = publish + `npm update` across tenant dirs
+- Migration procedure: `docs/runbooks/MIGRATE_TO_PACKAGES.md`
 
 ## Anti-Patterns
 
