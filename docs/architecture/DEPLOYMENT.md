@@ -2,22 +2,31 @@
 
 ## Overview
 
-FullStop uses a two-phase deployment strategy. Phase 1 is optimized for speed and simplicity (0-100 tenants). Phase 2 adds isolation and orchestration at scale (100+ tenants).
+FullStop uses a two-phase deployment strategy. Phase 1 is optimized for speed, density, and operational safety (0-50 tenants). Phase 2 adds container isolation at scale (50+ tenants).
 
 ---
 
-## Phase 1: PM2 (0-100 Tenants)
+## Phase 1: PM2 + HestiaCP (0-50 Tenants)
 
 ```
-Internet → Cloudflare (DNS/CDN/R2) → Caddy (TLS/Routing) → PM2 Processes (localhost:{port})
+Internet -> Cloudflare (DNS/CDN/R2) -> HestiaCP (Nginx + TLS) -> PM2 Processes (localhost:{port})
 ```
+
+### Why HestiaCP over Caddy
+
+1. **Visual safety net** — While AI agents are in infancy, HestiaCP provides a proven GUI to restart services, check DNS, and debug deployments instantly
+2. **Proven Nginx ecosystem** — Battle-tested reverse proxy with mature tooling
+3. **Integrated TLS** — Let's Encrypt certificates managed through HestiaCP CLI
+4. **Zero custom code** — Domain routing via CLI commands, not API calls to a custom proxy
 
 ### How It Works
 
 - Each tenant = one PM2 process running Next.js standalone on a unique port (3001-4000)
-- Caddy routes by hostname to `localhost:{port}` (no containers, no network bridge)
-- SQLite file lives at `/var/fullstp/tenants/{id}/data/database.db` on the host
+- HestiaCP manages the Nginx proxy: each domain gets a custom proxy template routing to `localhost:{port}`
+- TLS certificates issued via HestiaCP's `v-add-web-domain-ssl` (Let's Encrypt)
+- SQLite file lives at `/home/admin/web/{domain}/nodeapp/data/database.db`
 - PM2 handles process restart, memory limits, and log rotation
+- All processes share the host OS memory — no artificial container walls
 
 ### Tenant Process
 
@@ -27,42 +36,60 @@ Internet → Cloudflare (DNS/CDN/R2) → Caddy (TLS/Routing) → PM2 Processes (
 | Memory limit | 512MB (`max_memory_restart`) |
 | CPU | Unrestricted (process-level) |
 | Port | 3001-4000 (allocated at provision time) |
-| Database | SQLite at `/var/fullstp/tenants/{id}/data/` |
+| Database | SQLite at `/home/admin/web/{domain}/nodeapp/data/` |
+| Web root | `/home/admin/web/{domain}/nodeapp/` |
+
+### DevOps Agent Toolkit
+
+| Command | Purpose |
+|---------|---------|
+| `pm2 start pnpm --name "{domain}" --cwd /path/to/nodeapp -- start` | Start tenant process |
+| `pm2 reload {domain}` | Zero-downtime reload |
+| `v-add-web-domain admin {domain}` | Register domain in HestiaCP |
+| `v-change-web-domain-proxy-tpl admin {domain} nodeapp` | Set Node.js proxy template |
+| `v-change-web-domain-backend-port admin {domain} {port}` | Route to correct port |
+| `v-add-letsencrypt-domain admin {domain}` | Issue Let's Encrypt TLS cert |
+| `v-add-web-domain-ssl-force admin {domain}` | Force HTTPS redirect |
 
 ### Provisioning Flow (Phase 1)
 
-1. Run `scripts/provision-tenant.sh --id {id} --domain {domain} --port {port} --secret {secret}`
-2. Script clones Golden Image, builds standalone output, creates data dir
-3. PM2 entry added to `config/ecosystem.config.js`, process started
-4. Caddy route registered via admin API (`POST /config/apps/http/servers/srv0/routes`)
-5. On-Demand TLS obtains certificate on first request
+1. Run `scripts/provision-tenant.sh --domain {domain} --port {port} --secret {secret}`
+2. Script clones Golden Image to `/home/admin/web/{domain}/nodeapp/`
+3. Runs `pnpm install && pnpm build` for standalone output, creates data directory
+4. PM2 process started via `pm2 start pnpm --name "{domain}" -- start`
+5. HestiaCP domain registered, backend port set, TLS cert issued
+
+### Nginx Proxy Template
+
+HestiaCP uses `v-change-web-domain-backend-port` to create per-port proxy templates automatically (e.g., `nodeapp3007`, `nodeapp3008`). Fallback: custom nginx includes at `/home/admin/conf/web/{domain}/nginx.conf_payload`.
 
 ### Teardown Flow (Phase 1)
 
-1. `pm2 delete tenant-{id}`
-2. Remove Caddy route via admin API
+1. `pm2 delete {domain}`
+2. `v-delete-web-domain admin {domain}`
 3. Archive SQLite file to R2 for retention period
-4. `rm -rf /var/fullstp/tenants/{id}`
+4. `rm -rf /home/admin/web/{domain}/`
 
 ### Capacity (Phase 1)
 
-- 32GB RAM server: ~50 active tenants (at 512MB each, 6GB for OS/Caddy/PM2)
-- 64GB RAM server: ~110 active tenants
+- Contabo VPS `167.86.81.161`: 58GB RAM, 1.5TB disk
+- Currently 7 PM2 processes on ports 3001-3007, next available: 3008
+- At 512MB per tenant: ~100 tenants feasible (8GB reserved for OS/Nginx/PM2/HestiaCP)
 - Port pool: 1000 slots (3001-4000)
 
 ### Migration Trigger
 
 Migrate to Phase 2 when any of:
-- Tenant count exceeds 80 (headroom before port pool fills)
+- Tenant count exceeds 50
 - A tenant requires resource isolation guarantees
 - Security audit requires container-level separation
 
 ---
 
-## Phase 2: Docker (100+ Tenants)
+## Phase 2: Docker (50+ Tenants)
 
 ```
-Internet → Cloudflare (DNS/CDN/R2) → Caddy (TLS/Routing) → Docker Containers (caddy-net)
+Internet -> Cloudflare (DNS/CDN/R2) -> Nginx/Traefik (TLS/Routing) -> Docker Containers
 ```
 
 ### Tenant Container
@@ -75,7 +102,7 @@ Each tenant runs an isolated Docker container:
 | RAM | 512MB hard limit, 256MB reservation |
 | CPU | 0.5 cores |
 | Database | SQLite at `/app/data/database.db` (WAL mode) |
-| Network | Connected to `caddy-net` bridge (no published ports) |
+| Network | Container network (no published ports) |
 | Health check | `GET /api/health` every 30s |
 
 ### Docker Build
@@ -85,34 +112,9 @@ Three-stage Dockerfile:
 2. `builder` — full install + `next build` with standalone output
 3. `runner` — minimal Alpine image with standalone output + public + static
 
-### Provisioning Flow (Phase 2)
-
-1. Orchestrator builds Docker image from Golden Image
-2. Container starts connected to `caddy-net`
-3. Orchestrator adds route to Caddy via admin API (container name, not localhost port)
-4. On-Demand TLS obtains certificate on first request
-5. Litestream replicates SQLite to R2 (backup)
-
-### Teardown Flow (Phase 2)
-
-1. Stop container
-2. Remove Caddy route
-3. Keep SQLite backup in R2 for retention period
-4. Remove container and volume
-
 ---
 
 ## Shared Infrastructure
-
-### Caddy Server
-
-Runs on the host (not inside tenant processes/containers):
-- Listens on ports 80/443
-- On-Demand TLS via Let's Encrypt
-- Routes to tenants by hostname via admin API
-- `ask` endpoint validates tenant domains before TLS issuance
-- **Phase 1**: Reverse proxy to `localhost:{port}`
-- **Phase 2**: Reverse proxy to `{container-name}:3000` via `caddy-net`
 
 ### Cloudflare R2
 
@@ -132,13 +134,13 @@ Each tenant repo is a standalone clone of the Golden Image. There is no package 
 
 **Bug fixes** (Phase 1, 0-50 tenants): brute-force bash patching
 ```bash
-# Apply a patch to all active tenants
-for dir in /var/fullstp/tenants/*/; do
-  tenant=$(basename "$dir")
+for dir in /home/admin/web/*/nodeapp/; do
+  domain=$(basename "$(dirname "$dir")")
   cd "$dir"
-  git pull origin main  # or: patch -p1 < /tmp/fix.patch
-  npm run build
-  pm2 reload "tenant-$tenant"
+  git pull origin main
+  pnpm install
+  pnpm build
+  pm2 reload "$domain"
 done
 ```
 
@@ -152,4 +154,4 @@ Planned for when tenant count justifies the overhead:
 - Bug fixes = publish new package version, tenants `npm update @fullstp/blocks`
 - Canary rollout: update 10% of tenants first, monitor, then rollout
 
-**Migration from Option A → B**: Documented procedure in `docs/runbooks/MIGRATE_TO_PACKAGES.md` (created at Phase 2 kickoff).
+**Migration from Option A to B**: Documented procedure in `docs/runbooks/MIGRATE_TO_PACKAGES.md` (created at Phase 2 kickoff).

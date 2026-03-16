@@ -82,7 +82,7 @@ export const RenderBlocks = ({ blocks }) => (
 | **S2** | Data Blocks | Features, Testimonials, Pricing, Gallery blocks |
 | **S3** | Collections & Globals | Pages, Media, Navigation collections + SiteSettings global |
 | **S4** | Tenant Identity | Theme config, logo upload, color system, font selection |
-| **S5** | Deploy | PM2 process via provision-tenant.sh, Caddy route, R2 storage |
+| **S5** | Deploy | PM2 process via provision-tenant.sh, HestiaCP domain + Nginx proxy, R2 storage |
 
 ## Data Flow
 
@@ -93,7 +93,7 @@ Client Brief (via Chat UI)
       -> Page Model (Pages collection with blocks field)
         -> Front-End Renderer (RenderBlocks.tsx)
           -> PM2 Process (Phase 1) / Docker Container (Phase 2)
-            -> Caddy (TLS + routing) -> Cloudflare (CDN + R2)
+            -> HestiaCP + Nginx (TLS + routing) -> Cloudflare (CDN + R2)
 ```
 
 ## Client Interface Pattern

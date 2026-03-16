@@ -9,6 +9,9 @@ import sharp from 'sharp'
 import { Pages } from '@/collections/Pages'
 import { Media } from '@/collections/Media'
 import { Users } from '@/collections/Users'
+import { Customers } from '@/collections/Customers'
+import { BMCs } from '@/collections/BMCs'
+import { Deployments } from '@/collections/Deployments'
 import { Header } from '@/globals/Header'
 import { Footer } from '@/globals/Footer'
 import { SiteSettings } from '@/globals/SiteSettings'
@@ -24,7 +27,7 @@ export default buildConfig({
     },
   },
 
-  collections: [Pages, Media, Users],
+  collections: [Pages, Media, Users, Customers, BMCs, Deployments],
 
   globals: [Header, Footer, SiteSettings],
 

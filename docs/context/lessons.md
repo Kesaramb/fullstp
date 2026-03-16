@@ -38,15 +38,31 @@ Pre-seeded knowledge from architecture decisions and known gotchas. Updated as a
 - Each tenant = one PM2 process in `fork` mode on a unique port (3001-4000).
 - `max_memory_restart: '512M'` — PM2 restarts the process if it exceeds 512MB RSS. This is the Phase 1 memory guardrail.
 - Set `NODE_OPTIONS=--max-old-space-size=400` to leave 112MB headroom for OS and PM2 overhead within the 512MB budget.
-- Caddy routes `hostname -> localhost:{port}` via its admin API. Each tenant's port is assigned at provision time and must be unique.
+- HestiaCP Nginx proxy templates route `hostname -> localhost:{port}`. Each tenant's port is assigned at provision time and must be unique.
 - `pm2 reload ecosystem.config.js` performs a zero-downtime reload of all running processes.
+- Caddy is **deprecated** for Phase 1. HestiaCP + Nginx replaces it for routing and TLS.
 - PM2 log rotation: configure via `pm2 install pm2-logrotate` to prevent disk fill on long-running servers.
 - Provision script (`scripts/provision-tenant.sh`) must build Next.js standalone output **in the tenant directory** before starting PM2.
+
+## HestiaCP (Phase 1 Routing)
+
+- Server: Contabo VPS `167.86.81.161`, Ubuntu 24.04, HestiaCP with `admin` user.
+- HestiaCP CLI at `/usr/local/hestia/bin/`. Add to PATH: `export PATH=$PATH:/usr/local/hestia/bin`.
+- Provisioning sequence: `v-add-web-domain` -> `v-change-web-domain-proxy-tpl nodeapp` -> `v-change-web-domain-backend-port` (or custom nginx includes) -> `v-add-letsencrypt-domain` -> `v-add-web-domain-ssl-force`.
+- Tenant Node.js apps live at `/home/admin/web/{domain}/nodeapp/` (NOT `private/`). This is the HestiaCP convention.
+- Custom Nginx includes go to `/home/admin/conf/web/{domain}/nginx.conf_payload` (HTTP) and `nginx.ssl.conf_payload` (HTTPS).
+- HestiaCP prefixes database names/users with `admin_`. DB `mysite` becomes `admin_mysite`.
+- HestiaCP GUI at `https://167.86.81.161:8083` provides a visual safety net for debugging.
+- Always prefer `v-*` CLI commands over raw file edits to keep HestiaCP's internal state consistent.
+- Use `pnpm` (not `npm`) on the production server.
+- PM2 pattern: `pm2 start pnpm --name "domain" --cwd /path/to/nodeapp -- start` (not ecosystem.config.js).
+- `v-change-web-domain-backend-port` creates per-port proxy templates automatically (e.g., `nodeapp3007`). This is the primary method; custom nginx includes are the fallback.
+- Server has 58GB RAM and 1.5TB disk — capacity is ~100 tenants at 512MB each, not 50.
+- Ports 3001-3007 are already occupied by existing apps. Next FullStop tenant starts at port 3008.
 
 ## Docker (Phase 2 Runtime)
 
 - Container memory limit: **512MB** hard, 256MB reservation. Node.js flag: `--max-old-space-size=400`.
-- Caddy admin API is the control plane for tenant routing. Never modify Caddyfile directly at runtime.
 - Multi-stage Dockerfile: `deps` → `builder` → `runner`. The `runner` stage must copy standalone output + `public/` + `.next/static/` separately.
 
 ## Process

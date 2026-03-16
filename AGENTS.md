@@ -11,7 +11,7 @@ All agents MUST read this file at session start. No exceptions.
 | **CEO** | Conducts client interview, drafts Business Model Canvas, defines tenant scope |
 | **UI/UX** | Extracts Block Inventory from design requirements, defines layout structure |
 | **Payload Expert** | Executes Block-Driven Pipeline: schemas, renderers, collections, globals |
-| **DevOps** | Provisions Docker container, configures Caddy routing, manages deployments |
+| **DevOps** | Provisions PM2 process, configures HestiaCP Nginx proxy routing, manages deployments |
 
 ### Tier 2 -- Digital Team Agents (The Operators)
 
@@ -42,18 +42,39 @@ Agents may freely perform these actions:
 | Merge to `main` | Production impact | PR review |
 | Add new dependency | Supply chain risk | PR review |
 | Change `payload.config.ts` | Architectural | Explicit mention in plan |
-| Modify Docker/Caddy config | Infrastructure | Explicit approval |
+| Modify HestiaCP/Nginx config | Infrastructure | Explicit approval |
 | Deploy to production | Live client impact | Deployment flow |
 | Delete a collection | Data loss | Explicit approval |
 | Change auth/access control | Security | PR review + security flag |
 | Modify environment variables | Credential exposure | Explicit approval |
+
+## DevOps Agent Toolkit (Phase 1: HestiaCP + PM2)
+
+The DevOps agent provisions tenants using PM2 for process management and HestiaCP for domain routing and TLS.
+
+### Available Commands
+
+| Command | Purpose |
+|---------|---------|
+| `pm2 start ecosystem.config.js` | Start tenant process |
+| `pm2 reload ecosystem.config.js` | Zero-downtime reload |
+| `pm2 delete tenant-{id}` | Remove tenant process |
+| `v-add-web-domain {user} {domain}` | Register domain in HestiaCP |
+| `v-change-web-domain-tpl {user} {domain} {template}` | Apply Nginx proxy template |
+| `v-add-web-domain-ssl {user} {domain}` | Issue Let's Encrypt TLS cert |
+| `v-delete-web-domain {user} {domain}` | Remove domain from HestiaCP |
+
+### Stripped Commands (NOT available in Phase 1)
+
+- `docker build`, `docker run`, `docker-compose` — deferred to Phase 2
+- Caddy admin API calls — replaced by HestiaCP
 
 ## Tenant Isolation Rules (NEVER Violate)
 
 1. Factory agents MUST NOT access files outside assigned tenant repo
 2. Digital Team agents MUST NOT read/write to Golden Image repo
 3. No agent may access another tenant's database file
-4. No agent may modify Caddy routing for any tenant other than its own
+4. No agent may modify HestiaCP routing for any tenant other than its own
 5. Cross-tenant operations require platform-level human approval
 6. Each tenant's `.env` is isolated -- never copy between tenants
 

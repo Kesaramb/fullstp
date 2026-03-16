@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "payload": {
+      "source": "payloadcms/payload",
+      "sourceType": "github",
+      "computedHash": "72d39c67fd7f25ed377e273276b7262e60e874399f38846a374c482e4cf18403"
+    }
+  }
+}
