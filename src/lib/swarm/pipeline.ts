@@ -92,7 +92,14 @@ export class SwarmPipeline {
       })
     }
 
-    // ── Handoff ──
+    // ── Handoff (only if deployment succeeded or simulated) ──
+    const deployFailed = sshConfigured && deployResult && !deployResult.success
+    if (deployFailed) {
+      trackedLog('Factory', `Build finished with deployment error: ${deployResult?.error || 'unknown'}`, 'error')
+      emit('build_error', { error: deployResult?.error || 'Deployment failed' })
+      return
+    }
+
     trackedLog('Factory', 'Build complete. Handing off to Digital Team.', 'done')
     emit('build_complete', {
       handoff: {
@@ -102,13 +109,13 @@ export class SwarmPipeline {
         customerId: customerDoc?.id,
         deploymentId: deploymentDoc.id,
         bmcId: bmcDoc.id,
+        adminEmail: deployResult?.adminEmail,
+        adminPassword: deployResult?.adminPassword,
       },
     })
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // SWARM CONTENT GENERATION (primary path)
-  // ═══════════════════════════════════════════════════════════════
+  // ── Swarm Content Generation (primary path) ──
 
   private async swarmContentGeneration(bmc: BMC, log: LogFn): Promise<ContentPackage> {
     // Stage 2: Queen extracts strategy brief (Claude API)
@@ -129,13 +136,14 @@ export class SwarmPipeline {
     // Stage 4: Byzantine consensus + self-healing
     const design = this.memory.get('frontendDesign')!
     let finalContent = content
+    let currentSchema = schema
     let healAttempts = 0
 
     while (healAttempts <= MAX_HEAL_ATTEMPTS) {
       const consensus = await this.queen.validateConsensus(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         design as any,
-        schema,
+        currentSchema,
         this.memory,
         log
       )
@@ -153,14 +161,13 @@ export class SwarmPipeline {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const healed = await this.payloadExpert.convertToBlocks(design as any, this.memory, log)
       finalContent = healed.content
+      currentSchema = healed.schema // revalidate with the HEALED schema
     }
 
     return finalContent
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // FALLBACK CONTENT GENERATION (deterministic, no Claude API)
-  // ═══════════════════════════════════════════════════════════════
+  // ── Fallback Content Generation (deterministic, no Claude API) ──
 
   private fallbackContentGeneration(bmc: BMC, log: LogFn): ContentPackage {
     log('Factory', 'Using deterministic template pipeline...', 'running')
@@ -219,9 +226,7 @@ export class SwarmPipeline {
     return pkg
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // DEPLOY + SEED
-  // ═══════════════════════════════════════════════════════════════
+  // ── Deploy + Seed ──
 
   private async deploy(
     domain: string,
@@ -407,9 +412,7 @@ export class SwarmPipeline {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // PERSISTENCE (shared between swarm and fallback paths)
-  // ═══════════════════════════════════════════════════════════════
+  // ── Persistence (shared between swarm and fallback paths) ──
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async persistBMC(payload: any, bmc: BMC, strategyHistory: any[], log: LogFn) {

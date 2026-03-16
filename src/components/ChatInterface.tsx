@@ -46,10 +46,16 @@ function getBubbleRadius(isUser: boolean, position: MessagePosition): string {
 interface HandoffData {
   businessName: string
   domain: string
+  adminEmail?: string
+  adminPassword?: string
+}
+
+function hasAdminCreds(handoff?: HandoffData): boolean {
+  return Boolean(handoff?.adminEmail && handoff?.adminPassword)
 }
 
 function buildInitialMessages(handoff?: HandoffData): Message[] {
-  if (handoff) {
+  if (handoff && hasAdminCreds(handoff)) {
     return [
       { id: 'date-1', kind: 'date', text: 'Today' },
       {
@@ -65,6 +71,28 @@ function buildInitialMessages(handoff?: HandoffData): Message[] {
         kind: 'message',
         sender: 'agent',
         text: 'What would you like to change first?',
+        time: now(),
+        position: 'bottom',
+      },
+    ]
+  }
+
+  if (handoff && !hasAdminCreds(handoff)) {
+    return [
+      { id: 'date-1', kind: 'date', text: 'Today' },
+      {
+        id: 'msg-1',
+        kind: 'message',
+        sender: 'agent',
+        text: `Your site for ${handoff.businessName} has been built! 🎉\n\n📋 Domain: ${handoff.domain}\n\nThis was a simulated deployment — once it's live on a server, I'll be able to make real-time updates to your site right from this chat.`,
+        time: now(),
+        position: 'top',
+      },
+      {
+        id: 'msg-2',
+        kind: 'message',
+        sender: 'agent',
+        text: 'For now, you can explore the Payload admin panel to see your generated content.',
         time: now(),
         position: 'bottom',
       },
@@ -94,14 +122,15 @@ function buildInitialMessages(handoff?: HandoffData): Message[] {
 
 // ── SSE stream parser ─────────────────────────────────────────────────────────
 
-async function streamOrchestrator(
+async function streamOperations(
   messages: ConversationEntry[],
+  tenant: { domain: string; adminEmail: string; adminPassword: string },
   onEvent: (event: string, data: Record<string, unknown>) => void
 ): Promise<void> {
-  const response = await fetch('/api/orchestrate', {
+  const response = await fetch('/api/swarm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ mode: 'operations', messages, tenant }),
   })
 
   if (!response.ok || !response.body) {
@@ -180,16 +209,28 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
 
     let finalReply = ''
 
-    await streamOrchestrator(newHistory, (event, data) => {
+    // Guard: if no admin creds, don't hit the API
+    if (!hasAdminCreds(handoff)) {
+      const simMsg = "I can't make live changes right now — this site was deployed in simulation mode without server credentials. Once it's deployed to a real server, I'll be able to update it instantly from this chat."
+      setMessages(prev =>
+        prev.map(m => (m.id === typingId ? { ...m, text: simMsg, isTyping: false, time: now() } : m))
+      )
+      setHistory(prev => [...prev, { role: 'assistant', content: simMsg }])
+      setIsProcessing(false)
+      return
+    }
+
+    const tenant = {
+      domain: handoff?.domain || '',
+      adminEmail: handoff?.adminEmail || '',
+      adminPassword: handoff?.adminPassword || '',
+    }
+
+    await streamOperations(newHistory, tenant, (event, data) => {
       if (event === 'thinking') {
         const text = (data.text as string) || 'Thinking...'
         setMessages(prev =>
           prev.map(m => (m.id === typingId ? { ...m, text } : m))
-        )
-      } else if (event === 'tool_call') {
-        const label = (data.label as string) || 'Working on your site...'
-        setMessages(prev =>
-          prev.map(m => (m.id === typingId ? { ...m, text: label } : m))
         )
       } else if (event === 'message') {
         finalReply = (data.text as string) || ''

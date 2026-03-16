@@ -23,6 +23,8 @@ interface BMC {
 interface Handoff {
   businessName: string
   domain: string
+  adminEmail?: string
+  adminPassword?: string
 }
 
 interface ConversationEntry {
@@ -48,10 +50,10 @@ async function streamCEO(
   messages: ConversationEntry[],
   onEvent: (event: string, data: Record<string, unknown>) => void
 ): Promise<void> {
-  const response = await fetch('/api/orchestrate', {
+  const response = await fetch('/api/swarm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, phase: 'ceo' }),
+    body: JSON.stringify({ mode: 'conversation', messages }),
   })
 
   if (!response.ok || !response.body) {

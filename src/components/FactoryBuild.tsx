@@ -24,7 +24,7 @@ interface Props {
   bmc: BMC
   customer?: { name: string; email: string }
   strategyHistory?: { role: string; content: string }[]
-  onComplete: (handoff: { businessName: string; domain: string }) => void
+  onComplete: (handoff: { businessName: string; domain: string; adminEmail?: string; adminPassword?: string }) => void
 }
 
 const AGENT_COLORS: Record<string, string> = {
@@ -42,7 +42,7 @@ const buildCache = new Map<string, {
   logs: BuildLog[]
   isDone: boolean
   streamActive: boolean
-  handoff?: { businessName: string; domain: string }
+  handoff?: { businessName: string; domain: string; adminEmail?: string; adminPassword?: string }
 }>()
 
 export default function FactoryBuild({ bmc, customer, strategyHistory, onComplete }: Props) {
@@ -84,10 +84,10 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     buildCache.set(cacheKey, { logs: [], isDone: false, streamActive: true })
 
     async function stream() {
-      const response = await fetch('/api/factory-build', {
+      const response = await fetch('/api/swarm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bmc, customer, strategyHistory }),
+        body: JSON.stringify({ mode: 'pipeline', bmc, customer, strategyHistory }),
       })
 
       if (!response.ok) {
