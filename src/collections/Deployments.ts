@@ -103,5 +103,25 @@ export const Deployments: CollectionConfig = {
         description: 'Factory build log output.',
       },
     },
+    {
+      name: 'seedStatus',
+      type: 'select',
+      defaultValue: 'pending',
+      options: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Success', value: 'success' },
+        { label: 'Failed', value: 'failed' },
+        { label: 'Skipped', value: 'skipped' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    {
+      name: 'pagesSeeded',
+      type: 'number',
+      admin: {
+        description: 'Number of pages seeded to the deployed tenant.',
+        position: 'sidebar',
+      },
+    },
   ],
 }

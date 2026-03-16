@@ -96,7 +96,8 @@ export class SwarmPipeline {
     const deploymentDoc = await this.persistDeployment(
       payload, domain, port, deployStatus, customerDoc?.id, bmcDoc.id,
       contentPkg, buildLogs,
-      deployResult?.adminEmail, deployResult?.adminPassword
+      deployResult?.adminEmail, deployResult?.adminPassword,
+      deployResult?.pagesSeeded, deployResult?.globalsSeeded
     )
 
     // Customer state: only mark operational AFTER deploy + seed succeeded
@@ -247,17 +248,11 @@ export class SwarmPipeline {
       port = getNextPort(remoteUsedPorts)
       const secret = `fs-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-      deployResult = await deployTenant({ domain, port, payloadSecret: secret }, log)
+      deployResult = await deployTenant(
+        { domain, port, payloadSecret: secret, contentPackage: contentPkg }, log
+      )
       if (!deployResult.success) {
         log('DevOps', `Deployment failed: ${deployResult.error || 'Unknown error'}`, 'error')
-      }
-
-      // Seed content to deployed tenant
-      if (deployResult.success && deployResult.adminEmail && deployResult.adminPassword) {
-        log('Payload Expert', 'Seeding content to deployed tenant...', 'running')
-        await this.seedRemoteContent(
-          domain, contentPkg, deployResult.adminEmail, deployResult.adminPassword, log
-        )
       }
     } else {
       const fallbackPorts = [3001, 3002, 3003, 3004, 3005, 3006, 3007]
@@ -473,13 +468,18 @@ export class SwarmPipeline {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     customerId: any, bmcId: any, contentPkg: ContentPackage,
     buildLogs: { agent: string; text: string; status: string }[],
-    adminEmail?: string, adminPassword?: string
+    adminEmail?: string, adminPassword?: string,
+    pagesSeeded?: number, globalsSeeded?: number
   ) {
+    const seedStatus = pagesSeeded !== undefined
+      ? (pagesSeeded > 0 ? 'success' : 'failed')
+      : (status === 'simulated' ? 'skipped' : 'pending')
     const data: Record<string, unknown> = {
       domain, port, status, customer: customerId || undefined, bmc: bmcId,
       siteUrl: `http://${domain}`, adminUrl: `http://${domain}/admin`,
       pagesCreated: contentPkg.pages.map(p => ({ slug: p.slug, title: p.title })),
-      buildLogs, ...(adminEmail && { adminEmail }), ...(adminPassword && { adminPassword }),
+      buildLogs, seedStatus, ...(pagesSeeded !== undefined && { pagesSeeded }),
+      ...(adminEmail && { adminEmail }), ...(adminPassword && { adminPassword }),
     }
 
     const { docs: existing } = await payload.find({

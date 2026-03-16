@@ -12,11 +12,14 @@
  *   DEPLOY_SSH_PASS    — SSH password (fallback if no key)
  */
 
+import type { ContentPackage } from '@/lib/swarm/types'
+
 export interface DeployConfig {
   domain: string
   port: number
   payloadSecret: string
   templateDomain?: string
+  contentPackage?: ContentPackage
 }
 
 export interface DeployResult {
@@ -27,6 +30,8 @@ export interface DeployResult {
   error?: string
   adminEmail?: string
   adminPassword?: string
+  pagesSeeded?: number
+  globalsSeeded?: number
 }
 
 const SERVER_IP = '167.86.81.161'
@@ -353,31 +358,7 @@ export async function deployTenant(
       log('DevOps', 'Dependencies installed.', 'done')
     }
 
-    // ── Step 7: Build ──
-    log('DevOps', 'Building application (pnpm build)...', 'running')
-    const buildOutput = await exec(ssh,
-      `cd ${nodeappPath} && pnpm build 2>&1 | tail -10`,
-      600000, // 10 min timeout for build
-      { log, label: 'Building application' }
-    )
-    if (buildOutput.toLowerCase().includes('error') && !buildOutput.includes('error.log')) {
-      log('DevOps', `Build issue: ${buildOutput.trim().slice(-300)}`, 'error')
-      await cleanupResources(ssh, domain, dbName, log, resources)
-      ssh.dispose()
-      return { success: false, domain, port, logs, error: buildOutput.trim().slice(-300) }
-    }
-    log('DevOps', 'Build complete — standalone output ready.', 'done')
-
-    // ── Step 7b: Copy static assets into standalone directory ──
-    log('DevOps', 'Copying static assets to standalone directory...', 'running')
-    await exec(ssh, [
-      `cp -r ${nodeappPath}/public ${nodeappPath}/.next/standalone/public 2>/dev/null || true`,
-      `mkdir -p ${nodeappPath}/.next/standalone/.next`,
-      `cp -r ${nodeappPath}/.next/static ${nodeappPath}/.next/standalone/.next/static`,
-    ].join(' && '))
-    log('DevOps', 'Static assets copied.', 'done')
-
-    // ── Step 8: Run database migration ──
+    // ── Step 7: Run database migration (BEFORE build — generateStaticParams needs tables) ──
     log('DevOps', 'Running database migrations...', 'running')
     const migrateOutput = await exec(ssh,
       `cd ${nodeappPath} && npx payload migrate 2>&1 | tail -10`,
@@ -388,6 +369,41 @@ export async function deployTenant(
     } else {
       log('DevOps', 'Database tables created.', 'done')
     }
+
+    // ── Step 8: Build ──
+    log('DevOps', 'Building application (pnpm build)...', 'running')
+    const buildOutput = await exec(ssh,
+      `cd ${nodeappPath} && pnpm build 2>&1 | tail -20`,
+      600000, // 10 min timeout for build
+      { log, label: 'Building application' }
+    )
+    if (buildOutput.toLowerCase().includes('error') && !buildOutput.includes('error.log')) {
+      log('DevOps', `Build failed: ${buildOutput.trim().slice(-300)}`, 'error')
+      await cleanupResources(ssh, domain, dbName, log, resources)
+      ssh.dispose()
+      return { success: false, domain, port, logs, error: buildOutput.trim().slice(-300) }
+    }
+    // Verify standalone output was produced
+    const standaloneCheck = await exec(ssh,
+      `test -f ${nodeappPath}/.next/standalone/server.js && echo 'OK' || echo 'MISSING'`
+    )
+    if (standaloneCheck.trim() !== 'OK') {
+      const buildErr = await exec(ssh, `cd ${nodeappPath} && pnpm build 2>&1 | tail -30`, 300000)
+      log('DevOps', `Build produced no standalone output. Last output: ${buildErr.trim().slice(-400)}`, 'error')
+      await cleanupResources(ssh, domain, dbName, log, resources)
+      ssh.dispose()
+      return { success: false, domain, port, logs, error: 'Build did not produce .next/standalone/server.js' }
+    }
+    log('DevOps', 'Build complete — standalone output verified.', 'done')
+
+    // ── Step 8b: Copy static assets into standalone directory ──
+    log('DevOps', 'Copying static assets to standalone directory...', 'running')
+    await exec(ssh, [
+      `cp -r ${nodeappPath}/public ${nodeappPath}/.next/standalone/public 2>/dev/null || true`,
+      `mkdir -p ${nodeappPath}/.next/standalone/.next`,
+      `cp -r ${nodeappPath}/.next/static ${nodeappPath}/.next/standalone/.next/static`,
+    ].join(' && '))
+    log('DevOps', 'Static assets copied.', 'done')
 
     // ── Step 9: Start PM2 (ecosystem file provides all env vars) ──
     log('DevOps', `Starting PM2 process on port ${port}...`, 'running')
@@ -415,19 +431,111 @@ export async function deployTenant(
     if (healthy) {
       log('DevOps', 'Health check passed — Payload CMS responding.', 'done')
     } else {
-      log('DevOps', 'Health check: API not responding yet (PM2 may still be starting).', 'error')
+      // Diagnostic: check PM2 status and port binding
+      const pm2Status = await exec(ssh, `pm2 show "${domain}" 2>/dev/null | grep -E 'status|restarts|script' || echo 'NO_PROCESS'`)
+      const portCheck = await exec(ssh, `ss -tlnp | grep ${port} || echo 'PORT_NOT_LISTENING'`)
+      const pm2Errors = await exec(ssh, `pm2 logs "${domain}" --lines 15 --nostream --err 2>/dev/null || echo 'no error logs'`)
+      log('DevOps', `Health check failed. PM2: ${pm2Status.trim().replace(/\n/g, ' | ')}`, 'error')
+      log('DevOps', `Port ${port}: ${portCheck.trim()}`, 'error')
+      log('DevOps', `PM2 errors: ${pm2Errors.trim().slice(0, 300)}`, 'error')
     }
 
     const adminEmail = `admin@${domain.split('.')[0]}.co`
     const adminPass = generatePassword()
     log('DevOps', `Creating admin user (${adminEmail})...`, 'running')
     const userJson = JSON.stringify({ email: adminEmail, password: adminPass })
-    await exec(ssh, [
-      `printf '%s' '${userJson.replace(/'/g, "'\\''")}' > /tmp/admin-user.json`,
-      `curl -s -X POST http://127.0.0.1:${port}/api/users/first-register -H 'Content-Type: application/json' -d @/tmp/admin-user.json 2>&1 | head -1`,
-      `rm -f /tmp/admin-user.json`,
-    ].join(' && '), 30000)
-    log('DevOps', `Admin user created: ${adminEmail}`, 'done')
+    await exec(ssh, `printf '%s' '${userJson.replace(/'/g, "'\\''")}' > /tmp/admin-user.json`)
+    const registerResult = await exec(ssh,
+      `curl -s -w '\\n%{http_code}' -X POST http://127.0.0.1:${port}/api/users/first-register -H 'Content-Type: application/json' -d @/tmp/admin-user.json --max-time 30 2>&1`,
+      35000
+    )
+    await exec(ssh, `rm -f /tmp/admin-user.json`)
+    const registerLines = registerResult.trim().split('\n')
+    const registerStatus = registerLines[registerLines.length - 1]
+    if (['200', '201'].includes(registerStatus)) {
+      log('DevOps', `Admin user created: ${adminEmail}`, 'done')
+    } else {
+      log('DevOps', `Admin user creation response: HTTP ${registerStatus} — ${registerLines.slice(0, -1).join('').slice(0, 200)}`, 'error')
+    }
+
+    // ── Step 10: Seed content server-side (if content package provided) ──
+    let pagesSeeded = 0
+    let globalsSeeded = 0
+    if (deployConfig.contentPackage) {
+      log('Payload Expert', 'Seeding content via server-side API...', 'running')
+
+      // Wait for API to be ready before seeding (PM2 cold start)
+      let apiReady = false
+      for (let i = 0; i < 15; i++) {
+        const code = await exec(ssh,
+          `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${port}/api/users --max-time 5 2>/dev/null || echo "000"`
+        )
+        if (['200', '401', '403'].includes(code.trim())) { apiReady = true; break }
+        log('Payload Expert', `Waiting for API... (${(i + 1) * 4}s)`, 'running')
+        await sleep(4000)
+      }
+      if (!apiReady) {
+        const pm2Errors = await exec(ssh, `pm2 logs "${domain}" --lines 20 --nostream --err 2>/dev/null || echo 'no logs'`)
+        const portCheck = await exec(ssh, `ss -tlnp | grep ${port} || echo 'PORT_NOT_LISTENING'`)
+        log('Payload Expert', `API not ready after 60s. Port: ${portCheck.trim()}`, 'error')
+        log('Payload Expert', `PM2 errors: ${pm2Errors.trim().slice(0, 400)}`, 'error')
+      }
+
+      // Login to get JWT token
+      let token: string | null = null
+      if (apiReady) {
+        const loginB64 = Buffer.from(JSON.stringify({ email: adminEmail, password: adminPass })).toString('base64')
+        await exec(ssh, `echo '${loginB64}' | base64 -d > /tmp/seed-login.json`)
+        const loginResult = await exec(ssh,
+          `curl -s -X POST http://127.0.0.1:${port}/api/users/login -H 'Content-Type: application/json' -d @/tmp/seed-login.json`,
+          30000
+        )
+        await exec(ssh, 'rm -f /tmp/seed-login.json')
+
+        try {
+          const parsed = JSON.parse(loginResult)
+          token = parsed.token || null
+        } catch {
+          log('Payload Expert', `Login response not JSON: ${loginResult.slice(0, 200)}`, 'error')
+        }
+      }
+
+      if (token) {
+        const authArgs = `-H 'Authorization: JWT ${token}' -H 'Content-Type: application/json'`
+
+        // Seed globals
+        const globals: { slug: string; data: unknown }[] = [
+          { slug: 'site-settings', data: deployConfig.contentPackage.globals.siteSettings },
+          { slug: 'header', data: deployConfig.contentPackage.globals.header },
+          { slug: 'footer', data: deployConfig.contentPackage.globals.footer },
+        ]
+        for (const g of globals) {
+          const b64 = Buffer.from(JSON.stringify(g.data)).toString('base64')
+          await exec(ssh, `echo '${b64}' | base64 -d > /tmp/seed-global.json`)
+          const status = await exec(ssh,
+            `curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${port}/api/globals/${g.slug} ${authArgs} -d @/tmp/seed-global.json`
+          )
+          await exec(ssh, 'rm -f /tmp/seed-global.json')
+          if (['200', '201'].includes(status.trim())) globalsSeeded++
+        }
+        log('Payload Expert', `${globalsSeeded}/3 globals configured.`, globalsSeeded > 0 ? 'done' : 'error')
+
+        // Seed pages
+        for (const page of deployConfig.contentPackage.pages) {
+          const pageData = { ...page, _status: 'published' }
+          const b64 = Buffer.from(JSON.stringify(pageData)).toString('base64')
+          await exec(ssh, `echo '${b64}' | base64 -d > /tmp/seed-page.json`)
+          const status = await exec(ssh,
+            `curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${port}/api/pages ${authArgs} -d @/tmp/seed-page.json`
+          )
+          await exec(ssh, 'rm -f /tmp/seed-page.json')
+          if (['200', '201'].includes(status.trim())) pagesSeeded++
+        }
+        log('Payload Expert', `${pagesSeeded}/${deployConfig.contentPackage.pages.length} pages seeded.`, pagesSeeded > 0 ? 'done' : 'error')
+      } else {
+        log('Payload Expert', 'Could not authenticate for seeding — skipped.', 'error')
+      }
+    }
 
     // ── Step 11: Permissions & rebuild ──
     await exec(ssh, `chown -R admin:admin /home/admin/web/${domain}/`)
@@ -456,7 +564,7 @@ export async function deployTenant(
     }
 
     ssh.dispose()
-    return { success: true, domain, port, logs, adminEmail, adminPassword: adminPass }
+    return { success: true, domain, port, logs, adminEmail, adminPassword: adminPass, pagesSeeded, globalsSeeded }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     log('DevOps', `SSH error: ${msg}`, 'error')
