@@ -139,14 +139,30 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: 'deploymentId required' }), { status: 400 })
     }
 
-    // Resolve tenant credentials server-side — browser never sees them
+    // ── Auth gate: require authenticated Payload session ──
     const payload = await getPayload({ config })
+    const { user } = await payload.auth({ headers: req.headers })
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized — Payload session required' }), { status: 401 })
+    }
+
+    // Resolve tenant credentials server-side (Local API bypasses hidden field restrictions)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let deployment: any
     try {
-      deployment = await payload.findByID({ collection: 'deployments', id: deploymentId })
+      deployment = await payload.findByID({ collection: 'deployments', id: deploymentId, overrideAccess: true })
     } catch {
       return new Response(JSON.stringify({ error: 'Deployment not found' }), { status: 404 })
+    }
+
+    // ── Ownership check: deployment must belong to an active customer ──
+    if (deployment.customer) {
+      try {
+        const customer = await payload.findByID({ collection: 'customers', id: typeof deployment.customer === 'string' ? deployment.customer : deployment.customer.id, overrideAccess: true })
+        if (customer.phase === 'churned') {
+          return new Response(JSON.stringify({ error: 'Tenant is no longer active' }), { status: 403 })
+        }
+      } catch { /* customer lookup failed — non-fatal for now */ }
     }
 
     if (deployment.status === 'simulated') {

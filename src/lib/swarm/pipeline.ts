@@ -100,12 +100,18 @@ export class SwarmPipeline {
       deployResult?.pagesSeeded, deployResult?.globalsSeeded
     )
 
-    // Customer state: only mark operational AFTER deploy + seed succeeded
+    // Customer state: only mark operational if deploy succeeded AND content fully seeded
     if (customerDoc) {
-      const customerData = sshConfigured
+      const pSeeded = deployResult?.pagesSeeded ?? 0
+      const gSeeded = deployResult?.globalsSeeded ?? 0
+      const allSeeded = pSeeded === contentPkg.pages.length && gSeeded === 3
+      const customerData = (sshConfigured && allSeeded)
         ? { phase: 'operational' as const, deployment: deploymentDoc.id }
-        : { deployment: deploymentDoc.id } // simulated: stay at 'building'
+        : { deployment: deploymentDoc.id } // partial/failed seed or simulated: stay at 'building'
       await payload.update({ collection: 'customers', id: customerDoc.id, data: customerData })
+      if (sshConfigured && !allSeeded) {
+        trackedLog('Factory', `Partial seed (${pSeeded} pages, ${gSeeded} globals) — customer stays in building phase.`, 'error')
+      }
     }
 
     // ── Handoff: never send admin creds to browser ──
@@ -471,8 +477,13 @@ export class SwarmPipeline {
     adminEmail?: string, adminPassword?: string,
     pagesSeeded?: number, globalsSeeded?: number
   ) {
+    // Strict seed gate: 'success' only when ALL pages and globals made it
+    const expectedPages = contentPkg.pages.length
+    const expectedGlobals = 3
+    const fullySeeded = pagesSeeded !== undefined && globalsSeeded !== undefined
+      && pagesSeeded === expectedPages && globalsSeeded === expectedGlobals
     const seedStatus = pagesSeeded !== undefined
-      ? (pagesSeeded > 0 ? 'success' : 'failed')
+      ? (fullySeeded ? 'success' : (pagesSeeded > 0 || (globalsSeeded ?? 0) > 0 ? 'partial' : 'failed'))
       : (status === 'simulated' ? 'skipped' : 'pending')
     const data: Record<string, unknown> = {
       domain, port, status, customer: customerId || undefined, bmc: bmcId,

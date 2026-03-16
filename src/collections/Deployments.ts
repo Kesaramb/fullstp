@@ -1,4 +1,11 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, PayloadRequest } from 'payload'
+
+/**
+ * Admin-only access: only authenticated Payload users (admin panel).
+ * The SwarmPipeline uses payload.create/update (Local API), which
+ * bypasses collection access control, so the pipeline still works.
+ */
+const isAdmin = ({ req }: { req: PayloadRequest }) => Boolean(req.user)
 
 export const Deployments: CollectionConfig = {
   slug: 'deployments',
@@ -7,10 +14,10 @@ export const Deployments: CollectionConfig = {
     defaultColumns: ['domain', 'port', 'status', 'createdAt'],
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: isAdmin,
+    create: isAdmin,
+    update: isAdmin,
+    delete: isAdmin,
   },
   fields: [
     {
@@ -81,6 +88,7 @@ export const Deployments: CollectionConfig = {
     {
       name: 'adminEmail',
       type: 'text',
+      hidden: true, // Never serialized to REST/GraphQL responses
       admin: {
         description: 'Tenant admin email — server-side only, never sent to browser.',
         position: 'sidebar',
@@ -90,6 +98,7 @@ export const Deployments: CollectionConfig = {
     {
       name: 'adminPassword',
       type: 'text',
+      hidden: true, // Never serialized to REST/GraphQL responses
       admin: {
         description: 'Tenant admin password — server-side only, never sent to browser.',
         position: 'sidebar',
@@ -110,6 +119,7 @@ export const Deployments: CollectionConfig = {
       options: [
         { label: 'Pending', value: 'pending' },
         { label: 'Success', value: 'success' },
+        { label: 'Partial', value: 'partial' },
         { label: 'Failed', value: 'failed' },
         { label: 'Skipped', value: 'skipped' },
       ],

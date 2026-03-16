@@ -33,16 +33,35 @@ interface Mutation {
 
 export class SiteOps {
   private client: Anthropic
+  private urlCache = new Map<string, string>()
 
   constructor(apiKey: string) {
     this.client = new Anthropic({ apiKey })
+  }
+
+  /** Resolve the base URL for a tenant, trying HTTPS first (handles force-SSL). */
+  private async resolveBaseUrl(domain: string): Promise<string> {
+    if (this.urlCache.has(domain)) return this.urlCache.get(domain)!
+    // Try HTTPS first (most deployed domains have force-SSL)
+    try {
+      const res = await fetch(`https://${domain}/api/users`, {
+        signal: AbortSignal.timeout(5000),
+      })
+      if (res.status !== 502) {
+        this.urlCache.set(domain, `https://${domain}`)
+        return `https://${domain}`
+      }
+    } catch { /* HTTPS not available */ }
+    const url = `http://${domain}`
+    this.urlCache.set(domain, url)
+    return url
   }
 
   async chat(
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     tenant: TenantContext
   ): Promise<{ text: string }> {
-    const baseUrl = `http://${tenant.domain}`
+    const baseUrl = await this.resolveBaseUrl(tenant.domain)
 
     // 1. Authenticate with tenant
     const token = await this.login(baseUrl, tenant.adminEmail, tenant.adminPassword)
@@ -83,13 +102,17 @@ export class SiteOps {
     // 4. Extract and validate mutations from fenced JSON block
     const mutations = this.extractMutations(text)
 
-    // 5. Apply mutations to tenant
+    // 5. Apply mutations to tenant — failures are reported, not swallowed
+    let mutationReport = ''
     if (mutations.length > 0) {
-      await this.applyMutations(baseUrl, auth, mutations)
+      const failures = await this.applyMutations(baseUrl, auth, mutations)
+      if (failures.length > 0) {
+        mutationReport = `\n\n[Mutation errors: ${failures.join(' | ')}]`
+      }
     }
 
-    // 6. Return text response (stripped of JSON block)
-    return { text: this.stripJsonBlocks(text) }
+    // 6. Return text response (stripped of JSON block) + any mutation failures
+    return { text: this.stripJsonBlocks(text) + mutationReport }
   }
 
   private async login(baseUrl: string, email: string, password: string): Promise<string | null> {
@@ -98,8 +121,24 @@ export class SiteOps {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        redirect: 'manual', // Don't follow redirects for POST (would convert to GET)
         signal: AbortSignal.timeout(10000),
       })
+      // If redirected to HTTPS, retry with HTTPS directly
+      if ([301, 302, 307, 308].includes(res.status)) {
+        const location = res.headers.get('location')
+        if (location) {
+          const retryRes = await fetch(location, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+            signal: AbortSignal.timeout(10000),
+          })
+          if (!retryRes.ok) return null
+          const data = await retryRes.json()
+          return data.token || null
+        }
+      }
       if (!res.ok) return null
       const { token } = await res.json()
       return token || null
@@ -154,25 +193,27 @@ export class SiteOps {
     baseUrl: string,
     auth: Record<string, string>,
     mutations: Mutation[]
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const failures: string[] = []
+
     for (const m of mutations) {
       try {
+        let res: Response | undefined
         switch (m.type) {
           case 'update_page': {
-            // Find page by slug, then update
             const findRes = await fetch(
               `${baseUrl}/api/pages?where[slug][equals]=${m.slug}&limit=1`,
               { headers: auth, signal: AbortSignal.timeout(8000) }
             )
-            if (!findRes.ok) break
+            if (!findRes.ok) { failures.push(`update_page "${m.slug}": find failed (${findRes.status})`); break }
             const { docs } = await findRes.json()
-            if (!docs?.[0]) break
+            if (!docs?.[0]) { failures.push(`update_page "${m.slug}": page not found`); break }
 
             const updateData: Record<string, unknown> = {}
             if (m.title) updateData.title = m.title
             if (m.layout) updateData.layout = m.layout
 
-            await fetch(`${baseUrl}/api/pages/${docs[0].id}`, {
+            res = await fetch(`${baseUrl}/api/pages/${docs[0].id}`, {
               method: 'PATCH',
               headers: auth,
               body: JSON.stringify(updateData),
@@ -182,7 +223,7 @@ export class SiteOps {
           }
 
           case 'create_page': {
-            await fetch(`${baseUrl}/api/pages`, {
+            res = await fetch(`${baseUrl}/api/pages`, {
               method: 'POST',
               headers: auth,
               body: JSON.stringify({
@@ -200,7 +241,7 @@ export class SiteOps {
             const data: Record<string, unknown> = {}
             if (m.siteName) data.siteName = m.siteName
             if (m.siteDescription) data.siteDescription = m.siteDescription
-            await fetch(`${baseUrl}/api/globals/site-settings`, {
+            res = await fetch(`${baseUrl}/api/globals/site-settings`, {
               method: 'POST',
               headers: auth,
               body: JSON.stringify(data),
@@ -212,7 +253,7 @@ export class SiteOps {
           case 'update_header': {
             const data: Record<string, unknown> = {}
             if (m.navLinks) data.navLinks = m.navLinks
-            await fetch(`${baseUrl}/api/globals/header`, {
+            res = await fetch(`${baseUrl}/api/globals/header`, {
               method: 'POST',
               headers: auth,
               body: JSON.stringify(data),
@@ -225,7 +266,7 @@ export class SiteOps {
             const data: Record<string, unknown> = {}
             if (m.copyright) data.copyright = m.copyright
             if (m.footerLinks) data.footerLinks = m.footerLinks
-            await fetch(`${baseUrl}/api/globals/footer`, {
+            res = await fetch(`${baseUrl}/api/globals/footer`, {
               method: 'POST',
               headers: auth,
               body: JSON.stringify(data),
@@ -234,9 +275,17 @@ export class SiteOps {
             break
           }
         }
-      } catch {
-        // Best-effort: continue applying remaining mutations
+
+        if (res && !res.ok) {
+          const errorText = await res.text().catch(() => '')
+          failures.push(`${m.type}${m.slug ? ` "${m.slug}"` : ''}: HTTP ${res.status} — ${errorText.slice(0, 150)}`)
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        failures.push(`${m.type}${m.slug ? ` "${m.slug}"` : ''}: ${msg}`)
       }
     }
+
+    return failures
   }
 }

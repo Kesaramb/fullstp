@@ -50,6 +50,7 @@ function getSSHConfig() {
   return {
     host,
     username,
+    readyTimeout: 15000, // 15s max for SSH handshake
     ...(privateKeyPath ? { privateKeyPath } : { password }),
   }
 }
@@ -237,23 +238,31 @@ export async function deployTenant(
 
   try {
     const ssh = await getSSHClient()
-    await ssh.connect(sshConfig)
-    log('DevOps', `Connected to ${sshConfig.host}`, 'done')
+    const connectStart = Date.now()
+    await Promise.race([
+      ssh.connect(sshConfig),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SSH connect timed out (20s)')), 20000)
+      ),
+    ])
+    log('DevOps', `Connected to ${sshConfig.host} (${Date.now() - connectStart}ms)`, 'done')
 
-    // ── Check if domain already exists ──
+    // ── Check if domain already exists (HestiaCP + filesystem) ──
     log('DevOps', `Checking if ${domain} already exists...`, 'running')
+    const existCheckStart = Date.now()
     const checkResult = await exec(ssh,
-      `ls ${nodeappPath}/.env 2>/dev/null && echo "EXISTS" || echo "NEW"`
+      `${HESTIA_BIN} && v-list-web-domain admin ${domain} 2>/dev/null | grep -q '${domain}' && echo "EXISTS" || (test -d ${nodeappPath} && echo "EXISTS" || echo "NEW")`
     )
+    const existCheckMs = Date.now() - existCheckStart
     if (checkResult.trim() === 'EXISTS') {
-      log('DevOps', `Domain ${domain} already provisioned — update flow not implemented.`, 'error')
+      log('DevOps', `Domain ${domain} already provisioned (checked in ${existCheckMs}ms) — update flow not implemented.`, 'error')
       ssh.dispose()
       return {
         success: false, domain, port, logs,
         error: `Domain ${domain} already exists. In-place updates are not yet supported — delete the existing deployment first or use a new business name.`,
       }
     }
-    log('DevOps', 'Domain is new — provisioning.', 'done')
+    log('DevOps', `Domain is new — provisioning (existence check: ${existCheckMs}ms).`, 'done')
 
     // ── Step 1: Create PostgreSQL database ──
     log('DevOps', `Creating PostgreSQL database admin_${dbName}...`, 'running')
@@ -525,11 +534,18 @@ export async function deployTenant(
           const pageData = { ...page, _status: 'published' }
           const b64 = Buffer.from(JSON.stringify(pageData)).toString('base64')
           await exec(ssh, `echo '${b64}' | base64 -d > /tmp/seed-page.json`)
-          const status = await exec(ssh,
-            `curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${port}/api/pages ${authArgs} -d @/tmp/seed-page.json`
+          const seedResult = await exec(ssh,
+            `curl -s -w '\\n%{http_code}' -X POST http://127.0.0.1:${port}/api/pages ${authArgs} -d @/tmp/seed-page.json`
           )
           await exec(ssh, 'rm -f /tmp/seed-page.json')
-          if (['200', '201'].includes(status.trim())) pagesSeeded++
+          const seedLines = seedResult.trim().split('\n')
+          const seedStatus = seedLines[seedLines.length - 1]
+          if (['200', '201'].includes(seedStatus.trim())) {
+            pagesSeeded++
+          } else {
+            const body = seedLines.slice(0, -1).join('')
+            log('Payload Expert', `Page "${page.slug}" seed failed (HTTP ${seedStatus}): ${body.slice(0, 300)}`, 'error')
+          }
         }
         log('Payload Expert', `${pagesSeeded}/${deployConfig.contentPackage.pages.length} pages seeded.`, pagesSeeded > 0 ? 'done' : 'error')
       } else {
@@ -568,12 +584,20 @@ export async function deployTenant(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     log('DevOps', `SSH error: ${msg}`, 'error')
-    try {
-      const ssh = await getSSHClient()
-      await ssh.connect(sshConfig)
-      await cleanupResources(ssh, domain, dbName, log, resources)
-      ssh.dispose()
-    } catch { /* cleanup is best-effort */ }
+    // Only attempt cleanup if resources were actually created
+    if (resources.dbCreated || resources.domainCreated) {
+      try {
+        const cleanupSsh = await getSSHClient()
+        await Promise.race([
+          cleanupSsh.connect(sshConfig),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Cleanup SSH timed out')), 15000)
+          ),
+        ])
+        await cleanupResources(cleanupSsh, domain, dbName, log, resources)
+        cleanupSsh.dispose()
+      } catch { /* cleanup is best-effort */ }
+    }
     return { success: false, domain, port, logs, error: msg }
   }
 }
