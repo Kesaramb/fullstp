@@ -241,10 +241,12 @@ export async function deployTenant(
       `ls ${nodeappPath}/.env 2>/dev/null && echo "EXISTS" || echo "NEW"`
     )
     if (checkResult.trim() === 'EXISTS') {
-      log('DevOps', `Domain ${domain} already provisioned — restarting PM2.`, 'done')
-      await exec(ssh, `pm2 restart "${domain}" 2>/dev/null || true`)
+      log('DevOps', `Domain ${domain} already provisioned — update flow not implemented.`, 'error')
       ssh.dispose()
-      return { success: true, domain, port, logs }
+      return {
+        success: false, domain, port, logs,
+        error: `Domain ${domain} already exists. In-place updates are not yet supported — delete the existing deployment first or use a new business name.`,
+      }
     }
     log('DevOps', 'Domain is new — provisioning.', 'done')
 

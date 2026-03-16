@@ -23,8 +23,7 @@ interface BMC {
 interface Handoff {
   businessName: string
   domain: string
-  adminEmail?: string
-  adminPassword?: string
+  deploymentId?: string
 }
 
 interface ConversationEntry {

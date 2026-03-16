@@ -24,7 +24,7 @@ interface Props {
   bmc: BMC
   customer?: { name: string; email: string }
   strategyHistory?: { role: string; content: string }[]
-  onComplete: (handoff: { businessName: string; domain: string; adminEmail?: string; adminPassword?: string }) => void
+  onComplete: (handoff: { businessName: string; domain: string; deploymentId?: string }) => void
 }
 
 const AGENT_COLORS: Record<string, string> = {
@@ -42,7 +42,7 @@ const buildCache = new Map<string, {
   logs: BuildLog[]
   isDone: boolean
   streamActive: boolean
-  handoff?: { businessName: string; domain: string; adminEmail?: string; adminPassword?: string }
+  handoff?: { businessName: string; domain: string; deploymentId?: string }
 }>()
 
 export default function FactoryBuild({ bmc, customer, strategyHistory, onComplete }: Props) {

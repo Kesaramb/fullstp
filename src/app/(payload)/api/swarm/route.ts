@@ -9,6 +9,8 @@
  * operations:   post-deploy site management (SiteOps.chat)
  */
 
+import { getPayload } from 'payload'
+import config from '@payload-config'
 import { SwarmPipeline } from '@/lib/swarm/pipeline'
 import { QueenAgent } from '@/lib/swarm/queen'
 import { SiteOps } from '@/lib/swarm/site-ops'
@@ -128,13 +130,42 @@ export async function POST(req: Request) {
   // ══════════════════════════════════════════════════════
   if (mode === 'operations') {
     const messages: Array<{ role: 'user' | 'assistant'; content: string }> = body.messages
-    const tenant = body.tenant as { domain: string; adminEmail: string; adminPassword: string } | undefined
+    const deploymentId: string | undefined = body.deploymentId
 
     if (!messages?.length) {
       return new Response(JSON.stringify({ error: 'messages required' }), { status: 400 })
     }
-    if (!tenant?.domain) {
-      return new Response(JSON.stringify({ error: 'tenant.domain required' }), { status: 400 })
+    if (!deploymentId) {
+      return new Response(JSON.stringify({ error: 'deploymentId required' }), { status: 400 })
+    }
+
+    // Resolve tenant credentials server-side — browser never sees them
+    const payload = await getPayload({ config })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let deployment: any
+    try {
+      deployment = await payload.findByID({ collection: 'deployments', id: deploymentId })
+    } catch {
+      return new Response(JSON.stringify({ error: 'Deployment not found' }), { status: 404 })
+    }
+
+    if (deployment.status === 'simulated') {
+      return new Response(
+        JSON.stringify({ error: 'Operations mode is not available for simulated deployments' }),
+        { status: 400 }
+      )
+    }
+    if (!deployment.adminEmail || !deployment.adminPassword || !deployment.domain) {
+      return new Response(
+        JSON.stringify({ error: 'Deployment is missing tenant credentials' }),
+        { status: 400 }
+      )
+    }
+
+    const tenant = {
+      domain: deployment.domain as string,
+      adminEmail: deployment.adminEmail as string,
+      adminPassword: deployment.adminPassword as string,
     }
 
     const stream = new ReadableStream({

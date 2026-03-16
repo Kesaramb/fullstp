@@ -78,39 +78,42 @@ export class SwarmPipeline {
     // ── Deploy + Seed ──
     const { port, sshConfigured, deployResult } = await this.deploy(domain, contentPkg, trackedLog)
 
-    // ── Persist Deployment Record ──
-    const deploymentDoc = await this.persistDeployment(
-      payload, domain, port, sshConfigured, customerDoc?.id, bmcDoc.id,
-      contentPkg, buildLogs
-    )
-
-    if (customerDoc) {
-      await payload.update({
-        collection: 'customers',
-        id: customerDoc.id,
-        data: { phase: 'operational', deployment: deploymentDoc.id },
-      })
-    }
-
-    // ── Handoff (only if deployment succeeded or simulated) ──
+    // ── Check deploy success before finalising state ──
     const deployFailed = sshConfigured && deployResult && !deployResult.success
     if (deployFailed) {
+      // Persist failed deployment for audit trail
+      await this.persistDeployment(
+        payload, domain, port, 'error', customerDoc?.id, bmcDoc.id,
+        contentPkg, buildLogs, undefined, undefined
+      )
       trackedLog('Factory', `Build finished with deployment error: ${deployResult?.error || 'unknown'}`, 'error')
       emit('build_error', { error: deployResult?.error || 'Deployment failed' })
       return
     }
 
+    // ── Persist Deployment Record (status reflects reality) ──
+    const deployStatus = sshConfigured ? 'running' as const : 'simulated' as const
+    const deploymentDoc = await this.persistDeployment(
+      payload, domain, port, deployStatus, customerDoc?.id, bmcDoc.id,
+      contentPkg, buildLogs,
+      deployResult?.adminEmail, deployResult?.adminPassword
+    )
+
+    // Customer state: only mark operational AFTER deploy + seed succeeded
+    if (customerDoc) {
+      const customerData = sshConfigured
+        ? { phase: 'operational' as const, deployment: deploymentDoc.id }
+        : { deployment: deploymentDoc.id } // simulated: stay at 'building'
+      await payload.update({ collection: 'customers', id: customerDoc.id, data: customerData })
+    }
+
+    // ── Handoff: never send admin creds to browser ──
     trackedLog('Factory', 'Build complete. Handing off to Digital Team.', 'done')
     emit('build_complete', {
       handoff: {
         businessName: bmc.businessName,
-        industry: bmc.industry,
         domain,
-        customerId: customerDoc?.id,
         deploymentId: deploymentDoc.id,
-        bmcId: bmcDoc.id,
-        adminEmail: deployResult?.adminEmail,
-        adminPassword: deployResult?.adminPassword,
       },
     })
   }
@@ -463,22 +466,20 @@ export class SwarmPipeline {
     return customerDoc
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async persistDeployment(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: any, domain: string, port: number, sshConfigured: boolean,
+    payload: any, domain: string, port: number, status: 'running' | 'simulated' | 'error',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     customerId: any, bmcId: any, contentPkg: ContentPackage,
-    buildLogs: { agent: string; text: string; status: string }[]
+    buildLogs: { agent: string; text: string; status: string }[],
+    adminEmail?: string, adminPassword?: string
   ) {
-    const data = {
-      domain, port,
-      status: sshConfigured ? 'running' as const : 'provisioning' as const,
-      customer: customerId || undefined,
-      bmc: bmcId,
-      siteUrl: `http://${domain}`,
-      adminUrl: `http://${domain}/admin`,
+    const data: Record<string, unknown> = {
+      domain, port, status, customer: customerId || undefined, bmc: bmcId,
+      siteUrl: `http://${domain}`, adminUrl: `http://${domain}/admin`,
       pagesCreated: contentPkg.pages.map(p => ({ slug: p.slug, title: p.title })),
-      buildLogs,
+      buildLogs, ...(adminEmail && { adminEmail }), ...(adminPassword && { adminPassword }),
     }
 
     const { docs: existing } = await payload.find({

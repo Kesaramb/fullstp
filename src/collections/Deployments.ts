@@ -31,6 +31,7 @@ export const Deployments: CollectionConfig = {
       options: [
         { label: 'Provisioning', value: 'provisioning' },
         { label: 'Running', value: 'running' },
+        { label: 'Simulated', value: 'simulated' },
         { label: 'Stopped', value: 'stopped' },
         { label: 'Error', value: 'error' },
       ],
@@ -76,6 +77,24 @@ export const Deployments: CollectionConfig = {
           type: 'text',
         },
       ],
+    },
+    {
+      name: 'adminEmail',
+      type: 'text',
+      admin: {
+        description: 'Tenant admin email — server-side only, never sent to browser.',
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'adminPassword',
+      type: 'text',
+      admin: {
+        description: 'Tenant admin password — server-side only, never sent to browser.',
+        position: 'sidebar',
+        readOnly: true,
+      },
     },
     {
       name: 'buildLogs',

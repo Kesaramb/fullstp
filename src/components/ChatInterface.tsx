@@ -46,16 +46,15 @@ function getBubbleRadius(isUser: boolean, position: MessagePosition): string {
 interface HandoffData {
   businessName: string
   domain: string
-  adminEmail?: string
-  adminPassword?: string
+  deploymentId?: string
 }
 
-function hasAdminCreds(handoff?: HandoffData): boolean {
-  return Boolean(handoff?.adminEmail && handoff?.adminPassword)
+function canOperate(handoff?: HandoffData): boolean {
+  return Boolean(handoff?.deploymentId)
 }
 
 function buildInitialMessages(handoff?: HandoffData): Message[] {
-  if (handoff && hasAdminCreds(handoff)) {
+  if (handoff && canOperate(handoff)) {
     return [
       { id: 'date-1', kind: 'date', text: 'Today' },
       {
@@ -77,7 +76,7 @@ function buildInitialMessages(handoff?: HandoffData): Message[] {
     ]
   }
 
-  if (handoff && !hasAdminCreds(handoff)) {
+  if (handoff && !canOperate(handoff)) {
     return [
       { id: 'date-1', kind: 'date', text: 'Today' },
       {
@@ -124,13 +123,13 @@ function buildInitialMessages(handoff?: HandoffData): Message[] {
 
 async function streamOperations(
   messages: ConversationEntry[],
-  tenant: { domain: string; adminEmail: string; adminPassword: string },
+  deploymentId: string,
   onEvent: (event: string, data: Record<string, unknown>) => void
 ): Promise<void> {
   const response = await fetch('/api/swarm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode: 'operations', messages, tenant }),
+    body: JSON.stringify({ mode: 'operations', messages, deploymentId }),
   })
 
   if (!response.ok || !response.body) {
@@ -209,9 +208,9 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
 
     let finalReply = ''
 
-    // Guard: if no admin creds, don't hit the API
-    if (!hasAdminCreds(handoff)) {
-      const simMsg = "I can't make live changes right now — this site was deployed in simulation mode without server credentials. Once it's deployed to a real server, I'll be able to update it instantly from this chat."
+    // Guard: if no deploymentId, this was a simulated build
+    if (!canOperate(handoff)) {
+      const simMsg = "I can't make live changes right now — this site was deployed in simulation mode. Once it's deployed to a real server, I'll be able to update it instantly from this chat."
       setMessages(prev =>
         prev.map(m => (m.id === typingId ? { ...m, text: simMsg, isTyping: false, time: now() } : m))
       )
@@ -220,13 +219,7 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
       return
     }
 
-    const tenant = {
-      domain: handoff?.domain || '',
-      adminEmail: handoff?.adminEmail || '',
-      adminPassword: handoff?.adminPassword || '',
-    }
-
-    await streamOperations(newHistory, tenant, (event, data) => {
+    await streamOperations(newHistory, handoff!.deploymentId!, (event, data) => {
       if (event === 'thinking') {
         const text = (data.text as string) || 'Thinking...'
         setMessages(prev =>
