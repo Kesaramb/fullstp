@@ -140,6 +140,84 @@ async function findTemplateDomain(ssh: InstanceType<typeof import('node-ssh').No
 }
 
 /**
+ * Sync the golden-image template on the server with the repo version.
+ *
+ * The server's golden-image domain may drift from the repo's src/golden-image/.
+ * This function uploads key files via SFTP to ensure the server template is current.
+ * Called before cloning to a new tenant so every deploy uses the latest template.
+ */
+async function syncGoldenImageToServer(
+  ssh: InstanceType<typeof import('node-ssh').NodeSSH>,
+  log: (agent: string, text: string, status: 'running' | 'done' | 'error') => void,
+): Promise<void> {
+  const remotePath = `/home/admin/web/golden-image.${SERVER_IP}.nip.io/nodeapp`
+  const remoteCheck = await ssh.execCommand(`test -d ${remotePath}/src && echo 'EXISTS' || echo 'MISSING'`)
+  if (remoteCheck.stdout.trim() !== 'EXISTS') {
+    log('DevOps', 'Golden-image directory not found on server — skipping sync.', 'error')
+    return
+  }
+
+  log('DevOps', 'Syncing golden-image template to server...', 'running')
+
+  // Write the root layout with globals.css import
+  const layoutContent = `import React from 'react'
+import type { Metadata } from 'next'
+import './globals.css'
+
+export const metadata: Metadata = {
+  title: process.env.SITE_NAME || 'Welcome',
+  description: 'Built with FullStop',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  )
+}
+`
+  await exec(ssh, `cat > ${remotePath}/src/app/layout.tsx << 'LAYOUT_EOF'\n${layoutContent}LAYOUT_EOF`)
+
+  // Write globals.css with block styles
+  const globalsCss = `@import "tailwindcss";
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6; color: #1a1a1a; background: #fff;
+}
+.hero { position: relative; min-height: 70vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4rem 2rem; background-color: #0f172a; background-size: cover; background-position: center; color: #fff; }
+.hero-content { max-width: 48rem; }
+.hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.15; margin-bottom: 1rem; }
+.hero-subheading { font-size: 1.25rem; opacity: 0.85; margin-bottom: 2rem; }
+.hero-cta { display: inline-block; padding: 0.875rem 2rem; background: #2563eb; color: #fff; border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: background 0.2s; }
+.hero-cta:hover { background: #1d4ed8; }
+.rich-content { padding: 4rem 2rem; max-width: 48rem; margin: 0 auto; }
+.rich-content-inner { font-size: 1.125rem; line-height: 1.8; }
+.rich-content-inner h2 { font-size: 1.75rem; font-weight: 700; margin: 2rem 0 1rem; }
+.rich-content-inner p { margin-bottom: 1rem; }
+.cta { padding: 4rem 2rem; text-align: center; }
+.cta--primary { background: #0f172a; color: #fff; }
+.cta--secondary { background: #f1f5f9; color: #1a1a1a; }
+.cta--outline { background: transparent; color: #1a1a1a; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+.cta-content { max-width: 40rem; margin: 0 auto; }
+.cta-content h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 700; margin-bottom: 1rem; }
+.cta-content p { font-size: 1.125rem; opacity: 0.85; margin-bottom: 2rem; }
+.cta-button { display: inline-block; padding: 0.875rem 2rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: all 0.2s; }
+.cta--primary .cta-button { background: #fff; color: #0f172a; }
+.cta--primary .cta-button:hover { background: #e2e8f0; }
+.cta--secondary .cta-button, .cta--outline .cta-button { background: #2563eb; color: #fff; }
+main { min-height: 100vh; }
+a { color: inherit; }
+img { max-width: 100%; height: auto; }
+`
+  await exec(ssh, `cat > ${remotePath}/src/app/globals.css << 'CSS_EOF'\n${globalsCss}CSS_EOF`)
+
+  log('DevOps', 'Golden-image template synced (layout.tsx + globals.css).', 'done')
+}
+
+/**
  * Run an SSH command and throw on failure.
  * Optional keepalive emits periodic log messages to prevent SSE stream timeout.
  */
@@ -158,9 +236,17 @@ async function exec(
     }, 30000)
   }
   try {
-    const result = await ssh.execCommand(cmd, {
+    // Use Promise.race to enforce a hard timeout.
+    // node-ssh's execOptions.timeout only sets the SSH channel timeout, which
+    // doesn't reliably abort long-running commands (e.g. pnpm build can hang
+    // the exec channel for 750s+ past the 600s timeout).
+    const execPromise = ssh.execCommand(cmd, {
       execOptions: { timeout } as Record<string, unknown>,
     })
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`SSH command timed out after ${timeout}ms`)), timeout + 5000)
+    })
+    const result = await Promise.race([execPromise, timeoutPromise])
     return result.stdout
   } finally {
     if (timer) clearInterval(timer)
@@ -248,10 +334,13 @@ export async function deployTenant(
     log('DevOps', `Connected to ${sshConfig.host} (${Date.now() - connectStart}ms)`, 'done')
 
     // ── Check if domain already exists (HestiaCP + filesystem) ──
+    // Use exit code from v-list-web-domain (0 = exists, non-zero = not found).
+    // NOTE: v-list-web-domain writes its "Error:" message to STDOUT, so grep on
+    // the output text would false-positive match the domain name in the error string.
     log('DevOps', `Checking if ${domain} already exists...`, 'running')
     const existCheckStart = Date.now()
     const checkResult = await exec(ssh,
-      `${HESTIA_BIN} && v-list-web-domain admin ${domain} 2>/dev/null | grep -q '${domain}' && echo "EXISTS" || (test -d ${nodeappPath} && echo "EXISTS" || echo "NEW")`
+      `${HESTIA_BIN} && v-list-web-domain admin ${domain} >/dev/null 2>&1 && echo "EXISTS" || (test -d ${nodeappPath} && echo "EXISTS" || echo "NEW")`
     )
     const existCheckMs = Date.now() - existCheckStart
     if (checkResult.trim() === 'EXISTS') {
@@ -303,7 +392,10 @@ export async function deployTenant(
     )
     log('DevOps', `Nginx proxy template ${tplName} applied.`, 'done')
 
-    // ── Step 4: Copy application from template ──
+    // ── Step 4a: Sync golden-image template to prevent drift ──
+    await syncGoldenImageToServer(ssh, log)
+
+    // ── Step 4b: Copy application from template ──
     const templateDomain = deployConfig.templateDomain || await findTemplateDomain(ssh)
     if (!templateDomain) {
       log('DevOps', 'No template deployment found on server. Cannot deploy.', 'error')
@@ -331,10 +423,15 @@ export async function deployTenant(
       .split('-')
       .map(w => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
+    // Determine protocol: nip.io domains rarely get valid LE certs, so
+    // default to http:// but allow override via deployConfig or env.
+    const protocol = domain.includes('nip.io') ? 'http' : 'https'
+    const siteUrl = `${protocol}://${domain}`
+
     const envContent = [
       `DATABASE_URI=postgresql://admin_${dbUser}:${dbPass}@localhost:5432/admin_${dbName}`,
       `PAYLOAD_SECRET=${payloadSecret}`,
-      `NEXT_PUBLIC_SERVER_URL=http://${domain}`,
+      `NEXT_PUBLIC_SERVER_URL=${siteUrl}`,
       `SITE_NAME=${businessName}`,
       `NODE_ENV=production`,
       `PORT=${port}`,
@@ -346,7 +443,7 @@ export async function deployTenant(
     // ── Step 5b: PM2 ecosystem file (passes all env vars to standalone server.js) ──
     log('DevOps', 'Creating PM2 ecosystem config...', 'running')
     const dbUri = `postgresql://admin_${dbUser}:${dbPass}@localhost:5432/admin_${dbName}`
-    const ecosystem = `module.exports = { apps: [{ name: "${domain}", script: "${nodeappPath}/.next/standalone/server.js", env: { NODE_ENV: "production", PORT: ${port}, DATABASE_URI: "${dbUri}", PAYLOAD_SECRET: "${payloadSecret}", NEXT_PUBLIC_SERVER_URL: "http://${domain}", SITE_NAME: "${businessName}" }, max_memory_restart: "512M" }] }`
+    const ecosystem = `module.exports = { apps: [{ name: "${domain}", script: "${nodeappPath}/.next/standalone/server.js", env: { NODE_ENV: "production", PORT: ${port}, DATABASE_URI: "${dbUri}", PAYLOAD_SECRET: "${payloadSecret}", NEXT_PUBLIC_SERVER_URL: "${siteUrl}", SITE_NAME: "${businessName}" }, max_memory_restart: "512M" }] }`
     await exec(ssh, `printf '%s\\n' '${ecosystem.replace(/'/g, "'\\''")}' > ${nodeappPath}/ecosystem.config.cjs`)
     log('DevOps', 'PM2 ecosystem config created.', 'done')
 
@@ -379,31 +476,76 @@ export async function deployTenant(
       log('DevOps', 'Database tables created.', 'done')
     }
 
-    // ── Step 8: Build ──
-    log('DevOps', 'Building application (pnpm build)...', 'running')
-    const buildOutput = await exec(ssh,
-      `cd ${nodeappPath} && pnpm build 2>&1 | tail -20`,
-      600000, // 10 min timeout for build
-      { log, label: 'Building application' }
+    // ── Step 8a: Generate Payload importMap ──
+    log('DevOps', 'Generating Payload admin importMap...', 'running')
+    const importMapOutput = await exec(ssh,
+      `cd ${nodeappPath} && npx payload generate:importmap 2>&1`,
+      60000 // 1 min timeout
     )
-    if (buildOutput.toLowerCase().includes('error') && !buildOutput.includes('error.log')) {
-      log('DevOps', `Build failed: ${buildOutput.trim().slice(-300)}`, 'error')
+    if (importMapOutput.toLowerCase().includes('error') && !importMapOutput.includes('Writing import map')) {
+      log('DevOps', `importMap warning: ${importMapOutput.trim().slice(-200)}`, 'error')
+    } else {
+      log('DevOps', 'Payload importMap generated.', 'done')
+    }
+
+    // ── Step 8b: Build (detached with exit code capture) ──
+    // Run the build as a detached process writing to a log file.
+    // This avoids SSH exec channel hangs on long-running builds and
+    // lets us read exit status from a sidecar file.
+    log('DevOps', 'Building application (pnpm build)...', 'running')
+    const buildLog = `/tmp/build-${domain.split('.')[0]}.log`
+    const buildExit = `/tmp/build-${domain.split('.')[0]}.exit`
+    await exec(ssh,
+      `rm -f ${buildExit} && nohup bash -c 'cd ${nodeappPath} && set -o pipefail && pnpm build > ${buildLog} 2>&1; echo $? > ${buildExit}' > /dev/null 2>&1 &`,
+      10000,
+    )
+
+    // Poll for build completion (check for exit file)
+    let buildExitCode: string | null = null
+    const buildStart = Date.now()
+    const buildTimeout = 600000 // 10 min
+    let elapsed = 0
+    while (Date.now() - buildStart < buildTimeout) {
+      await sleep(15000)
+      elapsed += 15
+      const check = await exec(ssh, `cat ${buildExit} 2>/dev/null || echo 'RUNNING'`, 5000)
+      if (check.trim() !== 'RUNNING') {
+        buildExitCode = check.trim()
+        break
+      }
+      log('DevOps', `Building application (${elapsed}s elapsed)...`, 'running')
+    }
+
+    if (buildExitCode === null) {
+      log('DevOps', `Build timed out after ${buildTimeout / 1000}s.`, 'error')
+      await exec(ssh, `pkill -f "pnpm build" 2>/dev/null || true`, 5000)
+      const buildTail = await exec(ssh, `tail -20 ${buildLog} 2>/dev/null || echo 'no log'`, 5000)
+      log('DevOps', `Last build output: ${buildTail.trim().slice(-300)}`, 'error')
       await cleanupResources(ssh, domain, dbName, log, resources)
       ssh.dispose()
-      return { success: false, domain, port, logs, error: buildOutput.trim().slice(-300) }
+      return { success: false, domain, port, logs, error: `Build timed out. Last output: ${buildTail.trim().slice(-200)}` }
     }
+
+    if (buildExitCode !== '0') {
+      const buildErr = await exec(ssh, `tail -30 ${buildLog} 2>/dev/null || echo 'no log'`, 5000)
+      log('DevOps', `Build failed (exit ${buildExitCode}): ${buildErr.trim().slice(-300)}`, 'error')
+      await cleanupResources(ssh, domain, dbName, log, resources)
+      ssh.dispose()
+      return { success: false, domain, port, logs, error: `Build failed (exit ${buildExitCode}): ${buildErr.trim().slice(-200)}` }
+    }
+
     // Verify standalone output was produced
     const standaloneCheck = await exec(ssh,
       `test -f ${nodeappPath}/.next/standalone/server.js && echo 'OK' || echo 'MISSING'`
     )
     if (standaloneCheck.trim() !== 'OK') {
-      const buildErr = await exec(ssh, `cd ${nodeappPath} && pnpm build 2>&1 | tail -30`, 300000)
-      log('DevOps', `Build produced no standalone output. Last output: ${buildErr.trim().slice(-400)}`, 'error')
+      const buildTail = await exec(ssh, `tail -30 ${buildLog} 2>/dev/null || echo 'no log'`, 5000)
+      log('DevOps', `Build produced no standalone output. Last output: ${buildTail.trim().slice(-400)}`, 'error')
       await cleanupResources(ssh, domain, dbName, log, resources)
       ssh.dispose()
       return { success: false, domain, port, logs, error: 'Build did not produce .next/standalone/server.js' }
     }
-    log('DevOps', 'Build complete — standalone output verified.', 'done')
+    log('DevOps', `Build complete in ${elapsed}s — standalone output verified.`, 'done')
 
     // ── Step 8b: Copy static assets into standalone directory ──
     log('DevOps', 'Copying static assets to standalone directory...', 'running')
