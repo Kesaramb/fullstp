@@ -49,8 +49,10 @@ export class QueenAgent {
 
     const text = extractText(response)
 
-    // Strict contract: check if response is JSON with _strategyComplete
-    const trimmed = text.trim()
+    // Strict contract: check if response is JSON with _strategyComplete.
+    // Strip markdown code fences first — the model sometimes wraps JSON in ```json...```
+    // despite the prompt saying to output only the raw object.
+    const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
     if (trimmed.startsWith('{') && trimmed.includes('"_strategyComplete"')) {
       try {
         const data = parseJSON<Record<string, unknown>>(trimmed)
