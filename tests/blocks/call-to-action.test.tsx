@@ -17,17 +17,20 @@ describe('CallToActionBlock', () => {
   it('renders link with correct URL', () => {
     render(<CallToActionBlock block={callToActionFixture} />)
     const link = screen.getByText('Sign Up Now')
-    expect(link).toHaveAttribute('href', '/signup')
+    expect(link.closest('a')).toHaveAttribute('href', '/signup')
   })
 
-  it('applies variant class', () => {
+  it('applies primary variant styles', () => {
     const { container } = render(<CallToActionBlock block={callToActionFixture} />)
-    expect(container.querySelector('.cta--primary')).toBeInTheDocument()
+    const section = container.querySelector('section')
+    expect(section?.className).toContain('bg-slate-900')
+    expect(section?.className).toContain('text-white')
   })
 
-  it('defaults to primary variant', () => {
+  it('defaults to primary variant when null', () => {
     const block = { ...callToActionFixture, variant: null }
     const { container } = render(<CallToActionBlock block={block} />)
-    expect(container.querySelector('.cta--primary')).toBeInTheDocument()
+    const section = container.querySelector('section')
+    expect(section?.className).toContain('bg-slate-900')
   })
 })

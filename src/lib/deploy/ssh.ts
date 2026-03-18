@@ -12,6 +12,9 @@
  *   DEPLOY_SSH_PASS    — SSH password (fallback if no key)
  */
 
+import fs from 'fs'
+import path from 'path'
+
 import type { ContentPackage } from '@/lib/swarm/types'
 
 export interface DeployConfig {
@@ -157,64 +160,43 @@ async function syncGoldenImageToServer(
     return
   }
 
+  // Resolve the local golden-image source directory.
+  // In development, process.cwd() is the project root and src/golden-image/ is available.
+  // In production standalone builds, the source tree may not exist — gracefully degrade.
+  const goldenImageDir = path.resolve(process.cwd(), 'src', 'golden-image')
+  if (!fs.existsSync(goldenImageDir)) {
+    log('DevOps', 'Golden-image source not found locally — using server template as-is.', 'running')
+    return
+  }
+
   log('DevOps', 'Syncing golden-image template to server...', 'running')
 
-  // Write the root layout with globals.css import
-  const layoutContent = `import React from 'react'
-import type { Metadata } from 'next'
-import './globals.css'
+  // Files to sync: the golden-image source of truth → server template.
+  // Each deploy clones from the server template, so keeping it current
+  // ensures every tenant gets the latest components and styling.
+  const filesToSync = [
+    'package.json',
+    'src/app/layout.tsx',
+    'src/app/globals.css',
+    'src/blocks/Hero/Component.tsx',
+    'src/blocks/RichContent/Component.tsx',
+    'src/blocks/CallToAction/Component.tsx',
+    'src/components/RenderBlocks.tsx',
+  ]
 
-export const metadata: Metadata = {
-  title: process.env.SITE_NAME || 'Welcome',
-  description: 'Built with FullStop',
-}
+  let synced = 0
+  for (const relPath of filesToSync) {
+    const localFile = path.join(goldenImageDir, relPath)
+    if (!fs.existsSync(localFile)) continue
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  )
-}
-`
-  await exec(ssh, `cat > ${remotePath}/src/app/layout.tsx << 'LAYOUT_EOF'\n${layoutContent}LAYOUT_EOF`)
+    const remoteFile = `${remotePath}/${relPath}`
+    const remoteDir = remoteFile.substring(0, remoteFile.lastIndexOf('/'))
+    await exec(ssh, `mkdir -p ${remoteDir}`)
+    await ssh.putFile(localFile, remoteFile)
+    synced++
+  }
 
-  // Write globals.css with block styles
-  const globalsCss = `@import "tailwindcss";
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.6; color: #1a1a1a; background: #fff;
-}
-.hero { position: relative; min-height: 70vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4rem 2rem; background-color: #0f172a; background-size: cover; background-position: center; color: #fff; }
-.hero-content { max-width: 48rem; }
-.hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.15; margin-bottom: 1rem; }
-.hero-subheading { font-size: 1.25rem; opacity: 0.85; margin-bottom: 2rem; }
-.hero-cta { display: inline-block; padding: 0.875rem 2rem; background: #2563eb; color: #fff; border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: background 0.2s; }
-.hero-cta:hover { background: #1d4ed8; }
-.rich-content { padding: 4rem 2rem; max-width: 48rem; margin: 0 auto; }
-.rich-content-inner { font-size: 1.125rem; line-height: 1.8; }
-.rich-content-inner h2 { font-size: 1.75rem; font-weight: 700; margin: 2rem 0 1rem; }
-.rich-content-inner p { margin-bottom: 1rem; }
-.cta { padding: 4rem 2rem; text-align: center; }
-.cta--primary { background: #0f172a; color: #fff; }
-.cta--secondary { background: #f1f5f9; color: #1a1a1a; }
-.cta--outline { background: transparent; color: #1a1a1a; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
-.cta-content { max-width: 40rem; margin: 0 auto; }
-.cta-content h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 700; margin-bottom: 1rem; }
-.cta-content p { font-size: 1.125rem; opacity: 0.85; margin-bottom: 2rem; }
-.cta-button { display: inline-block; padding: 0.875rem 2rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: all 0.2s; }
-.cta--primary .cta-button { background: #fff; color: #0f172a; }
-.cta--primary .cta-button:hover { background: #e2e8f0; }
-.cta--secondary .cta-button, .cta--outline .cta-button { background: #2563eb; color: #fff; }
-main { min-height: 100vh; }
-a { color: inherit; }
-img { max-width: 100%; height: auto; }
-`
-  await exec(ssh, `cat > ${remotePath}/src/app/globals.css << 'CSS_EOF'\n${globalsCss}CSS_EOF`)
-
-  log('DevOps', 'Golden-image template synced (layout.tsx + globals.css).', 'done')
+  log('DevOps', `Golden-image template synced (${synced} files via SFTP).`, 'done')
 }
 
 /**
@@ -489,16 +471,21 @@ export async function deployTenant(
     }
 
     // ── Step 8b: Build (detached with exit code capture) ──
-    // Run the build as a detached process writing to a log file.
-    // This avoids SSH exec channel hangs on long-running builds and
-    // lets us read exit status from a sidecar file.
+    // Run the build as a fully detached process via setsid + script file.
+    // SSH exec channels stay open while background processes hold FDs open;
+    // nohup ... & alone isn't enough. Writing a script and launching it
+    // with setsid ensures the process runs in a new session, fully detached
+    // from the SSH channel.
     log('DevOps', 'Building application (pnpm build)...', 'running')
     const buildLog = `/tmp/build-${domain.split('.')[0]}.log`
     const buildExit = `/tmp/build-${domain.split('.')[0]}.exit`
-    await exec(ssh,
-      `rm -f ${buildExit} && nohup bash -c 'cd ${nodeappPath} && set -o pipefail && pnpm build > ${buildLog} 2>&1; echo $? > ${buildExit}' > /dev/null 2>&1 &`,
-      10000,
-    )
+    const buildScript = `/tmp/build-${domain.split('.')[0]}.sh`
+    await exec(ssh, [
+      `rm -f ${buildExit} ${buildScript}`,
+      `cat > ${buildScript} << 'BUILDEOF'\n#!/bin/bash\ncd ${nodeappPath} && set -o pipefail && pnpm build > ${buildLog} 2>&1\necho $? > ${buildExit}\nBUILDEOF`,
+      `chmod +x ${buildScript}`,
+      `setsid ${buildScript} </dev/null &>/dev/null &`,
+    ].join(' && '), 10000)
 
     // Poll for build completion (check for exit file)
     let buildExitCode: string | null = null

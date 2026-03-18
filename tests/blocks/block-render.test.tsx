@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+
+// Mock the Payload Lexical renderer — we test component wiring, not the renderer itself
+vi.mock('@payloadcms/richtext-lexical/react', () => ({
+  RichText: ({ data, className }: { data: unknown; className?: string }) => (
+    <div className={className} data-testid="rich-text">
+      Rendered rich text
+    </div>
+  ),
+}))
+
 import { RenderBlocks } from '@/components/RenderBlocks'
 import {
   heroFixture,
@@ -31,8 +41,8 @@ describe('RenderBlocks', () => {
   })
 
   it('renders a RichContent block without crashing', () => {
-    const { container } = render(<RenderBlocks blocks={[richContentFixture]} />)
-    expect(container.querySelector('[data-rich-text]')).toBeInTheDocument()
+    render(<RenderBlocks blocks={[richContentFixture]} />)
+    expect(screen.getByTestId('rich-text')).toBeInTheDocument()
   })
 
   it('renders a CallToAction block without crashing', () => {

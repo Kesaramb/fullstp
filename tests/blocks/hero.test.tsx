@@ -22,13 +22,13 @@ describe('HeroBlock', () => {
 
   it('renders CTA link', () => {
     render(<HeroBlock block={heroFixture} />)
-    const link = screen.getByText('Get Started')
+    const link = screen.getByRole('link', { name: /Get Started/i })
     expect(link).toHaveAttribute('href', '/contact')
   })
 
   it('hides CTA when not provided', () => {
     const block = { ...heroFixture, ctaLabel: null, ctaLink: null }
     render(<HeroBlock block={block} />)
-    expect(screen.queryByText('Get Started')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Get Started/i })).not.toBeInTheDocument()
   })
 })
