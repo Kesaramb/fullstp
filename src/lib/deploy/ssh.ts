@@ -146,8 +146,9 @@ async function findTemplateDomain(ssh: InstanceType<typeof import('node-ssh').No
  * Sync the golden-image template on the server with the repo version.
  *
  * The server's golden-image domain may drift from the repo's src/golden-image/.
- * This function uploads key files via SFTP to ensure the server template is current.
- * Called before cloning to a new tenant so every deploy uses the latest template.
+ * This function uploads key files via base64-over-exec (no SFTP dependency) to ensure
+ * the server template is current. Called before cloning to a new tenant so every deploy
+ * uses the latest template.
  */
 async function syncGoldenImageToServer(
   ssh: InstanceType<typeof import('node-ssh').NodeSSH>,
@@ -191,12 +192,15 @@ async function syncGoldenImageToServer(
 
     const remoteFile = `${remotePath}/${relPath}`
     const remoteDir = remoteFile.substring(0, remoteFile.lastIndexOf('/'))
-    await exec(ssh, `mkdir -p ${remoteDir}`)
-    await ssh.putFile(localFile, remoteFile)
+
+    // Transfer via base64-over-exec — avoids SFTP subsystem dependency.
+    // Base64 alphabet is alphanumeric + /+= so no shell-special chars to escape.
+    const b64 = fs.readFileSync(localFile).toString('base64')
+    await exec(ssh, `mkdir -p ${remoteDir} && printf '%s' '${b64}' | base64 -d > ${remoteFile}`, 15000)
     synced++
   }
 
-  log('DevOps', `Golden-image template synced (${synced} files via SFTP).`, 'done')
+  log('DevOps', `Golden-image template synced (${synced} files).`, 'done')
 }
 
 /**
