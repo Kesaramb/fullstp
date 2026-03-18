@@ -475,11 +475,11 @@ export async function deployTenant(
     }
 
     // ── Step 8b: Build (detached with exit code capture) ──
-    // Run the build as a fully detached process via setsid + script file.
-    // SSH exec channels stay open while background processes hold FDs open;
-    // nohup ... & alone isn't enough. Writing a script and launching it
-    // with setsid ensures the process runs in a new session, fully detached
-    // from the SSH channel.
+    // Run the build as a fully detached process via double-fork + nohup.
+    // SSH exec channels stay open while background processes hold FDs open.
+    // The subshell trick `(nohup ... &)` creates a subshell that launches
+    // the background job then exits, fully orphaning the build process from
+    // the SSH channel. This works even when setsid is not available.
     log('DevOps', 'Building application (pnpm build)...', 'running')
     const buildLog = `/tmp/build-${domain.split('.')[0]}.log`
     const buildExit = `/tmp/build-${domain.split('.')[0]}.exit`
@@ -488,7 +488,7 @@ export async function deployTenant(
       `rm -f ${buildExit} ${buildScript}`,
       `cat > ${buildScript} << 'BUILDEOF'\n#!/bin/bash\ncd ${nodeappPath} && set -o pipefail && pnpm build > ${buildLog} 2>&1\necho $? > ${buildExit}\nBUILDEOF`,
       `chmod +x ${buildScript}`,
-      `setsid ${buildScript} </dev/null &>/dev/null &`,
+      `(nohup bash ${buildScript} </dev/null >/dev/null 2>&1 &)`,
     ].join(' && '), 10000)
 
     // Poll for build completion (check for exit file)
