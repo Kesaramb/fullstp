@@ -54,6 +54,10 @@ function getSSHConfig() {
     host,
     username,
     readyTimeout: 15000, // 15s max for SSH handshake
+    // Keepalive prevents the server from closing an idle connection during
+    // the long build poll loop (can take 5–10 minutes).
+    keepaliveInterval: 15000, // send keepalive every 15s
+    keepaliveCountMax: 10,    // drop after 10 missed responses (~150s)
     ...(privateKeyPath ? { privateKeyPath } : { password }),
   }
 }
