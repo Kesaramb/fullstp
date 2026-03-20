@@ -488,12 +488,12 @@ export async function deployTenant(
     const buildLog = `/tmp/build-${domain.split('.')[0]}.log`
     const buildExit = `/tmp/build-${domain.split('.')[0]}.exit`
     const buildScript = `/tmp/build-${domain.split('.')[0]}.sh`
-    await exec(ssh, [
-      `rm -f ${buildExit} ${buildScript}`,
-      `cat > ${buildScript} << 'BUILDEOF'\n#!/bin/bash\ncd ${nodeappPath} && set -o pipefail && pnpm build > ${buildLog} 2>&1\necho $? > ${buildExit}\nBUILDEOF`,
-      `chmod +x ${buildScript}`,
-      `(nohup bash ${buildScript} </dev/null >/dev/null 2>&1 &)`,
-    ].join(' && '), 10000)
+    await exec(ssh, `rm -f ${buildExit} ${buildScript} ${buildLog}`, 5000)
+    // Heredoc must be its own exec — if joined with &&, the terminator line
+    // becomes "BUILDEOF && next-cmd" which the shell never matches, so the
+    // script file is never written and the build silently never starts.
+    await exec(ssh, `cat > ${buildScript} << 'BUILDEOF'\n#!/bin/bash\ncd ${nodeappPath} && set -o pipefail && pnpm build > ${buildLog} 2>&1\necho $? > ${buildExit}\nBUILDEOF`, 5000)
+    await exec(ssh, `chmod +x ${buildScript} && (nohup bash ${buildScript} </dev/null >/dev/null 2>&1 &)`, 10000)
 
     // Poll for build completion (check for exit file)
     let buildExitCode: string | null = null
