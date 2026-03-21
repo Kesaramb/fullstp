@@ -1,10 +1,22 @@
 import React from 'react'
 import type { Metadata } from 'next'
+import { getPayload } from 'payload'
+import config from '@payload-config'
 import './globals.css'
 
-export const metadata: Metadata = {
-  title: process.env.SITE_NAME || 'Welcome',
-  description: 'Built with FullStop',
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const payload = await getPayload({ config })
+    const settings = await payload.findGlobal({ slug: 'site-settings' })
+    const siteName = (settings as any)?.siteName || process.env.SITE_NAME || 'Welcome'
+    const siteDescription = (settings as any)?.siteDescription || `${siteName} — official website`
+    return { title: siteName, description: siteDescription }
+  } catch {
+    return {
+      title: process.env.SITE_NAME || 'Welcome',
+      description: `${process.env.SITE_NAME || 'Welcome'} — official website`,
+    }
+  }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen bg-white text-slate-900 antialiased">
-        <main>{children}</main>
+        {children}
       </body>
     </html>
   )

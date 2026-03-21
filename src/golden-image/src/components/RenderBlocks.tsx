@@ -28,11 +28,10 @@ export function RenderBlocks({ blocks }: RenderBlocksProps) {
         const Component = blockComponents[block.blockType]
 
         if (!Component) {
-          return (
-            <div key={block.id || index} data-block-type={block.blockType}>
-              Unknown block type: {block.blockType}
-            </div>
-          )
+          if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+            console.warn(`[RenderBlocks] Unknown block type: ${block.blockType}`)
+          }
+          return null
         }
 
         return <Component key={block.id || index} block={block} />

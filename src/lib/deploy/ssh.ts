@@ -182,11 +182,15 @@ async function syncGoldenImageToServer(
   const filesToSync = [
     'package.json',
     'src/app/layout.tsx',
+    'src/app/(site)/layout.tsx',
+    'src/app/(site)/page.tsx',
+    'src/app/(site)/[...slug]/page.tsx',
     'src/app/globals.css',
     'src/blocks/Hero/Component.tsx',
     'src/blocks/RichContent/Component.tsx',
     'src/blocks/CallToAction/Component.tsx',
     'src/components/RenderBlocks.tsx',
+    'src/components/SiteShell.tsx',
   ]
 
   let synced = 0

@@ -24,7 +24,7 @@ import { UIArchitectWorker, PayloadExpertWorker } from './workers'
 import { SharedMemory } from './shared-memory'
 import type { BMC, ContentPackage, LogFn } from './types'
 import { generateDomain, sanitizeSlug } from '@/lib/deploy/domain'
-import { deployTenant, getUsedPorts, isDeploymentConfigured } from '@/lib/deploy/ssh'
+import { deployTenantViaBridge, getUsedPorts, isDeploymentConfigured } from '@/lib/deploy/bridge'
 import { getNextPort } from '@/lib/deploy/domain'
 
 const MAX_HEAL_ATTEMPTS = 2
@@ -84,7 +84,17 @@ export class SwarmPipeline {
       // Persist failed deployment for audit trail
       await this.persistDeployment(
         payload, domain, port, 'error', customerDoc?.id, bmcDoc.id,
-        contentPkg, buildLogs, undefined, undefined
+        contentPkg, buildLogs, undefined, undefined,
+        undefined, undefined,
+        {
+          jobId: deployResult?.jobId,
+          stage: 'failed',
+          errorCode: deployResult?.error?.split(':')[0],
+          errorDetail: deployResult?.error,
+          localHealthy: deployResult?.localHealthy ?? false,
+          publicHealthy: deployResult?.publicHealthy ?? false,
+          sslEnabled: deployResult?.sslEnabled ?? false,
+        }
       )
       trackedLog('Factory', `Build finished with deployment error: ${deployResult?.error || 'unknown'}`, 'error')
       emit('build_error', { error: deployResult?.error || 'Deployment failed' })
@@ -97,7 +107,15 @@ export class SwarmPipeline {
       payload, domain, port, deployStatus, customerDoc?.id, bmcDoc.id,
       contentPkg, buildLogs,
       deployResult?.adminEmail, deployResult?.adminPassword,
-      deployResult?.pagesSeeded, deployResult?.globalsSeeded
+      deployResult?.pagesSeeded, deployResult?.globalsSeeded,
+      {
+        jobId: deployResult?.jobId,
+        stage: deployResult?.localHealthy ? 'completed' : 'verifying',
+        localHealthy: deployResult?.localHealthy ?? false,
+        publicHealthy: deployResult?.publicHealthy ?? false,
+        sslEnabled: deployResult?.sslEnabled ?? false,
+        globalsSeeded: deployResult?.globalsSeeded,
+      }
     )
 
     // Customer state: only mark operational if deploy succeeded AND content fully seeded
@@ -247,14 +265,14 @@ export class SwarmPipeline {
 
     const sshConfigured = await isDeploymentConfigured()
     let port: number
-    let deployResult: Awaited<ReturnType<typeof deployTenant>> | null = null
+    let deployResult: Awaited<ReturnType<typeof deployTenantViaBridge>> | null = null
 
     if (sshConfigured) {
       const remoteUsedPorts = await getUsedPorts()
       port = getNextPort(remoteUsedPorts)
       const secret = `fs-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-      deployResult = await deployTenant(
+      deployResult = await deployTenantViaBridge(
         { domain, port, payloadSecret: secret, contentPackage: contentPkg }, log
       )
       if (!deployResult.success) {
@@ -475,7 +493,18 @@ export class SwarmPipeline {
     customerId: any, bmcId: any, contentPkg: ContentPackage,
     buildLogs: { agent: string; text: string; status: string }[],
     adminEmail?: string, adminPassword?: string,
-    pagesSeeded?: number, globalsSeeded?: number
+    pagesSeeded?: number, globalsSeeded?: number,
+    bridgeMeta?: {
+      jobId?: string
+      stage?: string
+      lastEventIndex?: number
+      localHealthy?: boolean
+      publicHealthy?: boolean
+      sslEnabled?: boolean
+      globalsSeeded?: number
+      errorCode?: string
+      errorDetail?: string
+    },
   ) {
     // Strict seed gate: 'success' only when ALL pages and globals made it
     const expectedPages = contentPkg.pages.length
@@ -485,12 +514,23 @@ export class SwarmPipeline {
     const seedStatus = pagesSeeded !== undefined
       ? (fullySeeded ? 'success' : (pagesSeeded > 0 || (globalsSeeded ?? 0) > 0 ? 'partial' : 'failed'))
       : (status === 'simulated' ? 'skipped' : 'pending')
+    const protocol = bridgeMeta?.sslEnabled ? 'https' : 'http'
     const data: Record<string, unknown> = {
       domain, port, status, customer: customerId || undefined, bmc: bmcId,
-      siteUrl: `http://${domain}`, adminUrl: `http://${domain}/admin`,
+      siteUrl: `${protocol}://${domain}`, adminUrl: `${protocol}://${domain}/admin`,
       pagesCreated: contentPkg.pages.map(p => ({ slug: p.slug, title: p.title })),
       buildLogs, seedStatus, ...(pagesSeeded !== undefined && { pagesSeeded }),
       ...(adminEmail && { adminEmail }), ...(adminPassword && { adminPassword }),
+      // Bridge metadata
+      ...(bridgeMeta?.jobId && { jobId: bridgeMeta.jobId }),
+      ...(bridgeMeta?.stage && { stage: bridgeMeta.stage }),
+      ...(bridgeMeta?.lastEventIndex !== undefined && { lastEventIndex: bridgeMeta.lastEventIndex }),
+      ...(bridgeMeta?.localHealthy !== undefined && { localHealthy: bridgeMeta.localHealthy }),
+      ...(bridgeMeta?.publicHealthy !== undefined && { publicHealthy: bridgeMeta.publicHealthy }),
+      ...(bridgeMeta?.sslEnabled !== undefined && { sslEnabled: bridgeMeta.sslEnabled }),
+      ...(bridgeMeta?.globalsSeeded !== undefined && { globalsSeeded: bridgeMeta.globalsSeeded }),
+      ...(bridgeMeta?.errorCode && { errorCode: bridgeMeta.errorCode }),
+      ...(bridgeMeta?.errorDetail && { errorDetail: bridgeMeta.errorDetail }),
     }
 
     const { docs: existing } = await payload.find({

@@ -133,5 +133,92 @@ export const Deployments: CollectionConfig = {
         position: 'sidebar',
       },
     },
+    // ── Bridge fields (deployment reliability sprint) ──
+    {
+      name: 'jobId',
+      type: 'text',
+      admin: {
+        description: 'Bridge job ID for this deployment.',
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'stage',
+      type: 'select',
+      options: [
+        { label: 'Queued', value: 'queued' },
+        { label: 'Preflight', value: 'preflight' },
+        { label: 'Provisioning', value: 'provisioning' },
+        { label: 'Templating', value: 'templating' },
+        { label: 'Building', value: 'building' },
+        { label: 'Starting', value: 'starting' },
+        { label: 'Seeding', value: 'seeding' },
+        { label: 'Verifying', value: 'verifying' },
+        { label: 'Completed', value: 'completed' },
+        { label: 'Failed', value: 'failed' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    {
+      name: 'lastEventIndex',
+      type: 'number',
+      admin: {
+        description: 'Last processed event index for SSE resume.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'localHealthy',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Whether the app responds on localhost.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'publicHealthy',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Whether the site is publicly reachable.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'sslEnabled',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Whether SSL certificate was successfully issued.',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'globalsSeeded',
+      type: 'number',
+      admin: {
+        description: 'Number of globals seeded (expected: 3).',
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'errorCode',
+      type: 'text',
+      admin: {
+        description: 'Structured error code from the runner.',
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'errorDetail',
+      type: 'textarea',
+      admin: {
+        description: 'Detailed error message from the runner.',
+        readOnly: true,
+      },
+    },
   ],
 }

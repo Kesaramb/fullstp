@@ -152,6 +152,52 @@ export async function cleanupTestTenant(domain: string): Promise<void> {
   }
 }
 
+/** Check the /api/health endpoint on a deployed tenant. */
+export async function checkHealth(domain: string): Promise<{
+  healthy: boolean
+  status: string
+  dbHealthy: boolean
+}> {
+  const base = await getBaseUrl(domain)
+  try {
+    const res = await fetch(`${base}/api/health`, {
+      signal: AbortSignal.timeout(10000),
+    })
+    const data = await res.json()
+    return {
+      healthy: data.status === 'healthy',
+      status: data.status || 'unknown',
+      dbHealthy: data.checks?.database?.healthy ?? false,
+    }
+  } catch {
+    return { healthy: false, status: 'unreachable', dbHealthy: false }
+  }
+}
+
+/** Clean up bridge job files on server after test. */
+export async function cleanupBridgeJob(jobId: string): Promise<void> {
+  const { NodeSSH } = await import('node-ssh')
+  const ssh = new NodeSSH()
+
+  const serverIp = process.env.DEPLOY_SERVER_IP || '167.86.81.161'
+  const sshUser = process.env.DEPLOY_SSH_USER || 'root'
+  const connectConfig: Record<string, unknown> = { host: serverIp, username: sshUser }
+
+  if (process.env.DEPLOY_SSH_KEY) {
+    connectConfig.privateKeyPath = process.env.DEPLOY_SSH_KEY
+  } else if (process.env.DEPLOY_SSH_PASS) {
+    connectConfig.password = process.env.DEPLOY_SSH_PASS
+  } else {
+    return
+  }
+
+  try {
+    await ssh.connect(connectConfig)
+    await ssh.execCommand(`rm -rf /opt/fullstp-runner/jobs/${jobId} 2>/dev/null; true`)
+    ssh.dispose()
+  } catch { /* best-effort */ }
+}
+
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }

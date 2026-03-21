@@ -1,27 +1,28 @@
 import React from 'react'
-import { getPayload } from 'payload'
-import config from '@payload-config'
+import type { Metadata } from 'next'
+import { safeFindPage, safeFindGlobal } from '../../lib/safe-payload'
 import { RenderBlocks } from '../../components/RenderBlocks'
 
 export const dynamic = 'force-dynamic'
 
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await safeFindGlobal('site-settings')
+  const siteName = (settings as any)?.siteName || process.env.SITE_NAME || 'Home'
+  const desc = (settings as any)?.siteDescription || `Welcome to ${siteName}`
+  return { title: `${siteName} — Home`, description: desc }
+}
+
 export default async function HomePage() {
-  const payload = await getPayload({ config })
-
-  const { docs } = await payload.find({
-    collection: 'pages',
-    where: { slug: { equals: 'home' } },
-    limit: 1,
-  })
-
-  const page = docs[0]
+  const page = await safeFindPage('home')
 
   if (!page) {
     return (
-      <main style={{ padding: '4rem', textAlign: 'center', fontFamily: 'system-ui' }}>
-        <h1>Welcome</h1>
-        <p>Your site is being set up. Content coming soon.</p>
-      </main>
+      <section className="flex min-h-[60vh] items-center justify-center text-center">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Welcome</h1>
+          <p className="mt-2 text-slate-500">Your site is being set up. Content coming soon.</p>
+        </div>
+      </section>
     )
   }
 

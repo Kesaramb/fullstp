@@ -40,9 +40,16 @@ const variantStyles = {
   },
 } as const
 
+/** Resolve broken hash-only links (e.g. #book, #contact) to the /contact page. */
+function resolveLink(url: string): string {
+  if (url.startsWith('#')) return '/contact'
+  return url
+}
+
 export function CallToActionBlock({ block }: CallToActionBlockProps) {
   const variant = block.variant || 'primary'
   const styles = variantStyles[variant]
+  const href = resolveLink(block.linkUrl)
 
   return (
     <section className={`py-20 px-6 md:px-8 ${styles.section}`}>
@@ -57,7 +64,7 @@ export function CallToActionBlock({ block }: CallToActionBlockProps) {
           </p>
         )}
 
-        <a href={block.linkUrl} className={styles.button}>
+        <a href={href} className={styles.button}>
           {block.linkLabel}
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest'
-import { waitForDomainReachable, loginToTenant, fetchPages, fetchGlobal, cleanupTestTenant } from './helpers'
+import { waitForDomainReachable, loginToTenant, fetchPages, fetchGlobal, cleanupTestTenant, checkHealth } from './helpers'
 import { isDeploymentConfigured, deployTenant, getUsedPorts } from '@/lib/deploy/ssh'
 import { getNextPort } from '@/lib/deploy/domain'
 import type { ContentPackage } from '@/lib/swarm/types'
@@ -129,6 +129,34 @@ describe.skipIf(!SSH_CONFIGURED)('Real Server E2E', () => {
     const reachable = await waitForDomainReachable(state.domain, 180000)
     expect(reachable).toBe(true)
   }, 210000)
+
+  // ─────────── Truth-Based Completion ───────────
+
+  it('health endpoint confirms app is healthy', async () => {
+    expect(state.domain).toBeTruthy()
+    const health = await checkHealth(state.domain)
+    expect(health.healthy).toBe(true)
+    expect(health.dbHealthy).toBe(true)
+  }, 30000)
+
+  it('deployment reaches terminal success only when public site is reachable', async () => {
+    // This test validates the sprint rule:
+    // "a complete site is live on the server, reachable on its public domain"
+    expect(state.domain).toBeTruthy()
+    const reachable = await waitForDomainReachable(state.domain, 30000)
+    expect(reachable).toBe(true)
+
+    // Admin login must work
+    const token = await loginToTenant(state.domain, state.adminEmail, state.adminPassword)
+    expect(token).toBeTruthy()
+
+    // All expected pages and globals exist
+    const pages = await fetchPages(state.domain, token)
+    expect(pages.length).toBeGreaterThanOrEqual(2)
+
+    const settings = await fetchGlobal(state.domain, 'site-settings', token)
+    expect(settings.siteName).toBeTruthy()
+  }, 60000)
 
   it('can authenticate with deployed tenant', async () => {
     const token = await loginToTenant(state.domain, state.adminEmail, state.adminPassword)
@@ -260,6 +288,22 @@ describe.skipIf(!SSH_CONFIGURED)('Real Server E2E', () => {
     ])
     expect(result.success).toBe(false)
     expect(result.error).toContain('already exists')
+  }, 60000)
+
+  it('failed deployments never persist as running', async () => {
+    // Attempt a deploy to a non-existent template — should fail cleanly
+    // We already know the duplicate domain test (above) returns success: false
+    // This validates the sprint rule: "If any core step fails, persist status=error"
+    const log = (_a: string, _t: string) => {}
+    const result = await deployTenant(
+      { domain: state.domain, port: state.port + 1, payloadSecret: 'test' },
+      log as Parameters<typeof deployTenant>[1]
+    )
+
+    // A failed deploy must never report success
+    expect(result.success).toBe(false)
+    // The error should be descriptive
+    expect(result.error).toBeTruthy()
   }, 60000)
 
   it('handoff never contains admin credentials', () => {

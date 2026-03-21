@@ -1,0 +1,16 @@
+{
+  "name": "fullstp-runner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remote deployment runner for FullStop tenants",
+  "type": "module",
+  "bin": {
+    "fullstp-runner": "./runner.js"
+  },
+  "scripts": {
+    "start": "node runner.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

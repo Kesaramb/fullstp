@@ -42,6 +42,10 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
     },
+    // Push schema to DB on init — required for fresh tenant deployments
+    // where no migration files exist yet. Payload will create all tables
+    // automatically on first app start.
+    push: true,
   }),
 
   sharp,
