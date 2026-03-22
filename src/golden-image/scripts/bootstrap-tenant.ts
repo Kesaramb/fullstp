@@ -67,29 +67,13 @@ async function bootstrap() {
     log('Payload initialized — schema is ready')
     result.schemaReady = true
 
-    // 2. Verify the users collection is queryable
-    log('Verifying users collection...')
-    const { totalDocs } = await payload.find({
-      collection: 'users',
-      limit: 0,
-    })
-    result.usersCount = totalDocs
-    log(`Users collection OK (${totalDocs} existing users)`)
-
-    // 3. Create first admin if not already present
-    log(`Checking for existing admin: ${adminEmail}`)
-    const { docs: existing } = await payload.find({
-      collection: 'users',
-      where: { email: { equals: adminEmail } },
-      limit: 1,
-    })
-
-    if (existing.length > 0) {
-      log('Admin user already exists — skipping creation')
-      result.adminExists = true
-      result.adminCreated = false
-    } else {
-      log('Creating first admin user...')
+    // 2. Create first admin if not already present (idempotent)
+    //    Use create directly — if user exists, Payload throws a validation error
+    //    which we catch and treat as "already exists".
+    //    We avoid payload.find() here because push:true may not create all
+    //    sub-tables (e.g. users_sessions) before the first query runs.
+    log(`Creating admin user: ${adminEmail}`)
+    try {
       await payload.create({
         collection: 'users',
         data: {
@@ -100,6 +84,16 @@ async function bootstrap() {
       log('Admin user created successfully')
       result.adminCreated = true
       result.adminExists = true
+    } catch (createErr: unknown) {
+      const msg = createErr instanceof Error ? createErr.message : String(createErr)
+      if (msg.includes('existing') || msg.includes('unique') || msg.includes('duplicate') || msg.includes('already')) {
+        log('Admin user already exists — skipping creation')
+        result.adminExists = true
+        result.adminCreated = false
+      } else {
+        // Re-throw if it's not a duplicate error
+        throw createErr
+      }
     }
 
     output(result)

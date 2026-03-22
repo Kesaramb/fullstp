@@ -11,8 +11,30 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { readFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { RunnerError } from './provision.js'
 import { generatePassword } from './util.js'
+
+/**
+ * Parse a .env file into a key-value object.
+ * Handles basic KEY=VALUE format (no multiline or interpolation).
+ */
+function loadEnvFile(envPath) {
+  if (!existsSync(envPath)) return {}
+  const content = readFileSync(envPath, 'utf8')
+  const env = {}
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx < 1) continue
+    const key = trimmed.slice(0, eqIdx)
+    const value = trimmed.slice(eqIdx + 1)
+    env[key] = value
+  }
+  return env
+}
 
 /**
  * Run the tenant bootstrap script. Returns admin credentials.
@@ -28,6 +50,12 @@ export function bootstrapTenant(nodeappPath, domain, logger) {
 
   logger.emit('bootstrapping', 'runner', 'running', 'Running tenant bootstrap (schema push + admin creation)...')
 
+  // Load the tenant's .env file so DATABASE_URI, PAYLOAD_SECRET, etc. are available.
+  // spawnSync doesn't auto-load .env files — we must pass them explicitly.
+  const tenantEnv = loadEnvFile(join(nodeappPath, '.env'))
+  logger.emit('bootstrapping', 'runner', 'running',
+    `Tenant env keys: ${Object.keys(tenantEnv).join(', ') || 'NONE — .env missing!'}`)
+
   const result = spawnSync(
     'pnpm', ['exec', 'tsx', 'scripts/bootstrap-tenant.ts',
       '--admin-email', adminEmail,
@@ -39,7 +67,7 @@ export function bootstrapTenant(nodeappPath, domain, logger) {
       encoding: 'utf8',
       timeout: 180000, // 3 minutes
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: { ...process.env, ...tenantEnv },
     },
   )
 
@@ -59,11 +87,24 @@ export function bootstrapTenant(nodeappPath, domain, logger) {
     throw new RunnerError('BOOTSTRAP_TIMEOUT', `Bootstrap killed by ${result.signal} (180s timeout)`)
   }
 
-  // Parse stdout JSON
+  // Parse stdout JSON — Payload's pino logger may write WARN/INFO lines to stdout
+  // before our JSON output, so we find the last line that looks like JSON.
   let bootstrapResult
   try {
-    bootstrapResult = JSON.parse((result.stdout || '').trim())
-  } catch {
+    const rawStdout = (result.stdout || '').trim()
+    const lines = rawStdout.split('\n')
+    let jsonStr = null
+    // Search from end for the JSON line (our output is always the last JSON object)
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim()
+      if (line.startsWith('{') && line.endsWith('}')) {
+        jsonStr = line
+        break
+      }
+    }
+    if (!jsonStr) throw new Error('No JSON object found in stdout')
+    bootstrapResult = JSON.parse(jsonStr)
+  } catch (parseErr) {
     const detail = (result.stdout || '').slice(0, 300) + ' | stderr: ' + (result.stderr || '').slice(-200)
     logger.emit('bootstrapping', 'runner', 'error',
       `Bootstrap output is not valid JSON: ${detail}`,

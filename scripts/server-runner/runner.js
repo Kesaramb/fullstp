@@ -2,26 +2,24 @@
 
 /**
  * FullStop Server Runner — remote deployment CLI.
- *
- * Commands:
- *   deploy  --job <jobId>              Run a deployment job
- *   status  --job <jobId>              Print current job status
- *   events  --job <jobId> --from <N>   Print events from index N
- *   cleanup --job <jobId>              Clean up a failed job's resources
- *
- * Job directory: /opt/fullstp-runner/jobs/<jobId>/
- * Required files: manifest.json, template.tgz
- * Generated files: status.json, events.ndjson, result.json, lock
  */
 
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { join } from 'node:path'
+
+const HESTIA = 'export PATH=$PATH:/usr/local/hestia/bin'
+
+function run(cmd, timeout = 30000) {
+  return execSync(cmd, { encoding: 'utf8', timeout }).trim()
+}
 import { EventLogger } from './lib/events.js'
 import { runPreflight } from './lib/preflight.js'
-import { provision, RunnerError } from './lib/provision.js'
+import { provisionDatabase, provisionWeb, RunnerError } from './lib/provision.js'
 import { stageApp } from './lib/stage.js'
-import { buildApp } from './lib/build.js'
+import { buildApp, typecheckApp } from './lib/build.js'
 import { bootstrapTenant } from './lib/bootstrap.js'
+import { promoteStagedApp } from './lib/promote.js'
 import { startApp } from './lib/start.js'
 import { seedContent } from './lib/seed.js'
 import { verifyDeployment } from './lib/verify.js'
@@ -29,16 +27,14 @@ import { cleanupResources } from './lib/cleanup.js'
 
 const JOBS_DIR = process.env.FULLSTP_JOBS_DIR || '/opt/fullstp-runner/jobs'
 
-// ── CLI argument parsing ──
-
 const args = process.argv.slice(2)
 const command = args[0]
 const jobId = getFlag('--job')
 const fromIndex = parseInt(getFlag('--from') || '0', 10)
 
 function getFlag(name) {
-  const idx = args.indexOf(name)
-  return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : null
+  const index = args.indexOf(name)
+  return index >= 0 && index + 1 < args.length ? args[index + 1] : null
 }
 
 if (!command || !jobId) {
@@ -47,8 +43,6 @@ if (!command || !jobId) {
 }
 
 const jobDir = join(JOBS_DIR, jobId)
-
-// ── Command dispatch ──
 
 switch (command) {
   case 'deploy':
@@ -68,14 +62,11 @@ switch (command) {
     process.exit(1)
 }
 
-// ── deploy ──
-
 async function runDeploy() {
   const manifestFile = join(jobDir, 'manifest.json')
   const lockFile = join(jobDir, 'lock')
   const templateFile = join(jobDir, 'template.tgz')
 
-  // Validate prerequisites
   if (!existsSync(manifestFile)) {
     console.error(`manifest.json not found in ${jobDir}`)
     process.exit(1)
@@ -84,8 +75,6 @@ async function runDeploy() {
     console.error(`template.tgz not found in ${jobDir}`)
     process.exit(1)
   }
-
-  // Idempotency: one jobId runs once only
   if (existsSync(lockFile)) {
     console.error(`Job ${jobId} is already running or has completed (lock file exists)`)
     process.exit(1)
@@ -94,74 +83,90 @@ async function runDeploy() {
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'))
   const logger = new EventLogger(jobDir)
   logger.setJobId(jobId)
-
-  // Acquire lock
   writeFileSync(lockFile, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }))
 
-  let credentials = null
   let resources = { db: false, domain: false, pm2: false, proxyTemplate: false }
+  let stageNodeappPath = ''
+  let finalNodeappPath = `/home/admin/web/${manifest.domain}/nodeapp`
   const startedAt = new Date().toISOString()
 
   try {
-    // ── Queued ──
     logger.emit('queued', 'runner', 'running', `Job ${jobId} starting for domain ${manifest.domain}`)
     logger.writeStatus('queued', 'running')
 
-    // ── Preflight ──
     const preflight = runPreflight(manifest, logger)
     if (!preflight.ok) {
       const errorCode = preflight.errors[0]?.split(':')[0] || 'UNKNOWN'
       throw new RunnerError(errorCode, preflight.errors.join('; '))
     }
 
-    // ── Provision ──
-    credentials = provision(manifest, logger)
-    resources = credentials.resources
+    const credentials = provisionDatabase(manifest, logger)
+    resources.db = true
 
-    // ── Stage ──
-    const { nodeappPath, siteUrl } = stageApp(manifest, credentials, jobDir, logger)
+    const stageResult = stageApp(manifest, credentials, jobDir, logger)
+    stageNodeappPath = stageResult.stageNodeappPath
+    finalNodeappPath = stageResult.finalNodeappPath
 
-    // ── Build ──
-    buildApp(nodeappPath, logger)
+    buildApp(stageNodeappPath, logger)
 
-    // ── Bootstrap (schema push + admin creation, before PM2) ──
-    const { adminEmail, adminPass } = bootstrapTenant(
-      nodeappPath, manifest.domain, logger
-    )
+    const { adminEmail, adminPass } = bootstrapTenant(stageNodeappPath, manifest.domain, logger)
+    typecheckApp(stageNodeappPath, logger)
 
-    // ── Start (PM2 + liveness + readiness) ──
+    // ── Provision web domain + proxy (before promote, matching manual deploy) ──
+    const webResources = provisionWeb(manifest, logger)
+    resources = { ...resources, ...webResources }
+
+    // ── Promote staged build into live domain path ──
+    promoteStagedApp(stageNodeappPath, finalNodeappPath, logger)
+
+    // ── Set ownership to admin:admin BEFORE PM2 start ──
+    // Manual deploy pattern: always chown immediately after file placement.
+    // HestiaCP expects admin:admin ownership in /home/admin/web/.
+    logger.emit('starting', 'runner', 'running', 'Setting file ownership to admin:admin...')
+    try {
+      run(`chown -R admin:admin /home/admin/web/${manifest.domain}/`, 60000)
+      logger.emit('starting', 'runner', 'done', 'File ownership set to admin:admin')
+    } catch (err) {
+      logger.emit('starting', 'runner', 'error', `chown failed: ${err.message}`)
+    }
+
+    // ── Rebuild domain before PM2 start so nginx is fully configured ──
+    logger.emit('starting', 'runner', 'running', 'Rebuilding web domain before PM2 start...')
+    try {
+      run(`${HESTIA} && v-rebuild-web-domain admin ${manifest.domain} 2>&1`, 30000)
+      logger.emit('starting', 'runner', 'done', 'Web domain rebuilt — nginx proxy active')
+    } catch (err) {
+      logger.emit('starting', 'runner', 'error', `Domain rebuild warning: ${err.message}`)
+    }
+
+    // ── Start PM2 + liveness + readiness ──
     const { localHealthy } = await startApp(
-      manifest.domain, manifest.port, nodeappPath, logger
+      manifest.domain,
+      manifest.port,
+      finalNodeappPath,
+      logger,
     )
     resources.pm2 = true
 
-    // ── Seed ──
+    // ── Seed content ──
     const { pagesSeeded, globalsSeeded } = await seedContent(
-      manifest.port, manifest.domain, adminEmail, adminPass,
-      manifest.contentPackage, logger
+      manifest.port,
+      manifest.domain,
+      adminEmail,
+      adminPass,
+      manifest.contentPackage,
+      logger,
     )
 
-    // ── Verify ──
-    const { sslEnabled, publicHealthy } = await verifyDeployment(
-      manifest.domain, manifest.port, logger
-    )
-
-    // ── Truth-based completion ──
+    // ── Final verification (SSL, public reachability) ──
+    const { sslEnabled, publicHealthy } = await verifyDeployment(manifest.domain, logger)
     const allSeeded = pagesSeeded === manifest.expectedPages && globalsSeeded === manifest.expectedGlobals
     const fullySuccessful = localHealthy && publicHealthy && allSeeded
 
-    if (!publicHealthy) {
-      // Public unreachable is a warning if local is healthy and HTTP SSL skip
-      logger.emit('completed', 'runner', 'error', 'Public site not reachable — deployment may need DNS/proxy investigation')
-    }
-
-    const stage = fullySuccessful ? 'completed' : 'completed'
-    const state = fullySuccessful ? 'success' : (publicHealthy ? 'success' : 'error')
-
     const result = {
       jobId,
-      stage,
-      state,
+      stage: fullySuccessful ? 'completed' : 'failed',
+      state: fullySuccessful ? 'success' : 'error',
       lastEventIndex: logger.index - 1,
       startedAt,
       finishedAt: new Date().toISOString(),
@@ -176,26 +181,29 @@ async function runDeploy() {
       adminEmail,
       adminPassword: adminPass,
       resourcesCreated: resources,
-    }
-
-    if (!allSeeded) {
-      result.errorCode = 'SEED_PARTIAL'
-      result.errorDetail = `Expected ${manifest.expectedPages} pages + ${manifest.expectedGlobals} globals, got ${pagesSeeded} + ${globalsSeeded}`
+      ...(fullySuccessful ? {} : {
+        errorCode: publicHealthy ? 'SEED_PARTIAL' : 'PUBLIC_UNREACHABLE',
+        errorDetail: publicHealthy
+          ? `Expected ${manifest.expectedPages} pages + ${manifest.expectedGlobals} globals, got ${pagesSeeded} + ${globalsSeeded}`
+          : `Public verification failed for ${manifest.domain}`,
+      }),
     }
 
     logger.writeResult(result)
-    logger.emit('completed', 'runner', 'done', `Deployment ${fullySuccessful ? 'succeeded' : 'completed with warnings'}`)
+    logger.emit(result.stage, 'runner', fullySuccessful ? 'done' : 'error',
+      `Deployment ${fullySuccessful ? 'succeeded' : 'completed with errors'}`)
     console.log(JSON.stringify(result, null, 2))
-
   } catch (err) {
     const errorCode = err instanceof RunnerError ? err.code : 'UNKNOWN'
-    const errorDetail = err.message || String(err)
+    const errorDetail = err instanceof Error ? err.message : String(err)
 
     logger.emit('failed', 'runner', 'error', `Deployment failed: ${errorDetail.slice(0, 300)}`, { errorCode })
 
-    // Cleanup only resources created by this job
-    if (resources.db || resources.domain || resources.pm2) {
-      cleanupResources(manifest.domain, resources, logger)
+    if (resources.db || resources.domain || resources.pm2 || stageNodeappPath) {
+      cleanupResources(manifest.domain, resources, logger, {
+        stageRoot: join(jobDir, 'stage'),
+        finalNodeappPath,
+      })
     }
 
     const result = {
@@ -223,8 +231,6 @@ async function runDeploy() {
   }
 }
 
-// ── status ──
-
 function runStatus() {
   const statusFile = join(jobDir, 'status.json')
   if (!existsSync(statusFile)) {
@@ -233,8 +239,6 @@ function runStatus() {
   }
   console.log(readFileSync(statusFile, 'utf8'))
 }
-
-// ── events ──
 
 function runEvents() {
   const eventsFile = join(jobDir, 'events.ndjson')
@@ -245,13 +249,12 @@ function runEvents() {
   const lines = readFileSync(eventsFile, 'utf8').trim().split('\n').filter(Boolean)
   const events = lines
     .map(line => { try { return JSON.parse(line) } catch { return null } })
-    .filter(e => e && e.index >= fromIndex)
+    .filter(event => event && event.index >= fromIndex)
+
   for (const event of events) {
     console.log(JSON.stringify(event))
   }
 }
-
-// ── cleanup ──
 
 async function runCleanup() {
   const resultFile = join(jobDir, 'result.json')
@@ -263,12 +266,8 @@ async function runCleanup() {
   const result = JSON.parse(readFileSync(resultFile, 'utf8'))
   const logger = new EventLogger(jobDir)
   logger.setJobId(jobId)
-
-  cleanupResources(result.domain, result.resourcesCreated, logger)
-
-  // Remove lock to allow re-run
-  const lockFile = join(jobDir, 'lock')
-  if (existsSync(lockFile)) unlinkSync(lockFile)
-
-  console.log('Cleanup complete')
+  cleanupResources(result.domain, result.resourcesCreated, logger, {
+    stageRoot: join(jobDir, 'stage'),
+    finalNodeappPath: `/home/admin/web/${result.domain}/nodeapp`,
+  })
 }

@@ -9,6 +9,7 @@
     "start": "next start",
     "generate:types": "payload generate:types",
     "status": "bash scripts/status.sh",
+    "validate:tenant-release": "bash scripts/validate-tenant-release.sh",
     "verify": "bash scripts/verify.sh",
     "verify:feature": "bash scripts/verify-feature.sh",
     "doctor": "bash scripts/doctor.sh",

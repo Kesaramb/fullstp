@@ -1,6 +1,5 @@
 /**
- * Cleanup: remove resources created by a failed job.
- * Only deletes resources explicitly recorded in the job state.
+ * Cleanup resources created by a failed job.
  */
 
 import { execSync } from 'node:child_process'
@@ -15,33 +14,30 @@ function run(cmd, timeout = 15000) {
   }
 }
 
-/**
- * Clean up resources created by this job.
- */
-export function cleanupResources(domain, resources, logger) {
+export function cleanupResources(domain, resources, logger, options = {}) {
+  const { stageRoot = '', finalNodeappPath = '' } = options
+
   logger.emit('cleanup', 'runner', 'running', 'Cleaning up failed deployment resources...')
 
   const slug = domain.split('.')[0].replace(/-/g, '_')
 
-  // PM2 process
-  if (resources.pm2) {
-    run(`pm2 delete "${domain}" 2>/dev/null || true`)
-  } else {
-    // Always try to clean PM2 even if not recorded, since PM2 start may have partially succeeded
-    run(`pm2 delete "${domain}" 2>/dev/null || true`)
+  run(`pm2 delete "${domain}" 2>/dev/null || true`)
+
+  if (finalNodeappPath) {
+    run(`rm -rf ${finalNodeappPath} 2>/dev/null || true`, 30000)
   }
 
-  // HestiaCP web domain
   if (resources.domain) {
     run(`${HESTIA} && v-delete-web-domain admin ${domain} 2>&1`)
   }
 
-  // PostgreSQL database
   if (resources.db) {
     run(`${HESTIA} && v-delete-database admin admin_${slug} 2>&1`)
   }
 
-  // Proxy template (leave in place — shared templates are harmless)
+  if (stageRoot) {
+    run(`rm -rf ${stageRoot} 2>/dev/null || true`, 30000)
+  }
 
   logger.emit('cleanup', 'runner', 'done', 'Cleanup complete')
 }

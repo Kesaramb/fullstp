@@ -291,6 +291,24 @@ describe('Bridge Failure Paths', () => {
       const needsCleanup = result.resourcesCreated.db || result.resourcesCreated.domain || result.resourcesCreated.pm2
       expect(needsCleanup).toBe(true)
     })
+
+    it('runner launch failure is surfaced distinctly from a stall', () => {
+      const launchFailure = makeFailedResult(
+        'RUNNER_LAUNCH_FAILED',
+        'Runner never wrote status.json. runner.log tail: Cannot find module ./lib/bootstrap.js',
+        { db: false, domain: false, pm2: false, proxyTemplate: false },
+      )
+
+      const stalled = makeFailedResult(
+        'RUNNER_STALLED',
+        'Job timed out after 720s with status.json present',
+        { db: true, domain: false, pm2: false, proxyTemplate: false },
+      )
+
+      expect(launchFailure.errorCode).toBe('RUNNER_LAUNCH_FAILED')
+      expect(stalled.errorCode).toBe('RUNNER_STALLED')
+      expect(launchFailure.errorCode).not.toBe(stalled.errorCode)
+    })
   })
 
   // ── Event Stream Consistency ──

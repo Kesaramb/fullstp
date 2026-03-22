@@ -319,11 +319,11 @@ describe('Bridge Contract Types', () => {
   describe('Deploy Stages', () => {
     it('covers all expected stages in order', () => {
       const stages: DeployStage[] = [
-        'queued', 'preflight', 'provisioning', 'templating',
-        'building', 'starting', 'seeding', 'verifying',
+        'validating', 'queued', 'preflight', 'provisioning', 'templating',
+        'building', 'bootstrapping', 'promoting', 'starting', 'seeding', 'verifying',
         'completed', 'failed', 'cleanup',
       ]
-      expect(stages).toHaveLength(11)
+      expect(stages).toHaveLength(14)
     })
 
     it('terminal stages are completed and failed', () => {
@@ -355,6 +355,12 @@ describe('Bridge Contract Types', () => {
         'BUILD_FAILED',
         'BUILD_TIMEOUT',
         'NO_STANDALONE_OUTPUT',
+        'BOOTSTRAP_FAILED',
+        'BOOTSTRAP_TIMEOUT',
+        'ADMIN_BOOTSTRAP_FAILED',
+        'PROMOTION_FAILED',
+        'RUNNER_LAUNCH_FAILED',
+        'RUNNER_STALLED',
       ]
       const unique = new Set(buildErrors)
       expect(unique.size).toBe(buildErrors.length)

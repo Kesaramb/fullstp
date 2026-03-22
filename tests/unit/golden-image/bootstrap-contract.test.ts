@@ -5,7 +5,7 @@
  * - Bootstrap script exists with correct CLI contract
  * - Liveness endpoint exists and is DB-free
  * - Runner bootstrap module parses JSON output correctly
- * - Deploy stages include 'bootstrapping'
+ * - Deploy stages include validating/bootstrapping/promoting
  * - Error codes cover bootstrap failures
  * - Start.js no longer creates admin users
  */
@@ -48,9 +48,10 @@ describe('Bootstrap Contract', () => {
       expect(content).toContain("from 'payload'")
     })
 
-    it('is idempotent — checks for existing admin before creating', () => {
+    it('is idempotent — handles existing admin gracefully', () => {
       const content = fs.readFileSync(scriptPath, 'utf8')
-      expect(content).toContain('existing.length > 0')
+      // Must detect duplicate/existing users and skip rather than fail
+      expect(content).toContain('already')
       expect(content).toContain('skipping creation')
     })
 
@@ -160,9 +161,14 @@ describe('Bootstrap Contract', () => {
       expect(content).toContain('/api/health/live')
       // Liveness must come before readiness in the file
       const livenessIdx = content.indexOf('/api/health/live')
-      // Find readiness endpoint — must be after liveness section
-      const readinessIdx = content.indexOf('Readiness check')
+      const readinessIdx = content.indexOf('Readiness')
       expect(livenessIdx).toBeLessThan(readinessIdx)
+    })
+
+    it('falls back to root URL check for liveness (manual deploy pattern)', () => {
+      // Manual deploy verified with: curl http://127.0.0.1:PORT/
+      expect(content).toContain('127.0.0.1')
+      expect(content).toContain('/api/users')
     })
 
     it('checks readiness via /api/health after liveness', () => {
@@ -204,6 +210,37 @@ describe('Bootstrap Contract', () => {
     it('gets adminEmail/adminPass from bootstrap, not start', () => {
       expect(content).toContain('const { adminEmail, adminPass } = bootstrapTenant')
     })
+
+    it('sets file ownership to admin:admin BEFORE PM2 start', () => {
+      const chownIdx = content.indexOf('chown -R admin:admin')
+      const startAppIdx = content.indexOf('await startApp')
+      expect(chownIdx).toBeGreaterThan(0)
+      expect(chownIdx).toBeLessThan(startAppIdx)
+    })
+
+    it('rebuilds web domain BEFORE PM2 start', () => {
+      const rebuildIdx = content.indexOf('v-rebuild-web-domain')
+      const startAppIdx = content.indexOf('await startApp')
+      expect(rebuildIdx).toBeGreaterThan(0)
+      expect(rebuildIdx).toBeLessThan(startAppIdx)
+    })
+  })
+
+  describe('Stage.js ecosystem config (manual deploy pattern)', () => {
+    const stageContent = fs.readFileSync(path.join(RUNNER_LIB, 'stage.js'), 'utf8')
+
+    it('uses npx next start, NOT standalone server.js', () => {
+      // Manual deploy: `npx next start -p PORT`
+      // PM2 ecosystem: script: "npx", args: "next start -p PORT"
+      expect(stageContent).toContain('"npx"')
+      expect(stageContent).toContain('next start -p')
+      expect(stageContent).not.toContain('standalone/server.js')
+    })
+
+    it('sets cwd to finalNodeappPath in ecosystem config', () => {
+      expect(stageContent).toContain('cwd:')
+      expect(stageContent).toContain('finalNodeappPath')
+    })
   })
 
   describe('Deploy types', () => {
@@ -212,6 +249,11 @@ describe('Bootstrap Contract', () => {
 
     it('DeployStage includes bootstrapping', () => {
       expect(content).toContain("'bootstrapping'")
+    })
+
+    it('DeployStage includes validating and promoting', () => {
+      expect(content).toContain("'validating'")
+      expect(content).toContain("'promoting'")
     })
 
     it('error codes include BOOTSTRAP_FAILED', () => {

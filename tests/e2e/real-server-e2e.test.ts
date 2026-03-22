@@ -10,7 +10,11 @@
 
 import { describe, it, expect, afterAll } from 'vitest'
 import { waitForDomainReachable, loginToTenant, fetchPages, fetchGlobal, cleanupTestTenant, checkHealth } from './helpers'
-import { isDeploymentConfigured, deployTenant, getUsedPorts } from '@/lib/deploy/ssh'
+import {
+  isDeploymentConfigured,
+  deployTenantViaBridge as deployTenant,
+  getUsedPorts,
+} from '@/lib/deploy/bridge'
 import { getNextPort } from '@/lib/deploy/domain'
 import type { ContentPackage } from '@/lib/swarm/types'
 
@@ -212,7 +216,12 @@ describe.skipIf(!SSH_CONFIGURED)('Real Server E2E', () => {
     const token = await loginToTenant(state.domain, state.adminEmail, state.adminPassword)
     const pages = await fetchPages(state.domain, token)
     const homePage = pages.find(p => p.slug === 'home')
-    const heroBlock = homePage?.layout?.find((b: Record<string, unknown>) => b.blockType === 'hero') as Record<string, unknown> | undefined
+    const heroBlock = homePage?.layout?.find((block) => (
+      typeof block === 'object' &&
+      block !== null &&
+      'blockType' in block &&
+      (block as { blockType?: string }).blockType === 'hero'
+    )) as Record<string, unknown> | undefined
     expect(heroBlock?.heading).toContain('E2E Validated')
   }, 90000)
 

@@ -2,33 +2,57 @@
  * Deployment Bridge — control-plane side helpers.
  *
  * Replaces the inline remote orchestration in ssh.ts with bridge helpers:
- *   1. syncRunner()     — upload runner CLI to /opt/fullstp-runner/current/
- *   2. packageTemplate() — create template.tgz from src/golden-image
- *   3. uploadJob()       — upload manifest.json + template.tgz to job dir
- *   4. startJob()        — invoke runner deploy in detached mode
- *   5. pollStatus()      — poll status.json until terminal state
- *   6. fetchEvents()     — fetch events.ndjson from cursor
- *   7. fetchResult()     — fetch result.json
+ *   1. validate release locally
+ *   2. sync runner + upload template/job manifest
+ *   3. launch detached remote runner
+ *   4. confirm the runner emitted first status/events
+ *   5. poll status/result until terminal state
  */
 
 import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 import type { ContentPackage } from '@/lib/swarm/types'
+import {
+  listRunnerFiles,
+  runLocalTenantReleaseValidation,
+  validateTenantSourceShape,
+  validateRunnerBundleCompleteness,
+} from './local-release'
 import type {
   DeployManifest,
   DeployEvent,
   DeployStatus,
   DeployResult,
   BridgeConfig,
-  DEFAULT_BRIDGE_CONFIG,
 } from './types'
 
 export { type DeployManifest, type DeployEvent, type DeployStatus, type DeployResult }
+export {
+  listRunnerFiles,
+  validateTenantSourceShape,
+  validateRunnerBundleCompleteness,
+} from './local-release'
 
 const SERVER_IP = '167.86.81.161'
 
-// Re-export for backward compatibility
+const BRIDGE: BridgeConfig = {
+  runnerPath: '/opt/fullstp-runner/current',
+  jobsPath: '/opt/fullstp-runner/jobs',
+}
+
+const REQUIRED_ROOT_FILES = ['package.json', 'payload.config.ts', 'next.config.mjs', 'src/']
+
+type JobDiagnostics = {
+  statusExists: boolean
+  eventsExist: boolean
+  resultExists: boolean
+  runnerPid: string
+  runnerAlive: boolean
+  runnerLogTail: string
+  lastEventTail: string
+}
+
 export interface LegacyDeployConfig {
   domain: string
   port: number
@@ -38,8 +62,6 @@ export interface LegacyDeployConfig {
 }
 
 export type LogFn = (agent: string, text: string, status: 'running' | 'done' | 'error') => void
-
-// ── SSH helpers (reuse existing pattern) ──
 
 function getSSHConfig() {
   const host = process.env.DEPLOY_SERVER_IP || SERVER_IP
@@ -74,46 +96,35 @@ async function sshExec(
     execOptions: { timeout } as Record<string, unknown>,
   })
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(`SSH command timed out after ${timeout}ms`)), timeout + 5000)
+    setTimeout(() => reject(new Error(`SSH command timed out after ${timeout}ms: ${cmd.slice(0, 100)}`)), timeout + 10000)
   })
   const result = await Promise.race([execPromise, timeoutPromise])
   return result.stdout
 }
 
-// ── Bridge Config ──
-
-const BRIDGE: BridgeConfig = {
-  runnerPath: '/opt/fullstp-runner/current',
-  jobsPath: '/opt/fullstp-runner/jobs',
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-// ── 1. Package golden-image as tarball ──
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
-/**
- * Package the full src/golden-image into a tarball, excluding
- * node_modules, .next, data, .DS_Store, and build caches.
- * Returns the path to the created tarball.
- */
 export function packageTemplate(): string {
-  const goldenImageDir = path.resolve(process.cwd(), 'src', 'golden-image')
-  if (!fs.existsSync(goldenImageDir)) {
-    throw new Error('Golden image source not found at src/golden-image/')
-  }
+  validateTenantSourceShape()
 
+  const goldenImageDir = path.resolve(process.cwd(), 'src', 'golden-image')
   const tmpDir = path.join(process.cwd(), '.tmp')
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
 
   const tarballPath = path.join(tmpDir, 'template.tgz')
-
-  // Create tarball from the CONTENTS of golden-image, not the directory itself.
-  // Using `-C goldenImageDir .` puts package.json, src/, etc. at archive root,
-  // so extraction into nodeapp/ places them at nodeapp/package.json, nodeapp/src/.
   execSync(
     `tar czf ${tarballPath} ` +
     `--exclude='node_modules' ` +
     `--exclude='.next' ` +
     `--exclude='data' ` +
     `--exclude='.DS_Store' ` +
+    `--exclude='._*' ` +
     `--exclude='.turbo' ` +
     `--exclude='.cache' ` +
     `--exclude='*.tsbuildinfo' ` +
@@ -121,17 +132,9 @@ export function packageTemplate(): string {
     { timeout: 30000 }
   )
 
-  // Validate: top-level must contain required files, not a nested directory
   validateArchive(tarballPath)
-
   return tarballPath
 }
-
-/**
- * Validate the template tarball has the correct root layout.
- * Fails fast with a clear error if files are nested under a subdirectory.
- */
-const REQUIRED_ROOT_FILES = ['package.json', 'payload.config.ts', 'next.config.mjs', 'src/']
 
 export function validateArchive(tarballPath: string): void {
   const listing = execSync(`tar tzf ${tarballPath} | head -30`, {
@@ -145,7 +148,6 @@ export function validateArchive(tarballPath: string): void {
   for (const required of REQUIRED_ROOT_FILES) {
     const found = entries.some(entry => {
       if (required.endsWith('/')) {
-        // Directory: entry must start with the required prefix
         return entry.startsWith(required) || entry === required.slice(0, -1)
       }
       return entry === required
@@ -158,22 +160,16 @@ export function validateArchive(tarballPath: string): void {
     throw new Error(
       `Template archive has invalid layout. Missing at root: ${missing.join(', ')}.\n` +
       `Archive entries (first 20):\n  ${first20}\n` +
-      `This usually means the tarball contains a nested directory (e.g., golden-image/) ` +
-      `instead of package.json at the root.`
+      `This usually means the tarball contains a nested directory instead of the app root.`
     )
   }
 }
 
-/**
- * Compute a hash of the template tarball for cache busting.
- */
 export function hashTemplate(tarballPath: string): string {
   const crypto = require('crypto')
   const content = fs.readFileSync(tarballPath)
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16)
 }
-
-// ── 2. Create manifest ──
 
 export function createManifest(
   jobId: string,
@@ -198,7 +194,59 @@ export function createManifest(
   }
 }
 
-// ── 3. Sync runner + upload job ──
+async function uploadRunnerTree(
+  ssh: InstanceType<typeof import('node-ssh').NodeSSH>,
+  log: LogFn,
+): Promise<void> {
+  log('DevOps', 'Syncing deployment runner to server...', 'running')
+
+  const runnerDir = path.resolve(process.cwd(), 'scripts', 'server-runner')
+  const runnerFiles = listRunnerFiles(runnerDir)
+  await sshExec(ssh, `mkdir -p ${BRIDGE.runnerPath} ${BRIDGE.runnerPath}/lib ${BRIDGE.jobsPath}`, 30000)
+
+  for (const relPath of runnerFiles) {
+    const localFile = path.join(runnerDir, relPath)
+    const remoteFile = `${BRIDGE.runnerPath}/${relPath}`
+    const remoteDir = path.posix.dirname(remoteFile)
+    const b64 = fs.readFileSync(localFile).toString('base64')
+
+    // Create subdirectory if needed (lib/ already created above)
+    if (remoteDir !== BRIDGE.runnerPath && remoteDir !== `${BRIDGE.runnerPath}/lib`) {
+      await sshExec(ssh, `mkdir -p ${remoteDir}`, 15000)
+    }
+    await sshExec(ssh, `printf '%s' '${b64}' | base64 -d > ${remoteFile}`, 30000)
+  }
+
+  await sshExec(ssh, `chmod +x ${BRIDGE.runnerPath}/runner.js`, 15000)
+  log('DevOps', `Runner synced to server (${runnerFiles.length} files).`, 'done')
+}
+
+async function uploadTemplateTarball(
+  ssh: InstanceType<typeof import('node-ssh').NodeSSH>,
+  jobDir: string,
+  tarballPath: string,
+  log: LogFn,
+): Promise<void> {
+  log('DevOps', 'Uploading template tarball...', 'running')
+
+  const tarballContent = fs.readFileSync(tarballPath)
+  const tarballB64 = tarballContent.toString('base64')
+  const chunkSize = 500000
+
+  await sshExec(ssh, `rm -f ${jobDir}/template.tgz ${jobDir}/template.b64`, 5000)
+  if (tarballB64.length > chunkSize) {
+    for (let i = 0; i < tarballB64.length; i += chunkSize) {
+      const chunk = tarballB64.slice(i, i + chunkSize)
+      await sshExec(ssh, `printf '%s' '${chunk}' >> ${jobDir}/template.b64`, 30000)
+    }
+    await sshExec(ssh, `base64 -d ${jobDir}/template.b64 > ${jobDir}/template.tgz && rm ${jobDir}/template.b64`, 30000)
+  } else {
+    await sshExec(ssh, `printf '%s' '${tarballB64}' | base64 -d > ${jobDir}/template.tgz`, 30000)
+  }
+
+  const sizeCheck = await sshExec(ssh, `stat -c '%s' ${jobDir}/template.tgz 2>/dev/null || echo '0'`)
+  log('DevOps', `Template uploaded (${Math.round(parseInt(sizeCheck, 10) / 1024)}KB).`, 'done')
+}
 
 export async function syncRunnerAndUploadJob(
   manifest: DeployManifest,
@@ -209,6 +257,8 @@ export async function syncRunnerAndUploadJob(
   if (!sshConfig) throw new Error('SSH not configured')
 
   const ssh = await getSSHClient()
+  const jobDir = `${BRIDGE.jobsPath}/${manifest.jobId}`
+
   await Promise.race([
     ssh.connect(sshConfig),
     new Promise((_, reject) =>
@@ -216,78 +266,103 @@ export async function syncRunnerAndUploadJob(
     ),
   ])
 
-  const jobDir = `${BRIDGE.jobsPath}/${manifest.jobId}`
-
   try {
-    // Sync runner scripts
-    log('DevOps', 'Syncing deployment runner to server...', 'running')
-    await sshExec(ssh, `mkdir -p ${BRIDGE.runnerPath}/lib ${jobDir}`)
+    await sshExec(ssh, `mkdir -p ${jobDir}`, 30000)
+    await uploadRunnerTree(ssh, log)
 
-    const runnerDir = path.resolve(process.cwd(), 'scripts', 'server-runner')
-    const filesToSync = [
-      'runner.js',
-      'package.json',
-      'lib/events.js',
-      'lib/preflight.js',
-      'lib/provision.js',
-      'lib/stage.js',
-      'lib/build.js',
-      'lib/start.js',
-      'lib/seed.js',
-      'lib/verify.js',
-      'lib/cleanup.js',
-      'lib/util.js',
-    ]
-
-    for (const relPath of filesToSync) {
-      const localFile = path.join(runnerDir, relPath)
-      if (!fs.existsSync(localFile)) continue
-      const b64 = fs.readFileSync(localFile).toString('base64')
-      const remoteFile = `${BRIDGE.runnerPath}/${relPath}`
-      await sshExec(ssh, `printf '%s' '${b64}' | base64 -d > ${remoteFile}`, 15000)
-    }
-    await sshExec(ssh, `chmod +x ${BRIDGE.runnerPath}/runner.js`)
-    log('DevOps', 'Runner synced to server.', 'done')
-
-    // Upload manifest
     log('DevOps', 'Uploading job manifest...', 'running')
     const manifestB64 = Buffer.from(JSON.stringify(manifest, null, 2)).toString('base64')
-    await sshExec(ssh, `printf '%s' '${manifestB64}' | base64 -d > ${jobDir}/manifest.json`, 10000)
+    await sshExec(ssh, `printf '%s' '${manifestB64}' | base64 -d > ${jobDir}/manifest.json`, 30000)
     log('DevOps', 'Manifest uploaded.', 'done')
 
-    // Upload template tarball (chunked base64 for large files)
-    log('DevOps', 'Uploading template tarball...', 'running')
-    const tarballContent = fs.readFileSync(tarballPath)
-    const tarballB64 = tarballContent.toString('base64')
-
-    // For large files, split into chunks to avoid SSH command length limits
-    const CHUNK_SIZE = 500000 // ~500KB base64 chunks
-    if (tarballB64.length > CHUNK_SIZE) {
-      await sshExec(ssh, `rm -f ${jobDir}/template.tgz`, 5000)
-      for (let i = 0; i < tarballB64.length; i += CHUNK_SIZE) {
-        const chunk = tarballB64.slice(i, i + CHUNK_SIZE)
-        await sshExec(ssh, `printf '%s' '${chunk}' >> ${jobDir}/template.b64`, 30000)
-      }
-      await sshExec(ssh, `base64 -d ${jobDir}/template.b64 > ${jobDir}/template.tgz && rm ${jobDir}/template.b64`, 30000)
-    } else {
-      await sshExec(ssh, `printf '%s' '${tarballB64}' | base64 -d > ${jobDir}/template.tgz`, 30000)
-    }
-
-    const sizeCheck = await sshExec(ssh, `stat -c '%s' ${jobDir}/template.tgz 2>/dev/null || echo '0'`)
-    log('DevOps', `Template uploaded (${Math.round(parseInt(sizeCheck, 10) / 1024)}KB).`, 'done')
-
+    await uploadTemplateTarball(ssh, jobDir, tarballPath, log)
   } finally {
     ssh.dispose()
   }
 }
 
-// ── 4. Start job (detached) ──
+async function readJobDiagnostics(
+  ssh: InstanceType<typeof import('node-ssh').NodeSSH>,
+  jobId: string,
+): Promise<JobDiagnostics> {
+  const jobDir = `${BRIDGE.jobsPath}/${jobId}`
+  const statusExists = (await sshExec(ssh, `test -s ${jobDir}/status.json && echo yes || echo no`, 5000)).trim() === 'yes'
+  const eventsExist = (await sshExec(ssh, `test -s ${jobDir}/events.ndjson && echo yes || echo no`, 5000)).trim() === 'yes'
+  const resultExists = (await sshExec(ssh, `test -s ${jobDir}/result.json && echo yes || echo no`, 5000)).trim() === 'yes'
+  const runnerPid = (await sshExec(ssh, `cat ${jobDir}/runner.pid 2>/dev/null || true`, 5000)).trim()
+  const runnerAlive = runnerPid
+    ? (await sshExec(ssh, `kill -0 ${runnerPid} 2>/dev/null && echo yes || echo no`, 5000)).trim() === 'yes'
+    : false
+  const runnerLogTail = (await sshExec(ssh, `tail -n 20 ${jobDir}/runner.log 2>/dev/null || true`, 5000)).trim()
+  const lastEventTail = (await sshExec(ssh, `tail -n 5 ${jobDir}/events.ndjson 2>/dev/null || true`, 5000)).trim()
+
+  return {
+    statusExists,
+    eventsExist,
+    resultExists,
+    runnerPid,
+    runnerAlive,
+    runnerLogTail,
+    lastEventTail,
+  }
+}
+
+function formatJobDiagnostics(jobId: string, diagnostics: JobDiagnostics): string {
+  const presence = [
+    `status.json=${diagnostics.statusExists ? 'yes' : 'no'}`,
+    `events.ndjson=${diagnostics.eventsExist ? 'yes' : 'no'}`,
+    `result.json=${diagnostics.resultExists ? 'yes' : 'no'}`,
+    `runner.pid=${diagnostics.runnerPid || 'missing'}`,
+    `runnerAlive=${diagnostics.runnerAlive ? 'yes' : 'no'}`,
+  ].join(', ')
+
+  const runnerLog = diagnostics.runnerLogTail
+    ? ` runner.log tail: ${diagnostics.runnerLogTail.slice(-500)}`
+    : ''
+  const events = diagnostics.lastEventTail
+    ? ` events tail: ${diagnostics.lastEventTail.slice(-300)}`
+    : ''
+
+  return `Job ${jobId} diagnostics: ${presence}.${runnerLog}${events}`
+}
+
+async function confirmJobLaunch(
+  ssh: InstanceType<typeof import('node-ssh').NodeSSH>,
+  jobId: string,
+): Promise<void> {
+  const startedAt = Date.now()
+
+  while (Date.now() - startedAt < 20000) {
+    const diagnostics = await readJobDiagnostics(ssh, jobId)
+    if (diagnostics.statusExists || diagnostics.eventsExist) return
+
+    // Runner died immediately — likely an import/syntax error
+    if (diagnostics.runnerPid && !diagnostics.runnerAlive) {
+      throw new Error(`RUNNER_LAUNCH_FAILED: Runner exited immediately. ${formatJobDiagnostics(jobId, diagnostics)}`)
+    }
+
+    // No PID but we have log output — the launch command itself may have failed
+    if (!diagnostics.runnerPid && diagnostics.runnerLogTail) {
+      // Give it one more check cycle before failing
+      if (Date.now() - startedAt > 8000) {
+        throw new Error(`RUNNER_LAUNCH_FAILED: No runner PID. ${formatJobDiagnostics(jobId, diagnostics)}`)
+      }
+    }
+
+    await sleep(3000)
+  }
+
+  const diagnostics = await readJobDiagnostics(ssh, jobId)
+  throw new Error(`RUNNER_LAUNCH_FAILED: Timed out waiting for runner. ${formatJobDiagnostics(jobId, diagnostics)}`)
+}
 
 export async function startJob(jobId: string, log: LogFn): Promise<void> {
   const sshConfig = getSSHConfig()
   if (!sshConfig) throw new Error('SSH not configured')
 
   const ssh = await getSSHClient()
+  const jobDir = `${BRIDGE.jobsPath}/${jobId}`
+
   await Promise.race([
     ssh.connect(sshConfig),
     new Promise((_, reject) =>
@@ -297,19 +372,37 @@ export async function startJob(jobId: string, log: LogFn): Promise<void> {
 
   try {
     log('DevOps', 'Starting deployment job on server...', 'running')
-    // Run the runner as a detached process
-    await sshExec(ssh,
-      `(nohup node ${BRIDGE.runnerPath}/runner.js deploy --job ${jobId} ` +
-      `> ${BRIDGE.jobsPath}/${jobId}/runner.log 2>&1 &)`,
-      10000
-    )
+
+    // First verify the runner directory and Node can load the script
+    const verifyCommand = `ls ${BRIDGE.runnerPath}/runner.js ${BRIDGE.runnerPath}/package.json && node -e "console.log('node ok')" 2>&1`
+    const verifyResult = await sshExec(ssh, verifyCommand, 10000)
+    log('DevOps', `Runner verify: ${verifyResult.trim().split('\n').pop()}`, 'running')
+
+    // Launch the runner as a detached background process.
+    // Use separate commands to avoid && chain failure hiding the error.
+    const launchCommand = [
+      `cd ${BRIDGE.runnerPath}`,
+      // Write runner.log immediately so we can always read diagnostics
+      `echo "=== runner launch $(date -Iseconds) ===" > ${jobDir}/runner.log`,
+      // Start runner in background, append stdout+stderr to runner.log
+      `nohup node ./runner.js deploy --job ${jobId} >> ${jobDir}/runner.log 2>&1 &`,
+      `echo $! > ${jobDir}/runner.pid`,
+      // Brief pause to let Node start and fail fast if there's an import error
+      `sleep 1`,
+      `echo "runner.pid=$(cat ${jobDir}/runner.pid) alive=$(kill -0 $(cat ${jobDir}/runner.pid) 2>/dev/null && echo yes || echo no)"`,
+    ].join(' && ')
+
+    const launchOutput = await sshExec(ssh, `bash -lc ${shellQuote(launchCommand)}`, 15000)
+    if (launchOutput.trim()) {
+      log('DevOps', `Launch: ${launchOutput.trim()}`, 'running')
+    }
+
+    await confirmJobLaunch(ssh, jobId)
     log('DevOps', `Job ${jobId} started on server.`, 'done')
   } finally {
     ssh.dispose()
   }
 }
-
-// ── 5. Poll status ──
 
 export async function pollStatus(
   jobId: string,
@@ -321,10 +414,10 @@ export async function pollStatus(
   if (!sshConfig) throw new Error('SSH not configured')
 
   const jobDir = `${BRIDGE.jobsPath}/${jobId}`
-  const startTime = Date.now()
+  const startedAt = Date.now()
   let lastEventIndex = -1
 
-  while (Date.now() - startTime < timeoutMs) {
+  while (Date.now() - startedAt < timeoutMs) {
     const ssh = await getSSHClient()
     try {
       await Promise.race([
@@ -334,15 +427,12 @@ export async function pollStatus(
         ),
       ])
 
-      // Fetch new events
       if (onEvent) {
-        const eventsRaw = await sshExec(ssh,
-          `cat ${jobDir}/events.ndjson 2>/dev/null || echo ''`, 10000
-        )
+        const eventsRaw = await sshExec(ssh, `cat ${jobDir}/events.ndjson 2>/dev/null || echo ''`, 10000)
         if (eventsRaw.trim()) {
           const events = eventsRaw.trim().split('\n')
             .map(line => { try { return JSON.parse(line) as DeployEvent } catch { return null } })
-            .filter((e): e is DeployEvent => e !== null && e.index > lastEventIndex)
+            .filter((event): event is DeployEvent => event !== null && event.index > lastEventIndex)
 
           for (const event of events) {
             onEvent(event)
@@ -351,69 +441,58 @@ export async function pollStatus(
         }
       }
 
-      // Check for result (terminal state)
-      const resultRaw = await sshExec(ssh,
-        `cat ${jobDir}/result.json 2>/dev/null || echo ''`, 10000
-      )
+      const resultRaw = await sshExec(ssh, `cat ${jobDir}/result.json 2>/dev/null || echo ''`, 10000)
       if (resultRaw.trim()) {
-        try {
-          const result = JSON.parse(resultRaw) as DeployResult
-          // Fetch any remaining events
-          if (onEvent) {
-            const eventsRaw = await sshExec(ssh,
-              `cat ${jobDir}/events.ndjson 2>/dev/null || echo ''`, 10000
-            )
-            if (eventsRaw.trim()) {
-              const events = eventsRaw.trim().split('\n')
-                .map(line => { try { return JSON.parse(line) as DeployEvent } catch { return null } })
-                .filter((e): e is DeployEvent => e !== null && e.index > lastEventIndex)
-              for (const event of events) {
-                onEvent(event)
-              }
-            }
-          }
-          return result
-        } catch { /* result not ready yet */ }
+        const result = JSON.parse(resultRaw) as DeployResult
+        return result
       }
 
-      // Check status for progress logging
-      const statusRaw = await sshExec(ssh,
-        `cat ${jobDir}/status.json 2>/dev/null || echo ''`, 10000
-      )
+      const statusRaw = await sshExec(ssh, `cat ${jobDir}/status.json 2>/dev/null || echo ''`, 10000)
       if (statusRaw.trim()) {
-        try {
-          const status = JSON.parse(statusRaw) as DeployStatus
-          const elapsed = Math.round((Date.now() - startTime) / 1000)
-          log('DevOps', `Stage: ${status.stage} (${elapsed}s elapsed)...`, 'running')
-        } catch { /* ignore parse errors */ }
+        const status = JSON.parse(statusRaw) as DeployStatus
+        const elapsed = Math.round((Date.now() - startedAt) / 1000)
+        log('DevOps', `Stage: ${status.stage} (${elapsed}s elapsed)...`, 'running')
       }
 
       ssh.dispose()
-    } catch (err) {
+    } catch {
       try { ssh.dispose() } catch { /* ignore */ }
-      // Connection errors during polling are non-fatal — retry
-      const elapsed = Math.round((Date.now() - startTime) / 1000)
+      const elapsed = Math.round((Date.now() - startedAt) / 1000)
       log('DevOps', `Poll connection error (${elapsed}s elapsed), retrying...`, 'running')
     }
 
     await sleep(intervalMs)
   }
 
-  throw new Error(`Job ${jobId} timed out after ${timeoutMs / 1000}s`)
+  const ssh = await getSSHClient()
+  try {
+    await ssh.connect(sshConfig)
+    const diagnostics = await readJobDiagnostics(ssh, jobId)
+    const errorCode = diagnostics.statusExists || diagnostics.eventsExist || diagnostics.resultExists
+      ? 'RUNNER_STALLED'
+      : 'RUNNER_LAUNCH_FAILED'
+    throw new Error(`${errorCode}: Job ${jobId} timed out after ${timeoutMs / 1000}s. ${formatJobDiagnostics(jobId, diagnostics)}`)
+  } finally {
+    ssh.dispose()
+  }
 }
-
-// ── 6. Generate job ID ──
 
 export function generateJobId(): string {
   return `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-// ── Backward-compatible deployTenant wrapper ──
+function formatValidationFailure(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
 
-/**
- * Deploy a tenant using the bridge model.
- * Maintains the same interface as the original deployTenant for pipeline compatibility.
- */
+  const extra = [
+    'stdout' in error ? String((error as Error & { stdout?: string }).stdout || '') : '',
+    'stderr' in error ? String((error as Error & { stderr?: string }).stderr || '') : '',
+  ].filter(Boolean).join('\n')
+
+  const detail = extra || error.message
+  return detail.slice(-1000)
+}
+
 export async function deployTenantViaBridge(
   deployConfig: LegacyDeployConfig,
   onLog: LogFn,
@@ -440,14 +519,11 @@ export async function deployTenantViaBridge(
 
   const sshConfig = getSSHConfig()
   if (!sshConfig) {
-    // Demo mode — simulate
     const stages = [
-      `Creating web domain ${deployConfig.domain}...`,
-      'Creating PostgreSQL database...',
-      'Cloning application template...',
-      'pnpm install && pnpm build — standalone output ready.',
+      `Creating stage build for ${deployConfig.domain}...`,
+      'Running server build and bootstrap...',
       `PM2 process started on port ${deployConfig.port}.`,
-      'Nginx proxy configured.',
+      'Hestia route verified.',
     ]
     for (const stage of stages) {
       log('DevOps', stage, 'running')
@@ -457,24 +533,38 @@ export async function deployTenantViaBridge(
     return { success: true, domain: deployConfig.domain, port: deployConfig.port, logs }
   }
 
+  let tarballPath = ''
+
   try {
-    // Generate job ID
+    log('DevOps', 'Running local tenant release validation...', 'running')
+    try {
+      runLocalTenantReleaseValidation()
+    } catch (error) {
+      const detail = formatValidationFailure(error)
+      log('DevOps', `Local tenant release validation failed: ${detail}`, 'error')
+      return {
+        success: false,
+        domain: deployConfig.domain,
+        port: deployConfig.port,
+        logs,
+        error: `LOCAL_VALIDATION_FAILED: ${detail}`,
+      }
+    }
+    log('DevOps', 'Local tenant release validation passed.', 'done')
+
     const jobId = generateJobId()
     log('DevOps', `Deployment job ${jobId} for ${deployConfig.domain}`, 'running')
 
-    // Package template
     log('DevOps', 'Packaging golden-image template...', 'running')
-    const tarballPath = packageTemplate()
+    tarballPath = packageTemplate()
     const templateHash = hashTemplate(tarballPath)
     log('DevOps', `Template packaged (hash: ${templateHash}).`, 'done')
 
-    // Build business name from domain
     const businessName = deployConfig.domain.split('.')[0]
       .split('-')
-      .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
 
-    // Create manifest
     const contentPkg = deployConfig.contentPackage || {
       pages: [],
       globals: {
@@ -494,23 +584,16 @@ export async function deployTenantViaBridge(
       contentPkg,
     )
 
-    // Sync runner + upload job
     await syncRunnerAndUploadJob(manifest, tarballPath, log)
-
-    // Start job
     await startJob(jobId, log)
 
-    // Poll for result
     const result = await pollStatus(jobId, log, {
       intervalMs: 10000,
-      timeoutMs: 720000, // 12 min
+      timeoutMs: 720000,
       onEvent: (event) => {
         log(event.agent || 'runner', event.text, event.status)
       },
     })
-
-    // Clean up local tarball
-    try { fs.unlinkSync(tarballPath) } catch { /* ignore */ }
 
     return {
       success: result.state === 'success',
@@ -527,20 +610,22 @@ export async function deployTenantViaBridge(
       localHealthy: result.localHealthy,
       publicHealthy: result.publicHealthy,
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    log('DevOps', `Bridge error: ${msg}`, 'error')
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    log('DevOps', `Bridge error: ${detail}`, 'error')
     return {
       success: false,
       domain: deployConfig.domain,
       port: deployConfig.port,
       logs,
-      error: msg,
+      error: detail,
+    }
+  } finally {
+    if (tarballPath) {
+      try { fs.unlinkSync(tarballPath) } catch { /* ignore */ }
     }
   }
 }
-
-// ── Check if deployment is configured ──
 
 export async function isDeploymentConfigured(): Promise<boolean> {
   const config = getSSHConfig()
@@ -555,8 +640,6 @@ export async function isDeploymentConfigured(): Promise<boolean> {
     return false
   }
 }
-
-// ── Get used ports (unchanged) ──
 
 export async function getUsedPorts(): Promise<number[]> {
   const config = getSSHConfig()
@@ -575,18 +658,14 @@ export async function getUsedPorts(): Promise<number[]> {
     ssh.dispose()
 
     const envPorts = envResult.stdout.trim()
-      ? envResult.stdout.trim().split('\n').map((p: string) => parseInt(p, 10))
+      ? envResult.stdout.trim().split('\n').map((port: string) => parseInt(port, 10))
       : []
     const ssPorts = ssResult.stdout.trim()
-      ? ssResult.stdout.trim().split('\n').map((p: string) => parseInt(p, 10))
+      ? ssResult.stdout.trim().split('\n').map((port: string) => parseInt(port, 10))
       : []
 
-    return [...new Set([...envPorts, ...ssPorts])].filter((p: number) => !isNaN(p))
+    return [...new Set([...envPorts, ...ssPorts])].filter((port: number) => !isNaN(port))
   } catch {
     return []
   }
-}
-
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }

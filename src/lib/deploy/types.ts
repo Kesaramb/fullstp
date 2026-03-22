@@ -9,17 +9,20 @@
  *
  * Job directory: /opt/fullstp-runner/jobs/<jobId>/
  * Required files: manifest.json, status.json, events.ndjson, result.json, lock, template.tgz
+ * Optional diagnostics: runner.log, runner.pid
  */
 
 // ── Deployment Stages ──
 
 export type DeployStage =
+  | 'validating'
   | 'queued'
   | 'preflight'
   | 'provisioning'
   | 'templating'
   | 'building'
   | 'bootstrapping'
+  | 'promoting'
   | 'starting'
   | 'seeding'
   | 'verifying'
@@ -115,6 +118,7 @@ export interface DeployResult {
 // ── Error codes ──
 
 export type DeployErrorCode =
+  | 'LOCAL_VALIDATION_FAILED'
   | 'PORT_IN_USE'
   | 'DOMAIN_EXISTS'
   | 'HESTIA_UNAVAILABLE'
@@ -134,6 +138,9 @@ export type DeployErrorCode =
   | 'BOOTSTRAP_FAILED'
   | 'BOOTSTRAP_TIMEOUT'
   | 'ADMIN_BOOTSTRAP_FAILED'
+  | 'RUNNER_LAUNCH_FAILED'
+  | 'RUNNER_STALLED'
+  | 'PROMOTION_FAILED'
   | 'PM2_START_FAILED'
   | 'LIVENESS_FAILED'
   | 'HEALTH_CHECK_FAILED'

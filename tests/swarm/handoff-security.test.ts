@@ -8,6 +8,12 @@
 
 import { describe, it, expect } from 'vitest'
 
+function getFieldName(field: unknown): string | undefined {
+  return typeof field === 'object' && field !== null && 'name' in field
+    ? (field as { name?: string }).name
+    : undefined
+}
+
 describe('Handoff security contract', () => {
   it('pipeline handoff shape excludes admin credentials', () => {
     // Simulate what pipeline.ts emits in build_complete
@@ -41,14 +47,14 @@ describe('Handoff security contract', () => {
     // by importing and inspecting the config
     const { Deployments } = await import('@/collections/Deployments')
 
-    const fieldNames = Deployments.fields.map((f: { name?: string }) => f.name).filter(Boolean)
+    const fieldNames = Deployments.fields.map(getFieldName).filter(Boolean)
     expect(fieldNames).toContain('adminEmail')
     expect(fieldNames).toContain('adminPassword')
     expect(fieldNames).toContain('domain')
     expect(fieldNames).toContain('port')
 
     // Verify 'simulated' is a valid status option
-    const statusField = Deployments.fields.find((f: { name?: string }) => f.name === 'status')
+    const statusField = Deployments.fields.find((field) => getFieldName(field) === 'status')
     const options = (statusField as { options?: Array<{ value: string }> })?.options?.map(
       (o: { value: string }) => o.value
     )
