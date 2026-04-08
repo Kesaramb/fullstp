@@ -1,5 +1,5 @@
 /**
- * Theming system — 6 palettes + 4 font pairings.
+ * Theming system — 6 palettes + 5 font pairings.
  * CSS variables injected via ThemeProvider into :root.
  */
 
@@ -42,7 +42,7 @@ export const PALETTES: Record<string, Palette> = {
     '--color-primary': '#7c2d12', '--color-primary-light': '#9a3412',
     '--color-accent': '#f59e0b', '--color-accent-light': '#fbbf24',
     '--color-bg': '#ffffff', '--color-bg-alt': '#fffbeb',
-    '--color-text': '#7c2d12', '--color-text-muted': '#b45309',
+    '--color-text': '#7c2d12', '--color-text-muted': '#92400e',
     '--color-border': '#fde68a', '--color-muted': '#fef3c7',
   },
   lavender: {
@@ -72,6 +72,11 @@ export const FONT_PAIRINGS: Record<string, FontPairing> = {
     heading: "'Inter', system-ui, sans-serif",
     body: "'Inter', system-ui, sans-serif",
     googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap',
+  },
+  'playfair-inter': {
+    heading: "'Playfair Display', serif",
+    body: "'Inter', system-ui, sans-serif",
+    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap',
   },
   'playfair-sourcesans': {
     heading: "'Playfair Display', serif",

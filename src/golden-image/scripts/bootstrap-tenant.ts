@@ -19,6 +19,7 @@
 
 import { getPayload } from 'payload'
 import config from '../payload.config'
+import type { Form } from '../src/payload-types'
 
 // ── Parse CLI args ──
 
@@ -37,6 +38,9 @@ if (!adminEmail || !adminPassword) {
   process.exit(1)
 }
 
+const resolvedAdminEmail = adminEmail
+const resolvedAdminPassword = adminPassword
+
 function log(msg: string) {
   console.error(`[bootstrap] ${msg}`)
 }
@@ -49,7 +53,7 @@ function output(result: Record<string, unknown>) {
   }
 }
 
-function lexical(text: string) {
+function lexical(text: string): NonNullable<Form['confirmationMessage']> {
   return {
     root: {
       type: 'root',
@@ -68,13 +72,28 @@ function lexical(text: string) {
   }
 }
 
+const defaultContactForm: Pick<
+  Form,
+  'title' | 'fields' | 'submitButtonLabel' | 'confirmationType' | 'confirmationMessage'
+> = {
+  title: 'Contact Form',
+  fields: [
+    { name: 'name', label: 'Name', blockType: 'text', required: true },
+    { name: 'email', label: 'Email', blockType: 'email', required: true },
+    { name: 'message', label: 'Message', blockType: 'textarea', required: true },
+  ],
+  submitButtonLabel: 'Send Message',
+  confirmationType: 'message',
+  confirmationMessage: lexical('Thank you for reaching out. We will get back to you soon.'),
+}
+
 // ── Bootstrap ──
 
 async function bootstrap() {
   const result: Record<string, unknown> = {
     schemaReady: false,
     adminCreated: false,
-    adminEmail,
+    adminEmail: resolvedAdminEmail,
     adminExists: false,
     formId: null,
   }
@@ -87,11 +106,11 @@ async function bootstrap() {
     result.schemaReady = true
 
     // 2. Create first admin if not already present (idempotent)
-    log(`Creating admin user: ${adminEmail}`)
+    log(`Creating admin user: ${resolvedAdminEmail}`)
     try {
       await payload.create({
         collection: 'users',
-        data: { email: adminEmail, password: adminPassword },
+        data: { email: resolvedAdminEmail, password: resolvedAdminPassword },
       })
       log('Admin user created successfully')
       result.adminCreated = true
@@ -122,17 +141,8 @@ async function bootstrap() {
       } else {
         const form = await payload.create({
           collection: 'forms',
-          data: {
-            title: 'Contact Form',
-            fields: [
-              { name: 'name', label: 'Name', blockType: 'text', required: true },
-              { name: 'email', label: 'Email', blockType: 'email', required: true },
-              { name: 'message', label: 'Message', blockType: 'textarea', required: true },
-            ],
-            submitButtonLabel: 'Send Message',
-            confirmationType: 'message',
-            confirmationMessage: lexical('Thank you for reaching out. We will get back to you soon.'),
-          } as Record<string, unknown>,
+          draft: false,
+          data: defaultContactForm,
         })
         log(`Contact form created (ID: ${form.id})`)
         result.formId = form.id

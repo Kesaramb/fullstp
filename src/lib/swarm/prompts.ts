@@ -182,6 +182,10 @@ export function uiArchitectPrompt(
   designBrief: DesignBrief,
   copy: WrittenCopy
 ): string {
+  const pageLayoutSummary = designBrief.pageLayouts?.length
+    ? designBrief.pageLayouts.map(p => `  ${p.slug}: ${p.blockSequence.join(' → ')}`).join('\n')
+    : Object.entries(designBrief.pagePresets || {}).map(([slug, preset]) => `  ${slug}: preset ${preset}`).join('\n')
+
   return `Strategy Brief:
 - Business: ${strategy.businessName} (${strategy.industry})
 - Target Audience: ${strategy.targetAudience}
@@ -193,7 +197,7 @@ Design Brief:
 - Hero Variant: ${designBrief.heroVariant}
 - Border Radius: ${designBrief.borderRadius}
 - Page Layouts:
-${designBrief.pageLayouts.map(p => `  ${p.slug}: ${p.blockSequence.join(' → ')}`).join('\n')}
+${pageLayoutSummary}
 
 Written Copy:
 ${JSON.stringify(copy, null, 2)}
@@ -282,6 +286,10 @@ Output JSON:
       "description": "string (1-2 sentence business description)",
       "copyrightName": "string (business name)",
       "socialLinks": [{ "platform": "twitter"|"instagram"|"linkedin"|"facebook"|"youtube", "url": "#" }],
+      "phone": "string?",
+      "address": "string?",
+      "businessHours": "string?",
+      "mapLink": "string?",
       "bottomMessage": "string (e.g. 'Made with passion in City')"
     }
   }
@@ -296,6 +304,7 @@ Rules:
 - Header brandLabel should be the business name.
 - Header ctaButton should be a contact CTA.
 - Footer should have 2-3 placeholder social links.
+- CTA URLs must never point to the same page they appear on. Rewrite same-page links to /contact or another relevant page.
 - DO NOT mention Tailwind, animations, colors, or visual styling.
 - Output ONLY valid JSON, no commentary.`
 
@@ -395,7 +404,7 @@ Valid mutation types:
 - create_page: { type, slug, title, layout } — create a new page
 - update_site_settings: { type, siteName?, siteDescription?, theme?: { palette?, fontPairing?, borderRadius? } }
 - update_header: { type, navLinks?: [{ label, url }], brandLabel?, ctaButton?: { label, url } }
-- update_footer: { type, copyright?, footerLinks?: [{ label, url }], description?, copyrightName?, socialLinks?: [{ platform, url }], bottomMessage? }
+- update_footer: { type, copyright?, footerLinks?: [{ label, url }], description?, copyrightName?, socialLinks?: [{ platform, url }], phone?, address?, businessHours?, mapLink?, bottomMessage? }
 
 Block types for page layouts:
 - hero: { blockType: "hero", variant: "highImpact"|"mediumImpact"|"lowImpact", heading, subheading?, badge?, ctaLabel?, ctaLink?, highlights?: [{text}], backgroundImage? }
@@ -414,5 +423,6 @@ CRITICAL RULES:
 - If no changes needed (just answering a question), respond with plain text only — no JSON block.
 - Never use CMS terminology with the client. Say "homepage" not "page document", "headline" not "hero heading".
 - Always confirm the exact change made.
+- Never create a CTA that links to the same page it appears on.
 - Never modify Users or authentication.
 - Keep replies short and direct.`

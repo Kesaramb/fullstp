@@ -59,6 +59,14 @@ export interface ManifestContentPackage {
     footer: {
       footerLinks: { label: string; url: string }[]
       copyright: string
+      description?: string
+      copyrightName?: string
+      socialLinks?: { platform: string; url: string }[]
+      phone?: string
+      address?: string
+      businessHours?: string
+      mapLink?: string
+      bottomMessage?: string
     }
   }
 }

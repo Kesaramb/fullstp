@@ -18,21 +18,40 @@ export function MediaBlockComponent({ block }: MediaBlockProps) {
   const isFull = block.size === 'full'
 
   return (
-    <section className={`py-12 ${isFull ? '' : 'px-6 md:px-8'}`}>
-      <motion.figure className={isFull ? '' : 'mx-auto max-w-5xl'} {...scaleIn}>
-        <div className={`overflow-hidden ${isFull ? '' : 'rounded-[var(--radius,0.5rem)]'}`}>
-          <img
-            src={block.media.url}
-            alt={block.media.alt || ''}
-            className="w-full h-auto object-cover"
-          />
+    <section className="py-12">
+      {isFull ? (
+        <motion.figure {...scaleIn}>
+          <div className="overflow-hidden">
+            <img
+              src={block.media.url}
+              alt={block.media.alt || ''}
+              className="h-auto w-full object-cover"
+            />
+          </div>
+          {block.caption && (
+            <figcaption className="mt-3 text-center text-sm text-[var(--color-text-muted,#64748b)]">
+              {block.caption}
+            </figcaption>
+          )}
+        </motion.figure>
+      ) : (
+        <div className="site-container">
+          <motion.figure className="mx-auto max-w-5xl" {...scaleIn}>
+            <div className="overflow-hidden rounded-[var(--radius,0.5rem)]">
+              <img
+                src={block.media.url}
+                alt={block.media.alt || ''}
+                className="h-auto w-full object-cover"
+              />
+            </div>
+            {block.caption && (
+              <figcaption className="mt-3 text-center text-sm text-[var(--color-text-muted,#64748b)]">
+                {block.caption}
+              </figcaption>
+            )}
+          </motion.figure>
         </div>
-        {block.caption && (
-          <figcaption className="mt-3 text-center text-sm text-[var(--color-text-muted,#64748b)]">
-            {block.caption}
-          </figcaption>
-        )}
-      </motion.figure>
+      )}
     </section>
   )
 }

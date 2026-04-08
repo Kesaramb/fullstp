@@ -19,6 +19,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       copyrightName={globals.copyrightName}
       socialLinks={globals.socialLinks}
       bottomMessage={globals.bottomMessage}
+      phone={globals.phone}
+      address={globals.address}
+      businessHours={globals.businessHours}
+      mapLink={globals.mapLink}
     >
       {children}
     </SiteShell>

@@ -35,33 +35,35 @@ export function BrandNarrativeBlock({ block }: BrandNarrativeProps) {
   const imageAnim = imageLeft ? slideInLeft : slideInRight
 
   return (
-    <section className="bg-[var(--color-bg,#ffffff)] py-24 px-6 md:px-8">
-      <div className={`mx-auto grid max-w-6xl grid-cols-1 items-center gap-16 ${hasImage ? `md:grid-cols-[55fr_45fr] ${imageLeft ? 'md:[direction:rtl]' : ''}` : ''}`}>
-        {hasImage && (
-          <motion.div
-            {...imageAnim}
-            className={`relative aspect-[4/3] rounded-[var(--radius,0.5rem)] overflow-hidden shadow-depth-lg ${imageLeft ? 'md:[direction:ltr] md:order-first' : 'md:[direction:ltr] md:order-last'}`}
-          >
-            <img src={block.image!.url} alt={block.image!.alt || ''} className="h-full w-full object-cover" />
-          </motion.div>
-        )}
-
-        <motion.div {...fadeInUp} className={`md:[direction:ltr] ${!hasImage ? 'mx-auto max-w-3xl text-center' : ''} ${hasImage ? 'md:order-first' : ''}`}>
-          {block.eyebrow && (
-            <div className="flex items-center gap-3 mb-4">
-              {hasImage && <div className="accent-line" />}
-              <p className="text-sm font-semibold uppercase tracking-widest text-[var(--color-accent,#3b82f6)]">
-                {block.eyebrow}
-              </p>
-            </div>
+    <section className="bg-[var(--color-bg,#ffffff)] py-24">
+      <div className="site-container">
+        <div className={`grid grid-cols-1 items-center gap-16 ${hasImage ? `md:grid-cols-[55fr_45fr] ${imageLeft ? 'md:[direction:rtl]' : ''}` : ''}`}>
+          {hasImage && (
+            <motion.div
+              {...imageAnim}
+              className={`relative aspect-[4/3] rounded-[var(--radius,0.5rem)] overflow-hidden shadow-depth-lg ${imageLeft ? 'md:[direction:ltr] md:order-first' : 'md:[direction:ltr] md:order-last'}`}
+            >
+              <img src={block.image!.url} alt={block.image!.alt || ''} className="h-full w-full object-cover" />
+            </motion.div>
           )}
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-8 text-[var(--color-text,#0f172a)]" style={{ fontFamily: 'var(--font-heading)' }}>
-            {block.heading}
-          </h2>
-          <div className="space-y-5 text-lg leading-relaxed text-[var(--color-text-muted,#64748b)]">
-            {paragraphs.map((p, i) => <p key={i}>{p}</p>)}
-          </div>
-        </motion.div>
+
+          <motion.div {...fadeInUp} className={`md:[direction:ltr] ${!hasImage ? 'mx-auto max-w-3xl text-center' : 'text-left'} ${hasImage ? 'md:order-first' : ''}`}>
+            {block.eyebrow && (
+              <div className={`mb-4 flex items-center gap-3 ${!hasImage ? 'justify-center' : ''}`}>
+                <div className="accent-line" />
+                <p className="text-sm font-semibold uppercase tracking-widest text-[var(--color-accent,#3b82f6)]">
+                  {block.eyebrow}
+                </p>
+              </div>
+            )}
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-8 text-[var(--color-text,#0f172a)]" style={{ fontFamily: 'var(--font-heading)' }}>
+              {block.heading}
+            </h2>
+            <div className="space-y-5 text-lg leading-relaxed text-[var(--color-text,#0f172a)]/70">
+              {paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+            </div>
+          </motion.div>
+        </div>
       </div>
     </section>
   )

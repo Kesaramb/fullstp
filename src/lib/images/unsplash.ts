@@ -19,6 +19,8 @@ export interface UnsplashImage {
   photographerUrl: string
 }
 
+export type ImageTargetField = 'backgroundImage' | 'image'
+
 interface UnsplashApiPhoto {
   urls: {
     raw: string
@@ -53,7 +55,7 @@ const UNSPLASH_API_BASE = 'https://api.unsplash.com'
 /**
  * Fetch relevant stock photos from Unsplash for a given industry and business.
  *
- * Returns 5-8 images. Each image includes proper Unsplash attribution
+ * Returns up to 4 images. Each image includes proper Unsplash attribution
  * in the alt text as required by the Unsplash API guidelines.
  *
  * Returns an empty array if:
@@ -75,12 +77,12 @@ export async function fetchUnsplashImages(
   const seen = new Set<string>()
 
   // Fetch from multiple search terms to get variety
-  // Stop once we have 5-8 images
+  // Stop once we have enough images for hero + narrative coverage
   for (const query of searchTerms) {
-    if (images.length >= 8) break
+    if (images.length >= 4) break
 
     try {
-      const perPage = Math.min(5, 8 - images.length)
+      const perPage = Math.min(4, 4 - images.length)
       const url = new URL(`${UNSPLASH_API_BASE}/search/photos`)
       url.searchParams.set('query', query)
       url.searchParams.set('per_page', String(perPage))
@@ -106,7 +108,7 @@ export async function fetchUnsplashImages(
       const data = (await response.json()) as UnsplashSearchResponse
 
       for (const photo of data.results) {
-        if (images.length >= 8) break
+        if (images.length >= 4) break
         if (seen.has(photo.links.html)) continue
         seen.add(photo.links.html)
 
@@ -146,6 +148,7 @@ export async function fetchUnsplashImages(
 export interface ImageAssignment {
   pageSlug: string
   blockIndex: number
+  targetField: ImageTargetField
   imageUrl: string
   imageAlt: string
   imageWidth: number
@@ -176,6 +179,7 @@ export function assignImagesToContent(
         assignments.push({
           pageSlug: page.slug,
           blockIndex: blockIdx,
+          targetField: 'backgroundImage',
           imageUrl: img.url,
           imageAlt: img.alt,
           imageWidth: img.width,
@@ -189,6 +193,7 @@ export function assignImagesToContent(
         assignments.push({
           pageSlug: page.slug,
           blockIndex: blockIdx,
+          targetField: 'image',
           imageUrl: img.url,
           imageAlt: img.alt,
           imageWidth: img.width,

@@ -176,6 +176,7 @@ Rules:
 - Write REAL copy. No placeholders like "{business name}" or "Lorem ipsum."
 - Every heading should speak to the target audience's desire or pain point
 - CTAs should be action-oriented and specific (not just "Learn More")
+- CTA links must NEVER point to the same page currently being written. For example: about-page CTAs cannot link to "/about".
 - Match the brand voice from the strategy brief
 - Home page copy should build emotional momentum: hook \u2192 value \u2192 proof \u2192 action
 - Output ONLY valid JSON, no commentary`
@@ -196,9 +197,13 @@ export class ContentWriterWorker {
     log('Content Writer', `Writing copy for ${strategy.businessName}...`, 'running')
     log('Content Writer', `Brand voice: ${strategy.brandVoice}`, 'running')
 
-    const pageLayoutsSummary = designBrief.pageLayouts
-      .map(p => `  ${p.slug}: ${p.blockSequence.join(' → ')}`)
-      .join('\n')
+    const pageLayoutsSummary = designBrief.pageLayouts?.length
+      ? designBrief.pageLayouts
+        .map(p => `  ${p.slug}: ${p.blockSequence.join(' → ')}`)
+        .join('\n')
+      : Object.entries(designBrief.pagePresets || {})
+        .map(([slug, preset]) => `  ${slug}: preset ${preset}`)
+        .join('\n')
 
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',

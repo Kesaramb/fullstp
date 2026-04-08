@@ -313,9 +313,11 @@ export class SwarmPipeline {
     // Resolve archetype for nav/CTA defaults
     const archetype = bmc.businessArchetype || this.inferArchetype(bmc)
     const archetypeConfig = ARCHETYPE_CONFIGS[archetype]
+    const year = new Date().getFullYear()
 
     // Global values
     const globalValues: Record<string, string> = {
+      year: String(year),
       businessName: bmc.businessName,
       tagline: bmc.tagline || `${bmc.industry} that puts you first`,
       siteDescription: bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
@@ -332,6 +334,10 @@ export class SwarmPipeline {
       cta_label: archetypeConfig.headerCta.label,
       cta_url: archetypeConfig.headerCta.url,
       footer_description: bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
+      footer_phone: '',
+      footer_address: '',
+      footer_business_hours: '',
+      footer_map_link: '',
       footer_bottom_message: `Made with care by ${bmc.businessName}`,
     }
 
@@ -389,7 +395,7 @@ export class SwarmPipeline {
     let palette = 'midnight'
     let fontPairing = 'geist-inter'
     if (/restaurant|food|bakery|cafe|kitchen|bistro/i.test(industryLower)) {
-      palette = 'sunset'; fontPairing = 'playfair-sourcesans'
+      palette = 'sunset'; fontPairing = 'playfair-inter'
     } else if (/wellness|health|spa|yoga|fitness|medical/i.test(industryLower)) {
       palette = 'ocean'; fontPairing = 'dmsans-dmserif'
     } else if (/fashion|beauty|luxury|jewelry|cosmetic|candle|skincare/i.test(industryLower)) {
@@ -744,6 +750,21 @@ export class SwarmPipeline {
 
   // ── Post-deploy image upload (optional, non-blocking) ──
 
+  private async resolveTenantBaseUrl(domain: string): Promise<string> {
+    try {
+      const httpsRes = await fetch(`https://${domain}/api/users`, {
+        signal: AbortSignal.timeout(5000),
+      })
+      if (httpsRes.status !== 502) {
+        return `https://${domain}`
+      }
+    } catch {
+      // Fallback to HTTP when HTTPS is not yet available
+    }
+
+    return `http://${domain}`
+  }
+
   private async uploadImagesToTenant(
     domain: string,
     imageAssignments: ImageAssignment[],
@@ -753,7 +774,7 @@ export class SwarmPipeline {
   ): Promise<void> {
     if (imageAssignments.length === 0) return
 
-    const baseUrl = `http://${domain}`
+    const baseUrl = await this.resolveTenantBaseUrl(domain)
     log('Factory', `Uploading ${imageAssignments.length} images to tenant...`, 'running')
 
     // Authenticate
@@ -783,7 +804,7 @@ export class SwarmPipeline {
         // Upload to tenant's media collection
         const formData = new FormData()
         const blob = new Blob([imgBuffer], { type: 'image/jpeg' })
-        formData.append('file', blob, `hero-${assignment.pageSlug}.jpg`)
+        formData.append('file', blob, `${assignment.pageSlug}-${assignment.targetField}.jpg`)
         formData.append('alt', assignment.imageAlt)
 
         const uploadRes = await fetch(`${baseUrl}/api/media`, {
@@ -806,22 +827,24 @@ export class SwarmPipeline {
         if (!docs?.[0]) continue
 
         const page = docs[0]
-        const layout = [...page.layout]
+        const layout = Array.isArray(page.layout) ? [...page.layout] : []
         if (layout[assignment.blockIndex]) {
           layout[assignment.blockIndex] = {
             ...layout[assignment.blockIndex],
-            backgroundImage: doc.id,
+            [assignment.targetField]: doc.id,
           }
         }
 
-        await fetch(`${baseUrl}/api/pages/${page.id}`, {
+        const patchRes = await fetch(`${baseUrl}/api/pages/${page.id}`, {
           method: 'PATCH',
           headers: { ...auth, 'Content-Type': 'application/json' },
           body: JSON.stringify({ layout }),
           signal: AbortSignal.timeout(10000),
         })
 
-        uploaded++
+        if (patchRes.ok) {
+          uploaded++
+        }
       } catch {
         continue
       }

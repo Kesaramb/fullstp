@@ -52,24 +52,26 @@ export function CallToActionBlock({ block }: CallToActionBlockProps) {
   const href = resolveLink(block.linkUrl)
 
   return (
-    <section className={`py-20 px-6 md:px-8 ${styles.section}`}>
-      <div className="mx-auto max-w-2xl text-center">
-        <h2 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-4">
-          {block.heading}
-        </h2>
+    <section className={`py-20 ${styles.section}`}>
+      <div className="site-container">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-4">
+            {block.heading}
+          </h2>
 
-        {block.body && (
-          <p className={`text-lg leading-relaxed mb-10 ${styles.bodyColor}`}>
-            {block.body}
-          </p>
-        )}
+          {block.body && (
+            <p className={`text-lg leading-relaxed mb-10 ${styles.bodyColor}`}>
+              {block.body}
+            </p>
+          )}
 
-        <a href={href} className={styles.button}>
-          {block.linkLabel}
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-          </svg>
-        </a>
+          <a href={href} className={styles.button}>
+            {block.linkLabel}
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+          </a>
+        </div>
       </div>
     </section>
   )

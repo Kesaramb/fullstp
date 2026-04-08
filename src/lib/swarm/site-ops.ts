@@ -35,6 +35,10 @@ interface Mutation {
   description?: string
   copyrightName?: string
   socialLinks?: Array<{ platform: string; url: string }>
+  phone?: string
+  address?: string
+  businessHours?: string
+  mapLink?: string
   bottomMessage?: string
 }
 
@@ -279,6 +283,10 @@ export class SiteOps {
             if (m.description) data.description = m.description
             if (m.copyrightName) data.copyrightName = m.copyrightName
             if (m.socialLinks) data.socialLinks = m.socialLinks
+            if (m.phone) data.phone = m.phone
+            if (m.address) data.address = m.address
+            if (m.businessHours) data.businessHours = m.businessHours
+            if (m.mapLink) data.mapLink = m.mapLink
             if (m.bottomMessage) data.bottomMessage = m.bottomMessage
             res = await fetch(`${baseUrl}/api/globals/footer`, {
               method: 'POST',

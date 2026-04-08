@@ -186,7 +186,7 @@ export const ARCHETYPE_CONFIGS: Record<BusinessArchetype, ArchetypeConfig> = {
     ],
     navLinks: [
       { label: 'Home', url: '/' }, { label: 'Menu', url: '/menu' },
-      { label: 'About', url: '/about' }, { label: 'Visit', url: '/contact' },
+      { label: 'About', url: '/about' }, { label: 'Contact', url: '/contact' },
     ],
     headerCta: { label: 'Reserve Now', url: '/contact' },
     heroCta: { label: 'Make a Reservation', link: '/contact' },
@@ -230,7 +230,7 @@ export const ARCHETYPE_CONFIGS: Record<BusinessArchetype, ArchetypeConfig> = {
     ],
     navLinks: [
       { label: 'Home', url: '/' }, { label: 'Work', url: '/work' },
-      { label: 'About', url: '/about' }, { label: 'Hire Me', url: '/contact' },
+      { label: 'About', url: '/about' }, { label: 'Contact', url: '/contact' },
     ],
     headerCta: { label: 'View Work', url: '/work' },
     heroCta: { label: 'See Our Work', link: '/work' },
@@ -274,7 +274,7 @@ export const ARCHETYPE_CONFIGS: Record<BusinessArchetype, ArchetypeConfig> = {
     ],
     navLinks: [
       { label: 'Home', url: '/' }, { label: 'What We Offer', url: '/offerings' },
-      { label: 'About', url: '/about' }, { label: 'Visit Us', url: '/contact' },
+      { label: 'About', url: '/about' }, { label: 'Contact', url: '/contact' },
     ],
     headerCta: { label: 'Visit Us', url: '/contact' },
     heroCta: { label: 'Come Say Hello', link: '/contact' },
@@ -318,7 +318,7 @@ export const ARCHETYPE_CONFIGS: Record<BusinessArchetype, ArchetypeConfig> = {
     ],
     navLinks: [
       { label: 'Home', url: '/' }, { label: 'Features', url: '/features' },
-      { label: 'About', url: '/about' }, { label: 'Get Started', url: '/contact' },
+      { label: 'About', url: '/about' }, { label: 'Contact', url: '/contact' },
     ],
     headerCta: { label: 'Start Free', url: '/contact' },
     heroCta: { label: 'Start Free Trial', link: '/contact' },
@@ -399,7 +399,7 @@ export interface StrategyBrief {
 export interface DesignBrief {
   heroVariant: 'highImpact' | 'mediumImpact' | 'lowImpact'
   palette: 'midnight' | 'ocean' | 'forest' | 'sunset' | 'lavender' | 'ember'
-  fontPairing: 'geist-inter' | 'playfair-sourcesans' | 'dmsans-dmserif' | 'spacegrotesk-inter'
+  fontPairing: 'geist-inter' | 'playfair-sourcesans' | 'playfair-inter' | 'dmsans-dmserif' | 'spacegrotesk-inter'
   borderRadius: 'none' | 'sm' | 'md' | 'lg'
   pagePresets?: Record<string, string>
   /** @deprecated Use pagePresets instead. Kept for backward compat with in-flight deploys. */
@@ -489,6 +489,10 @@ export interface ContentPackage {
       description?: string
       copyrightName?: string
       socialLinks?: { platform: string; url: string }[]
+      phone?: string
+      address?: string
+      businessHours?: string
+      mapLink?: string
       bottomMessage?: string
     }
   }

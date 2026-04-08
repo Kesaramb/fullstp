@@ -31,10 +31,12 @@ export function BannerBlock({ block }: BannerProps) {
   const { Icon } = s
 
   return (
-    <section className="py-4 px-6 md:px-8">
-      <div className={`mx-auto max-w-4xl flex items-center gap-3 rounded-[var(--radius,0.5rem)] border p-4 ${s.bg}`}>
-        <Icon aria-hidden="true" className={`h-5 w-5 shrink-0 ${s.text}`} />
-        <p className={`text-sm font-medium ${s.text}`}>{block.content}</p>
+    <section className="py-4">
+      <div className="site-container">
+        <div className={`mx-auto flex max-w-4xl items-center gap-3 rounded-[var(--radius,0.5rem)] border p-4 ${s.bg}`}>
+          <Icon aria-hidden="true" className={`h-5 w-5 shrink-0 ${s.text}`} />
+          <p className={`text-sm font-medium ${s.text}`}>{block.content}</p>
+        </div>
       </div>
     </section>
   )

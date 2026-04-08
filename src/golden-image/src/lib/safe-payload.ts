@@ -82,6 +82,10 @@ export async function safeFindAllGlobals() {
   const copyrightName = f?.copyrightName || ''
   const socialLinks = f?.socialLinks || []
   const bottomMessage = f?.bottomMessage || ''
+  const phone = f?.phone || ''
+  const address = f?.address || ''
+  const businessHours = f?.businessHours || ''
+  const mapLink = f?.mapLink || ''
 
   // Theme
   const palette = ss?.theme?.palette || 'midnight'
@@ -91,7 +95,7 @@ export async function safeFindAllGlobals() {
   return {
     siteName, navLinks, brandLabel, ctaButton,
     footerLinks, copyright, description, copyrightName,
-    socialLinks, bottomMessage,
+    socialLinks, bottomMessage, phone, address, businessHours, mapLink,
     theme: { palette, fontPairing, borderRadius },
   }
 }

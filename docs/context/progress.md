@@ -11,6 +11,8 @@
 - [x] Swarm pipeline expanded to Queen -> Design Director -> Content Writer -> UI Architect -> Payload Expert -> DevOps
 - [x] Full live deployment path verified on `test-deploy-v3.167.86.81.161.nip.io` with `4/4` pages seeded and `3/3` globals configured
 - [x] Fixed live Payload admin login crash by wiring the required admin provider stack in `(payload)/layout.tsx`; `test-deploy-v3.167.86.81.161.nip.io/admin/login` now returns HTTP `200`
+- [x] Hardened the golden-image root UX layer with shared `site-container` spacing, a real mobile nav overlay, dynamic footer copyright defaults, and footer contact-field propagation
+- [x] Added swarm guardrails for bakery/local-business quality: stronger Unsplash search terms, correct image target-field assignment, deterministic non-self CTA normalization, and stricter contrast / CTA prompt rules
 
 ## In Progress
 

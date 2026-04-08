@@ -23,14 +23,14 @@ export function FeatureGridBlock({ block }: FeatureGridProps) {
   const cols = block.columns === '4' ? 'md:grid-cols-4' : 'md:grid-cols-3'
 
   return (
-    <section className="bg-[var(--color-bg-alt,#f8fafc)] py-24 px-6 md:px-8">
-      <motion.div className="mx-auto max-w-6xl" {...fadeInUp}>
+    <section className="bg-[var(--color-bg-alt,#f8fafc)] py-24">
+      <motion.div className="site-container" {...fadeInUp}>
         <div className="mx-auto max-w-2xl text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-[var(--color-text,#0f172a)]" style={{ fontFamily: 'var(--font-heading)' }}>
             {block.heading}
           </h2>
           {block.subheading && (
-            <p className="text-lg text-[var(--color-text-muted,#64748b)] leading-relaxed">
+            <p className="text-lg text-[var(--color-text,#0f172a)]/70 leading-relaxed">
               {block.subheading}
             </p>
           )}
@@ -56,7 +56,7 @@ export function FeatureGridBlock({ block }: FeatureGridProps) {
                   <Icon aria-hidden="true" className="h-6 w-6 text-[var(--color-accent,#3b82f6)]" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2.5 text-[var(--color-text,#0f172a)]">{feature.title}</h3>
-                <p className="text-sm text-[var(--color-text-muted,#64748b)] leading-relaxed">{feature.description}</p>
+                <p className="text-sm text-[var(--color-text,#0f172a)]/65 leading-relaxed">{feature.description}</p>
               </motion.div>
             )
           })}

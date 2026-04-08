@@ -74,3 +74,4 @@ Pre-seeded knowledge from architecture decisions and known gotchas. Updated as a
 - One session = one task = one branch. Never mix multiple tasks in a single session.
 - Always run `npm run verify` (generate:types → typecheck → lint → build → test) before committing any changes.
 - `@testing-library/react` v16 does not auto-cleanup in Vitest — add `afterEach(() => cleanup())` in `tests/setup.ts` explicitly.
+- For swarm-generated sites, prompt constraints alone are not enough for structural quality. Add deterministic post-generation guards for link targets and media field mapping so a bad LLM response cannot ship a broken CTA or silently drop images.

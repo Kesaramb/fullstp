@@ -1,6 +1,7 @@
 import React from 'react'
 import type { Metadata } from 'next'
 import { safeFindPage, safeFindGlobal } from '../../lib/safe-payload'
+import { buildPageMetadata } from '../../lib/metadata'
 import { RenderBlocks } from '../../components/RenderBlocks'
 
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const settings = await safeFindGlobal('site-settings')
   const siteName = (settings as any)?.siteName || process.env.SITE_NAME || 'Home'
   const desc = (settings as any)?.siteDescription || `Welcome to ${siteName}`
-  return { title: `${siteName} — Home`, description: desc }
+  return buildPageMetadata({
+    title: siteName,
+    description: desc,
+    path: '/',
+    siteName,
+    ogImage: (settings as any)?.ogImage,
+  })
 }
 
 export default async function HomePage() {

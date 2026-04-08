@@ -7,6 +7,30 @@
  */
 
 export const industryKeywords: Record<string, string[]> = {
+  bakery: [
+    'artisan bakery fresh bread',
+    'pastry display bakery',
+    'baker kneading dough',
+    'croissant pastry cafe',
+  ],
+  cafe: [
+    'cafe interior warm morning light',
+    'coffee shop artisan counter',
+    'pastry and coffee table',
+    'barista pouring latte',
+  ],
+  coffee: [
+    'coffee shop interior artisan',
+    'espresso bar warm lighting',
+    'barista brewing coffee',
+    'pastry and coffee cafe',
+  ],
+  pastry: [
+    'pastry display artisan bakery',
+    'croissant pastry morning light',
+    'baker decorating pastries',
+    'artisan dessert cafe',
+  ],
   restaurant: [
     'restaurant interior modern',
     'food plating chef',

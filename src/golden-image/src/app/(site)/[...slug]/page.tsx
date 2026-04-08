@@ -1,7 +1,8 @@
 import React from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { safeFindPage } from '../../../lib/safe-payload'
+import { buildPageMetadata } from '../../../lib/metadata'
+import { safeFindGlobal, safeFindPage } from '../../../lib/safe-payload'
 import { RenderBlocks } from '../../../components/RenderBlocks'
 
 // Tenant pages are seeded AFTER deployment — nothing to statically generate.
@@ -14,10 +15,20 @@ type Args = {
 export async function generateMetadata({ params }: Args): Promise<Metadata> {
   const { slug: slugSegments } = await params
   const slug = slugSegments?.join('/') || 'home'
-  const page = await safeFindPage(slug)
+  const [page, settings] = await Promise.all([
+    safeFindPage(slug),
+    safeFindGlobal('site-settings'),
+  ])
   if (!page) return {}
   const title = page.title || slug
-  return { title, description: `${title} — learn more` }
+  const siteName = (settings as any)?.siteName || process.env.SITE_NAME || 'Welcome'
+  return buildPageMetadata({
+    title,
+    description: `${title} — learn more`,
+    path: slug === 'home' ? '/' : `/${slug}`,
+    siteName,
+    ogImage: (settings as any)?.ogImage,
+  })
 }
 
 export default async function DynamicPage({ params }: Args) {

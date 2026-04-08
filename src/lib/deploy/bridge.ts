@@ -518,6 +518,7 @@ export async function deployTenantViaBridge(
   error?: string
   adminEmail?: string
   adminPassword?: string
+  mcpApiKey?: string
   pagesSeeded?: number
   globalsSeeded?: number
   jobId?: string
@@ -617,6 +618,7 @@ export async function deployTenantViaBridge(
       error: result.errorDetail,
       adminEmail: result.adminEmail,
       adminPassword: result.adminPassword,
+      mcpApiKey: result.mcpApiKey,
       pagesSeeded: result.pagesSeeded,
       globalsSeeded: result.globalsSeeded,
       jobId,

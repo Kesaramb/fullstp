@@ -1,25 +1,13 @@
 import React from 'react'
 import type { Metadata } from 'next'
-import { getPayload } from 'payload'
-import config from '@payload-config'
 import { ThemeHead } from '../components/ThemeProvider'
-import { safeFindAllGlobals } from '../lib/safe-payload'
+import { buildSiteMetadata } from '../lib/metadata'
+import { safeFindAllGlobals, safeFindGlobal } from '../lib/safe-payload'
 import './globals.css'
 
 export async function generateMetadata(): Promise<Metadata> {
-  try {
-    const payload = await getPayload({ config })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const settings = await payload.findGlobal({ slug: 'site-settings' }) as any
-    const siteName = settings?.siteName || process.env.SITE_NAME || 'Welcome'
-    const siteDescription = settings?.siteDescription || `${siteName} — official website`
-    return { title: siteName, description: siteDescription }
-  } catch {
-    return {
-      title: process.env.SITE_NAME || 'Welcome',
-      description: `${process.env.SITE_NAME || 'Welcome'} — official website`,
-    }
-  }
+  const settings = await safeFindGlobal('site-settings')
+  return buildSiteMetadata(settings)
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

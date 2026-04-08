@@ -8,6 +8,12 @@ export const SiteSettings: GlobalConfig = {
     { name: 'siteDescription', type: 'textarea' },
     { name: 'favicon', type: 'upload', relationTo: 'media' },
     {
+      name: 'ogImage',
+      type: 'upload',
+      relationTo: 'media',
+      admin: { description: 'Social sharing image used for Open Graph and Twitter cards' },
+    },
+    {
       name: 'theme',
       type: 'group',
       fields: [
@@ -30,6 +36,7 @@ export const SiteSettings: GlobalConfig = {
           defaultValue: 'geist-inter',
           options: [
             { label: 'Geist + Inter (Modern)', value: 'geist-inter' },
+            { label: 'Playfair + Inter (Editorial)', value: 'playfair-inter' },
             { label: 'Playfair + Source Sans (Elegant)', value: 'playfair-sourcesans' },
             { label: 'DM Serif + DM Sans (Warm)', value: 'dmsans-dmserif' },
             { label: 'Space Grotesk + Inter (Bold)', value: 'spacegrotesk-inter' },

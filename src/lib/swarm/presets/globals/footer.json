@@ -8,6 +8,10 @@
     { "label": "{{nav_4_label}}", "url": "{{nav_4_url}}" }
   ],
   "socialLinks": [],
+  "phone": "{{footer_phone}}",
+  "address": "{{footer_address}}",
+  "businessHours": "{{footer_business_hours}}",
+  "mapLink": "{{footer_map_link}}",
   "bottomMessage": "{{footer_bottom_message}}",
-  "copyright": "© 2026 {{businessName}}. All rights reserved."
+  "copyright": "© {{year}} {{businessName}}. All rights reserved."
 }

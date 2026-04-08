@@ -28,6 +28,7 @@ You have these options:
 ## Font Pairings
 - geist-inter: Modern, clean (tech, SaaS, corporate)
 - playfair-sourcesans: Elegant, editorial (luxury, beauty, food, hospitality)
+- playfair-inter: Refined, high-contrast editorial (bakeries, cafes, artisan hospitality, premium local brands)
 - dmsans-dmserif: Warm, artisanal (bakery, crafts, local businesses, cafes)
 - spacegrotesk-inter: Bold, tech-forward (startups, gaming, innovation)
 
@@ -78,7 +79,7 @@ Output JSON:
 {
   "heroVariant": "highImpact" | "mediumImpact" | "lowImpact",
   "palette": "midnight" | "ocean" | "forest" | "sunset" | "lavender" | "ember",
-  "fontPairing": "geist-inter" | "playfair-sourcesans" | "dmsans-dmserif" | "spacegrotesk-inter",
+  "fontPairing": "geist-inter" | "playfair-sourcesans" | "playfair-inter" | "dmsans-dmserif" | "spacegrotesk-inter",
   "borderRadius": "none" | "sm" | "md" | "lg",
   "pagePresets": {
     "<slug>": "<preset-name>"
@@ -94,6 +95,7 @@ Rules:
 
 CRITICAL DESIGN RULES:
 - 4.5:1 minimum contrast ratio for all text
+- If the background is light, cream, or pastel, body text must be dark enough to pass WCAG AA. Never use low-contrast muted warm text on pale backgrounds.
 - SVG icons only (Lucide) — never emoji
 - CSS gradient fallbacks for all image containers — sites must look complete without photos
 - Animation: 150-300ms micro-interactions, transform/opacity only
