@@ -106,11 +106,26 @@ async function runDeploy() {
     const stageResult = stageApp(manifest, credentials, jobDir, logger)
     stageNodeappPath = stageResult.stageNodeappPath
     finalNodeappPath = stageResult.finalNodeappPath
+    const mcpApiKey = stageResult.mcpApiKey
 
     buildApp(stageNodeappPath, logger)
 
-    const { adminEmail, adminPass } = bootstrapTenant(stageNodeappPath, manifest.domain, logger)
+    const { adminEmail, adminPass, formId } = bootstrapTenant(stageNodeappPath, manifest.domain, logger)
     typecheckApp(stageNodeappPath, logger)
+
+    // Inject formId into any formBlock blocks in the content package
+    if (formId && manifest.contentPackage?.pages) {
+      for (const page of manifest.contentPackage.pages) {
+        if (page.layout) {
+          for (const block of page.layout) {
+            if (block.blockType === 'formBlock' && !block.form) {
+              block.form = formId
+            }
+          }
+        }
+      }
+      logger.emit('bootstrapping', 'runner', 'done', `Injected formId ${formId} into formBlock blocks`)
+    }
 
     // ── Provision web domain + proxy (before promote, matching manual deploy) ──
     const webResources = provisionWeb(manifest, logger)
@@ -180,6 +195,7 @@ async function runDeploy() {
       globalsSeeded,
       adminEmail,
       adminPassword: adminPass,
+      mcpApiKey,
       resourcesCreated: resources,
       ...(fullySuccessful ? {} : {
         errorCode: publicHealthy ? 'SEED_PARTIAL' : 'PUBLIC_UNREACHABLE',

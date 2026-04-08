@@ -3,6 +3,7 @@
  */
 
 import { execSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import { writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { RunnerError } from './provision.js'
@@ -66,6 +67,8 @@ export function stageApp(manifest, credentials, jobDir, logger) {
   const protocol = domain.includes('nip.io') ? 'http' : 'https'
   const siteUrl = `${protocol}://${domain}`
 
+  const mcpApiKey = randomBytes(32).toString('base64url')
+
   const envContent = [
     `DATABASE_URI=${dbUri}`,
     `PAYLOAD_SECRET=${payloadSecret}`,
@@ -73,6 +76,7 @@ export function stageApp(manifest, credentials, jobDir, logger) {
     `SITE_NAME=${businessName}`,
     `NODE_ENV=production`,
     `PORT=${port}`,
+    `MCP_API_KEY=${mcpApiKey}`,
   ].join('\n') + '\n'
 
   writeFileSync(join(stageNodeappPath, '.env'), envContent)
@@ -95,7 +99,8 @@ export function stageApp(manifest, credentials, jobDir, logger) {
       DATABASE_URI: "${dbUri}",
       PAYLOAD_SECRET: "${payloadSecret}",
       NEXT_PUBLIC_SERVER_URL: "${siteUrl}",
-      SITE_NAME: "${businessName}"
+      SITE_NAME: "${businessName}",
+      MCP_API_KEY: "${mcpApiKey}"
     },
     max_memory_restart: "512M"
   }]
@@ -103,5 +108,5 @@ export function stageApp(manifest, credentials, jobDir, logger) {
   writeFileSync(join(stageNodeappPath, 'ecosystem.config.cjs'), ecosystem)
   logger.emit('templating', 'runner', 'done', 'Staged PM2 ecosystem config created')
 
-  return { stageNodeappPath, finalNodeappPath, siteUrl }
+  return { stageNodeappPath, finalNodeappPath, siteUrl, mcpApiKey }
 }

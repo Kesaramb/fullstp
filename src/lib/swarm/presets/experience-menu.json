@@ -1,0 +1,49 @@
+{
+  "slug": "menu",
+  "titleTemplate": "{{businessName}} — Menu",
+  "blocks": [
+    {
+      "blockType": "hero",
+      "variant": "mediumImpact",
+      "heading": "{{hero_heading}}",
+      "subheading": "{{hero_subheading}}",
+      "badge": "{{hero_badge}}",
+      "ctaLabel": "{{hero_cta_label}}",
+      "ctaLink": "{{hero_cta_link}}"
+    },
+    {
+      "blockType": "featureGrid",
+      "heading": "{{features_heading}}",
+      "subheading": "{{features_subheading}}",
+      "columns": "3",
+      "features": [
+        { "icon": "{{feature_1_icon}}", "title": "{{feature_1_title}}", "description": "{{feature_1_desc}}" },
+        { "icon": "{{feature_2_icon}}", "title": "{{feature_2_title}}", "description": "{{feature_2_desc}}" },
+        { "icon": "{{feature_3_icon}}", "title": "{{feature_3_title}}", "description": "{{feature_3_desc}}" }
+      ]
+    },
+    {
+      "blockType": "brandNarrative",
+      "eyebrow": "{{narrative_eyebrow}}",
+      "heading": "{{narrative_heading}}",
+      "body": {
+        "root": {
+          "type": "root",
+          "children": [
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_1}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_2}}" }], "version": 1 }
+          ],
+          "direction": "ltr", "format": "", "indent": 0, "version": 1
+        }
+      },
+      "imagePosition": "left"
+    },
+    {
+      "blockType": "closingBanner",
+      "heading": "{{closing_heading}}",
+      "description": "{{closing_description}}",
+      "linkLabel": "{{closing_cta_label}}",
+      "linkUrl": "{{closing_cta_link}}"
+    }
+  ]
+}

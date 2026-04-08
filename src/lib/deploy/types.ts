@@ -105,6 +105,7 @@ export interface DeployResult {
   globalsSeeded: number
   adminEmail?: string
   adminPassword?: string
+  mcpApiKey?: string
   errorCode?: string
   errorDetail?: string
   resourcesCreated: {

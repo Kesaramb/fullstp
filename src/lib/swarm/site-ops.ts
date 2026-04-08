@@ -26,9 +26,16 @@ interface Mutation {
   layout?: unknown[]
   siteName?: string
   siteDescription?: string
+  theme?: { palette?: string; fontPairing?: string; borderRadius?: string }
   navLinks?: Array<{ label: string; url: string }>
+  brandLabel?: string
+  ctaButton?: { label: string; url: string }
   copyright?: string
   footerLinks?: Array<{ label: string; url: string }>
+  description?: string
+  copyrightName?: string
+  socialLinks?: Array<{ platform: string; url: string }>
+  bottomMessage?: string
 }
 
 export class SiteOps {
@@ -241,6 +248,7 @@ export class SiteOps {
             const data: Record<string, unknown> = {}
             if (m.siteName) data.siteName = m.siteName
             if (m.siteDescription) data.siteDescription = m.siteDescription
+            if (m.theme) data.theme = m.theme
             res = await fetch(`${baseUrl}/api/globals/site-settings`, {
               method: 'POST',
               headers: auth,
@@ -253,6 +261,8 @@ export class SiteOps {
           case 'update_header': {
             const data: Record<string, unknown> = {}
             if (m.navLinks) data.navLinks = m.navLinks
+            if (m.brandLabel) data.brandLabel = m.brandLabel
+            if (m.ctaButton) data.ctaButton = m.ctaButton
             res = await fetch(`${baseUrl}/api/globals/header`, {
               method: 'POST',
               headers: auth,
@@ -266,6 +276,10 @@ export class SiteOps {
             const data: Record<string, unknown> = {}
             if (m.copyright) data.copyright = m.copyright
             if (m.footerLinks) data.footerLinks = m.footerLinks
+            if (m.description) data.description = m.description
+            if (m.copyrightName) data.copyrightName = m.copyrightName
+            if (m.socialLinks) data.socialLinks = m.socialLinks
+            if (m.bottomMessage) data.bottomMessage = m.bottomMessage
             res = await fetch(`${baseUrl}/api/globals/footer`, {
               method: 'POST',
               headers: auth,

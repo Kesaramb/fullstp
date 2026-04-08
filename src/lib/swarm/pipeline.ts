@@ -1,42 +1,52 @@
 /**
  * SwarmPipeline — the core orchestration engine.
  *
- * Replaces the monolithic factory-build route with a Queen/Worker swarm:
+ * New 6-stage swarm flow:
  *   t0  Persist BMC + Customer
  *   t1  Queen: Strategy Brief (Claude API)
- *   t2  Promise.all([
- *         chain(UIArchitect → PayloadExpert),  ← sequential pair
- *         DevOps.prepareDeployment(),           ← local only, no SSH
- *       ])
- *   t3  Queen: Byzantine consensus + self-healing
- *   t4  DevOps: deployTenant() ← SSH opens here
- *   t5  seedRemoteContent()
- *   t6  Persist deployment, emit build_complete
+ *   t2  DesignDirector: Design Brief (palette, font, hero variant, page composition)
+ *   t3  ContentWriter: Written Copy (emotionally resonant copy per section)
+ *   t4  UIArchitect: Frontend Design (visual arrangement + animation notes)
+ *   t5  PayloadExpert: Content Package (CMS block mapping)
+ *   t6  Queen: Byzantine consensus + self-healing
+ *   t7  DevOps: deployTenant() ← SSH opens here
+ *   t8  seedRemoteContent()
+ *   t9  Persist deployment, emit build_complete
  *
  * Volatility guard: if ANY stage fails, falls back to deterministic
- * buildBrandIdentity + buildContentPackage. No infinite hangs.
+ * content generation with all 10 block types. No infinite hangs.
  */
 
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { QueenAgent } from './queen'
 import { UIArchitectWorker, PayloadExpertWorker } from './workers'
+import { DesignDirectorWorker } from './design-director'
+import { ContentWriterWorker } from './content-writer'
+import { normalizeContentPackage } from './normalize-content-package'
+import { buildContentFromPresets } from './preset-loader'
 import { SharedMemory } from './shared-memory'
-import type { BMC, ContentPackage, LogFn } from './types'
+import type { BMC, ContentPackage, WrittenCopy, DesignBrief, LogFn, BusinessArchetype, ArchetypeConfig } from './types'
+import { ARCHETYPE_CONFIGS } from './types'
 import { generateDomain, sanitizeSlug } from '@/lib/deploy/domain'
 import { deployTenantViaBridge, getUsedPorts, isDeploymentConfigured } from '@/lib/deploy/bridge'
 import { getNextPort } from '@/lib/deploy/domain'
+import { fetchUnsplashImages, assignImagesToContent, type ImageAssignment } from '@/lib/images/unsplash'
 
 const MAX_HEAL_ATTEMPTS = 2
 
 export class SwarmPipeline {
   private queen: QueenAgent
+  private designDirector: DesignDirectorWorker
+  private contentWriter: ContentWriterWorker
   private uiArchitect: UIArchitectWorker
   private payloadExpert: PayloadExpertWorker
   private memory: SharedMemory
 
   constructor(apiKey: string) {
     this.queen = new QueenAgent(apiKey)
+    this.designDirector = new DesignDirectorWorker(apiKey)
+    this.contentWriter = new ContentWriterWorker(apiKey)
     this.uiArchitect = new UIArchitectWorker(apiKey)
     this.payloadExpert = new PayloadExpertWorker(apiKey)
     this.memory = new SharedMemory()
@@ -75,6 +85,19 @@ export class SwarmPipeline {
       contentPkg = this.fallbackContentGeneration(bmc, trackedLog)
     }
 
+    contentPkg = normalizeContentPackage(contentPkg)
+
+    // ── Fetch stock images (optional, non-blocking) ──
+    let imageAssignments: ImageAssignment[] = []
+    try {
+      trackedLog('Factory', 'Fetching stock images...', 'running')
+      const images = await fetchUnsplashImages(bmc.industry, bmc.businessName)
+      imageAssignments = assignImagesToContent(images, contentPkg.pages)
+      trackedLog('Factory', images.length > 0 ? `Found ${images.length} stock images.` : 'No stock images available (continuing without).', 'done')
+    } catch {
+      trackedLog('Factory', 'Image fetch skipped.', 'done')
+    }
+
     // ── Deploy + Seed ──
     const { port, sshConfigured, deployResult } = await this.deploy(domain, contentPkg, trackedLog)
 
@@ -84,7 +107,7 @@ export class SwarmPipeline {
       // Persist failed deployment for audit trail
       await this.persistDeployment(
         payload, domain, port, 'error', customerDoc?.id, bmcDoc.id,
-        contentPkg, buildLogs, undefined, undefined,
+        contentPkg, buildLogs, undefined, undefined, undefined,
         undefined, undefined,
         {
           jobId: deployResult?.jobId,
@@ -101,12 +124,25 @@ export class SwarmPipeline {
       return
     }
 
+    // ── Upload stock images to tenant (post-deploy, non-blocking) ──
+    if (sshConfigured && deployResult?.success && deployResult.adminEmail && deployResult.adminPassword && imageAssignments.length > 0) {
+      try {
+        await this.uploadImagesToTenant(
+          domain, imageAssignments,
+          deployResult.adminEmail, deployResult.adminPassword,
+          trackedLog
+        )
+      } catch {
+        trackedLog('Factory', 'Image upload failed (non-fatal, CSS fallbacks active).', 'done')
+      }
+    }
+
     // ── Persist Deployment Record (status reflects reality) ──
     const deployStatus = sshConfigured ? 'running' as const : 'simulated' as const
     const deploymentDoc = await this.persistDeployment(
       payload, domain, port, deployStatus, customerDoc?.id, bmcDoc.id,
       contentPkg, buildLogs,
-      deployResult?.adminEmail, deployResult?.adminPassword,
+      deployResult?.adminEmail, deployResult?.adminPassword, deployResult?.mcpApiKey,
       deployResult?.pagesSeeded, deployResult?.globalsSeeded,
       {
         jobId: deployResult?.jobId,
@@ -132,13 +168,16 @@ export class SwarmPipeline {
       }
     }
 
-    // ── Handoff: never send admin creds to browser ──
+    // ── Handoff: include admin creds + MCP key so user can access Payload admin panel ──
     trackedLog('Factory', 'Build complete. Handing off to Digital Team.', 'done')
     emit('build_complete', {
       handoff: {
         businessName: bmc.businessName,
         domain,
         deploymentId: deploymentDoc.id,
+        ...(deployResult?.adminEmail && { adminEmail: deployResult.adminEmail }),
+        ...(deployResult?.adminPassword && { adminPassword: deployResult.adminPassword }),
+        ...(deployResult?.mcpApiKey && { mcpApiKey: deployResult.mcpApiKey }),
       },
     })
   }
@@ -146,31 +185,31 @@ export class SwarmPipeline {
   // ── Swarm Content Generation (primary path) ──
 
   private async swarmContentGeneration(bmc: BMC, log: LogFn): Promise<ContentPackage> {
-    // Stage 2: Queen extracts strategy brief (Claude API)
+    // Stage 2: Queen extracts strategy brief
     const strategy = await this.queen.generateStrategy(bmc, this.memory, log)
 
-    // Stage 3: Promise.all — UI-first chain + DevOps prep in parallel
-    // The chain is: UI Architect designs → Payload Expert converts
-    // DevOps prep runs alongside (local only, no SSH)
-    const [{ content, schema }] = await Promise.all([
-      (async () => {
-        const design = await this.uiArchitect.designFrontend(strategy, this.memory, log)
-        return this.payloadExpert.convertToBlocks(design, this.memory, log)
-      })(),
-      // DevOps prep would go here if we had async prep work
-      // For now, port allocation happens in deploy() since it's synchronous
-    ])
+    // Stage 3: Design Director selects visual identity + page presets
+    const designBrief = await this.designDirector.createDesignBrief(strategy, this.memory, log)
 
-    // Stage 4: Byzantine consensus + self-healing
-    const design = this.memory.get('frontendDesign')!
+    // Stage 4: Content Writer produces emotionally resonant copy
+    const copy = await this.contentWriter.writeCopy(strategy, designBrief, this.memory, log)
+
+    // Stage 5+6: Build content package from presets (if available) or fallback to LLM
+    if (designBrief.pagePresets) {
+      return this.buildFromPresets(bmc, designBrief, copy, log)
+    }
+
+    // Legacy path: UI Architect + PayloadExpert + consensus
+    const design = await this.uiArchitect.designFrontend(strategy, designBrief, copy, this.memory, log)
+    const { content, schema } = await this.payloadExpert.convertToBlocks(design, designBrief, this.memory, log)
+
     let finalContent = content
     let currentSchema = schema
     let healAttempts = 0
 
     while (healAttempts <= MAX_HEAL_ATTEMPTS) {
       const consensus = await this.queen.validateConsensus(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        design as any,
+        design,
         currentSchema,
         this.memory,
         log
@@ -186,62 +225,331 @@ export class SwarmPipeline {
 
       log('Queen', `Self-healing attempt ${healAttempts}: re-generating content...`, 'running')
       this.memory.set('corrections', consensus.corrections, 'queen')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const healed = await this.payloadExpert.convertToBlocks(design as any, this.memory, log)
+      const healed = await this.payloadExpert.convertToBlocks(design, designBrief, this.memory, log)
       finalContent = healed.content
-      currentSchema = healed.schema // revalidate with the HEALED schema
+      currentSchema = healed.schema
     }
 
     return finalContent
   }
 
+  /**
+   * Build ContentPackage from presets + ContentWriter copy.
+   * Eliminates PayloadExpert LLM call entirely — no structural hallucination.
+   */
+  private buildFromPresets(
+    bmc: BMC,
+    designBrief: DesignBrief,
+    copy: WrittenCopy,
+    log: LogFn
+  ): ContentPackage {
+    log('Payload Expert', 'Building content from preset templates...', 'running')
+
+    const presetMap = designBrief.pagePresets!
+    const pageValues: Record<string, Record<string, string>> = {}
+
+    // Convert WrittenCopy sections into preset placeholder values
+    for (const page of copy.pages) {
+      const values: Record<string, string> = {}
+      for (const section of page.sections) {
+        const prefix = section.type === 'hero' ? 'hero'
+          : section.type === 'brandNarrative' ? 'narrative'
+          : section.type === 'featureGrid' ? 'features'
+          : section.type === 'testimonials' ? 'testimonials'
+          : section.type === 'closingBanner' ? 'closing'
+          : section.type === 'formBlock' ? 'form'
+          : section.type === 'content' ? 'richcontent'
+          : section.type
+
+        if (section.heading) values[`${prefix}_heading`] = section.heading
+        if (section.subheading) values[`${prefix}_subheading`] = section.subheading
+        if (section.badge) values[`${prefix}_badge`] = section.badge || values.hero_badge || ''
+        if (section.body) values[`${prefix}_body_1`] = section.body
+        if (section.eyebrow) values[`${prefix}_eyebrow`] = section.eyebrow
+        if (section.ctaText) {
+          values[`${prefix}_cta_label`] = section.ctaText
+          values[`${prefix}_cta_link`] = section.ctaLink || '/contact'
+        }
+
+        // Hero highlights
+        if (section.highlights) {
+          section.highlights.forEach((h, i) => { values[`highlight_${i + 1}`] = h })
+        }
+
+        // Feature grid items
+        if (section.features) {
+          section.features.forEach((f, i) => {
+            values[`feature_${i + 1}_icon`] = f.icon || 'star'
+            values[`feature_${i + 1}_title`] = f.title
+            values[`feature_${i + 1}_desc`] = f.description
+          })
+        }
+
+        // Testimonials
+        if (section.testimonials) {
+          section.testimonials.forEach((t, i) => {
+            values[`testimonial_${i + 1}_quote`] = t.quote
+            values[`testimonial_${i + 1}_author`] = t.author
+            values[`testimonial_${i + 1}_role`] = t.role
+          })
+        }
+
+        // BrandNarrative / richContent body — split into paragraphs
+        if (section.body) {
+          const paragraphs = section.body.split(/\n\n+/)
+          paragraphs.forEach((p, i) => {
+            values[`${prefix}_body_${i + 1}`] = p
+          })
+        }
+
+        // Closing banner description
+        if (section.type === 'closingBanner' && section.body) {
+          values.closing_description = section.body
+        }
+      }
+      pageValues[page.slug] = values
+    }
+
+    // Resolve archetype for nav/CTA defaults
+    const archetype = bmc.businessArchetype || this.inferArchetype(bmc)
+    const archetypeConfig = ARCHETYPE_CONFIGS[archetype]
+
+    // Global values
+    const globalValues: Record<string, string> = {
+      businessName: bmc.businessName,
+      tagline: bmc.tagline || `${bmc.industry} that puts you first`,
+      siteDescription: bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
+      palette: designBrief.palette,
+      fontPairing: designBrief.fontPairing,
+      borderRadius: designBrief.borderRadius,
+      // Archetype-aware nav labels
+      nav_2_label: archetypeConfig.navLinks[1]?.label || 'Services',
+      nav_2_url: archetypeConfig.navLinks[1]?.url || '/services',
+      nav_3_label: archetypeConfig.navLinks[2]?.label || 'About',
+      nav_3_url: archetypeConfig.navLinks[2]?.url || '/about',
+      nav_4_label: archetypeConfig.navLinks[3]?.label || 'Contact',
+      nav_4_url: archetypeConfig.navLinks[3]?.url || '/contact',
+      cta_label: archetypeConfig.headerCta.label,
+      cta_url: archetypeConfig.headerCta.url,
+      footer_description: bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
+      footer_bottom_message: `Made with care by ${bmc.businessName}`,
+    }
+
+    const result = buildContentFromPresets(presetMap, pageValues, globalValues)
+
+    for (const page of result.pages) {
+      const blockTypes = page.layout
+        .map(b => (b as Record<string, unknown>).blockType)
+        .join(' + ')
+      log('Payload Expert', `Page "${page.slug}": ${blockTypes}`, 'done')
+    }
+
+    log('Payload Expert', `Content package: ${result.pages.length} pages, 3 globals (from presets).`, 'done')
+
+    return result as ContentPackage
+  }
+
   // ── Fallback Content Generation (deterministic, no Claude API) ──
 
+  /** Infer business archetype from industry keywords when not explicitly provided. */
+  private inferArchetype(bmc: BMC): BusinessArchetype {
+    if (bmc.businessArchetype) return bmc.businessArchetype
+    const ind = bmc.industry.toLowerCase()
+    if (/candle|soap|skincare|clothing|apparel|furniture|jewelry|craft|ceramics|pottery|goods/i.test(ind)) return 'product'
+    if (/restaurant|food|bakery|cafe|bistro|bar|brewery|spa|hotel|salon|resort/i.test(ind)) return 'experience'
+    if (/photo|design|art|music|film|video|illustrat|architect|creative|agency/i.test(ind)) return 'creative'
+    if (/tech|saas|software|startup|ai|data|platform|app/i.test(ind)) return 'saas'
+    if (/gym|fitness|yoga|retail|shop|store|florist|laundry|dry.?clean/i.test(ind)) return 'local'
+    return 'service'
+  }
+
   private fallbackContentGeneration(bmc: BMC, log: LogFn): ContentPackage {
-    log('Factory', 'Using deterministic template pipeline...', 'running')
+    const archetype = this.inferArchetype(bmc)
+    const config = ARCHETYPE_CONFIGS[archetype]
+    log('Factory', `Using deterministic template pipeline (archetype: ${archetype})...`, 'running')
 
     const name = bmc.businessName
     const year = new Date().getFullYear()
-    const segments = bmc.targetSegments?.join(', ') || 'customers'
     const mood = bmc.brandMood || 'professional and welcoming'
     const tagline = bmc.tagline || `${bmc.industry} that puts you first.`
-    const description = bmc.valueProposition || `${name} — ${mood} ${bmc.industry} serving ${segments}.`
+    const description = bmc.valueProposition || `${name} — ${mood} ${bmc.industry}.`
+
+    // Template helper: replace {{name}} placeholders with the business name
+    const t = (template: string) => template.replace(/\{\{name\}\}/g, name)
+
+    // Typography helper: straight quotes → curly, ... → …, -- → —
+    const typo = (s: string) => s
+      .replace(/\.{3}/g, '\u2026')
+      .replace(/--/g, '\u2014')
+      .replace(/"([^"]*)"/g, '\u201C$1\u201D')
+      .replace(/'([^']*)'/g, '\u2018$1\u2019')
+
+    // Infer palette from industry
+    const industryLower = bmc.industry.toLowerCase()
+    let palette = 'midnight'
+    let fontPairing = 'geist-inter'
+    if (/restaurant|food|bakery|cafe|kitchen|bistro/i.test(industryLower)) {
+      palette = 'sunset'; fontPairing = 'playfair-sourcesans'
+    } else if (/wellness|health|spa|yoga|fitness|medical/i.test(industryLower)) {
+      palette = 'ocean'; fontPairing = 'dmsans-dmserif'
+    } else if (/fashion|beauty|luxury|jewelry|cosmetic|candle|skincare/i.test(industryLower)) {
+      palette = 'lavender'; fontPairing = 'playfair-sourcesans'
+    } else if (/eco|organic|sustain|green|farm|garden/i.test(industryLower)) {
+      palette = 'forest'; fontPairing = 'dmsans-dmserif'
+    } else if (/creative|agency|art|design|studio|entertainment|photo|film|video|music/i.test(industryLower)) {
+      palette = 'ember'; fontPairing = 'spacegrotesk-inter'
+    } else if (/tech|saas|software|startup|ai|data/i.test(industryLower)) {
+      palette = 'midnight'; fontPairing = 'spacegrotesk-inter'
+    }
+
+    const lexical = (text: string) => ({
+      root: {
+        type: 'root',
+        children: text.split('\n\n').map(para => ({
+          type: 'paragraph',
+          children: [{ type: 'text', text: para }],
+          version: 1,
+        })),
+        direction: 'ltr', format: '', indent: 0, version: 1,
+      },
+    })
+
+    // Build archetype-specific pages
+    const pageDefs = config.pages
+    const secondPageSlug = pageDefs[1].slug // products, services, menu, work, etc.
+    const secondPageLabel = pageDefs[1].label
 
     const pkg: ContentPackage = {
       pages: [
         {
           title: name, slug: 'home',
           layout: [
-            { blockType: 'hero', heading: tagline, subheading: description, ctaLabel: 'Get in Touch', ctaLink: '/contact' },
-            { blockType: 'callToAction', heading: 'Ready to get started?', body: `We'd love to hear from you. ${name} is here to help.`, linkLabel: 'Get in Touch', linkUrl: '/contact', variant: 'primary' },
+            {
+              blockType: 'hero', variant: 'highImpact',
+              heading: tagline,
+              subheading: description,
+              badge: bmc.industry,
+              ctaLabel: config.heroCta.label, ctaLink: config.heroCta.link,
+              highlights: config.highlights.map(text => ({ text })),
+            },
+            {
+              blockType: 'featureGrid',
+              heading: t(config.featureGridHeading),
+              subheading: `Discover what sets us apart and why our ${config.socialProofTerm} keep coming back.`,
+              columns: '3',
+              features: config.features.map(f => ({
+                icon: f.icon, title: f.title, description: f.descTemplate,
+              })),
+            },
+            {
+              blockType: 'testimonials',
+              heading: config.testimonialHeading,
+              testimonials: [
+                { quote: t(config.testimonialQuotes[0]), author: 'Alex Rivera', role: config.testimonialRoles[0] },
+                { quote: t(config.testimonialQuotes[1]), author: 'Sam Chen', role: config.testimonialRoles[1] },
+                { quote: t(config.testimonialQuotes[2]), author: 'Jordan Ellis', role: config.testimonialRoles[2] },
+              ],
+            },
+            {
+              blockType: 'closingBanner',
+              eyebrow: 'Ready?',
+              heading: config.closingCta.heading,
+              description: config.closingCta.description.replace("we're here", `${name} is here`),
+              linkLabel: config.closingCta.label, linkUrl: `/${pageDefs[3].slug === 'contact' ? 'contact' : pageDefs[3].slug}`,
+            },
           ],
         },
         {
           title: `About ${name}`, slug: 'about',
           layout: [
-            { blockType: 'hero', heading: `About ${name}`, subheading: tagline },
-            { blockType: 'richContent', content: { root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: `${name} is a ${mood} ${bmc.industry.toLowerCase()} business dedicated to serving ${segments}.` }], version: 1 }], direction: 'ltr', format: '', indent: 0, version: 1 } } },
+            {
+              blockType: 'hero', variant: 'lowImpact',
+              heading: `About ${name}`,
+              subheading: t(config.aboutSubheading),
+            },
+            {
+              blockType: 'brandNarrative',
+              eyebrow: 'Our Story',
+              heading: `The ${name} Journey`,
+              body: lexical(t(config.aboutNarrative)),
+              imagePosition: 'right',
+            },
+            {
+              blockType: 'banner',
+              content: t(config.aboutBanner),
+              style: 'info',
+            },
           ],
         },
         {
-          title: `Contact ${name}`, slug: 'contact',
+          title: secondPageLabel, slug: secondPageSlug,
           layout: [
-            { blockType: 'hero', heading: `Contact ${name}`, subheading: "We'd love to hear from you." },
-            { blockType: 'callToAction', heading: 'Send us a message', body: 'Have questions? Reach out and our team will get back to you as soon as possible.', linkLabel: 'Email Us', linkUrl: `mailto:hello@${sanitizeSlug(name)}.com`, variant: 'secondary' },
+            {
+              blockType: 'hero', variant: 'mediumImpact',
+              heading: secondPageLabel,
+              subheading: t(config.secondPageSubheading),
+              ctaLabel: config.headerCta.label, ctaLink: `/${pageDefs[3].slug}`,
+            },
+            {
+              blockType: 'featureGrid',
+              heading: 'What We Offer',
+              subheading: `Everything we do is designed with ${config.socialProofTerm} like you in mind.`,
+              columns: '4',
+              features: config.secondPageFeatures.map(f => ({
+                icon: f.icon, title: f.title, description: f.descTemplate,
+              })),
+            },
+            {
+              blockType: 'callToAction',
+              heading: t(config.secondPageCtaHeading),
+              body: t(config.secondPageCtaBody),
+              linkLabel: config.closingCta.label, linkUrl: `/${pageDefs[3].slug}`, variant: 'primary',
+            },
           ],
         },
         {
-          title: 'Our Services', slug: 'services',
+          title: `${pageDefs[3].label} \u2014 ${name}`, slug: pageDefs[3].slug,
           layout: [
-            { blockType: 'hero', heading: 'Our Services', subheading: `What ${name} offers.` },
-            { blockType: 'callToAction', heading: 'Interested in our services?', body: `Contact us to learn more about what ${name} can do for you.`, linkLabel: 'Get in Touch', linkUrl: '/contact', variant: 'primary' },
+            {
+              blockType: 'hero', variant: 'lowImpact',
+              heading: pageDefs[3].label,
+              subheading: config.contactSubheading,
+            },
+            {
+              blockType: 'richContent',
+              content: lexical(config.contactBody),
+            },
+            {
+              blockType: 'formBlock',
+              heading: 'Get in Touch',
+              subheading: 'We\u2019d love to hear from you. Fill out the form and we\u2019ll be in touch shortly.',
+            },
           ],
         },
       ],
       globals: {
-        siteSettings: { siteName: name, siteDescription: description },
-        header: { navLinks: [{ label: 'Home', url: '/' }, { label: 'About', url: '/about' }, { label: 'Services', url: '/services' }, { label: 'Contact', url: '/contact' }] },
-        footer: { footerLinks: [{ label: 'Home', url: '/' }, { label: 'About', url: '/about' }, { label: 'Privacy', url: '/privacy' }, { label: 'Contact', url: '/contact' }], copyright: `\u00A9 ${year} ${name}. All rights reserved.` },
+        siteSettings: {
+          siteName: name,
+          siteDescription: description,
+          theme: { palette, fontPairing, borderRadius: 'md' },
+        },
+        header: {
+          navLinks: config.navLinks,
+          brandLabel: name,
+          ctaButton: config.headerCta,
+        },
+        footer: {
+          footerLinks: config.navLinks,
+          copyright: `\u00A9 ${year} ${name}. All rights reserved.`,
+          description: description,
+          copyrightName: name,
+          socialLinks: [
+            { platform: 'twitter', url: '#' },
+            { platform: 'instagram', url: '#' },
+            { platform: 'linkedin', url: '#' },
+          ],
+          bottomMessage: `Crafted with care by ${name}`,
+        },
       },
     }
 
@@ -249,7 +557,7 @@ export class SwarmPipeline {
       const blockTypes = page.layout.map((b: Record<string, unknown>) => b.blockType).join(' + ')
       log('Payload Expert', `Page "${page.slug}": ${blockTypes}`, 'done')
     }
-    log('Payload Expert', `Fallback content: ${pkg.pages.length} pages, 3 globals.`, 'done')
+    log('Payload Expert', `Fallback content (${archetype}): ${pkg.pages.length} pages, 3 globals, palette: ${palette}, font: ${fontPairing}.`, 'done')
 
     return pkg
   }
@@ -434,6 +742,94 @@ export class SwarmPipeline {
     }
   }
 
+  // ── Post-deploy image upload (optional, non-blocking) ──
+
+  private async uploadImagesToTenant(
+    domain: string,
+    imageAssignments: ImageAssignment[],
+    adminEmail: string,
+    adminPassword: string,
+    log: LogFn
+  ): Promise<void> {
+    if (imageAssignments.length === 0) return
+
+    const baseUrl = `http://${domain}`
+    log('Factory', `Uploading ${imageAssignments.length} images to tenant...`, 'running')
+
+    // Authenticate
+    let token: string
+    try {
+      const loginRes = await this.fetchWithRetry(`${baseUrl}/api/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      })
+      if (!loginRes.ok) { log('Factory', 'Image upload: auth failed, skipping.', 'done'); return }
+      const loginData = await loginRes.json()
+      token = loginData.token
+      if (!token) { log('Factory', 'Image upload: no token, skipping.', 'done'); return }
+    } catch { log('Factory', 'Image upload: auth error, skipping.', 'done'); return }
+
+    const auth = { Authorization: `JWT ${token}` }
+    let uploaded = 0
+
+    for (const assignment of imageAssignments) {
+      try {
+        // Download from Unsplash
+        const imgRes = await fetch(assignment.imageUrl, { signal: AbortSignal.timeout(15000) })
+        if (!imgRes.ok) continue
+        const imgBuffer = Buffer.from(await imgRes.arrayBuffer())
+
+        // Upload to tenant's media collection
+        const formData = new FormData()
+        const blob = new Blob([imgBuffer], { type: 'image/jpeg' })
+        formData.append('file', blob, `hero-${assignment.pageSlug}.jpg`)
+        formData.append('alt', assignment.imageAlt)
+
+        const uploadRes = await fetch(`${baseUrl}/api/media`, {
+          method: 'POST',
+          headers: auth,
+          body: formData,
+          signal: AbortSignal.timeout(20000),
+        })
+
+        if (!uploadRes.ok) continue
+        const { doc } = await uploadRes.json()
+
+        // Find the page and PATCH with the media ID
+        const findRes = await fetch(
+          `${baseUrl}/api/pages?where[slug][equals]=${assignment.pageSlug}&limit=1`,
+          { headers: { ...auth, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8000) }
+        )
+        if (!findRes.ok) continue
+        const { docs } = await findRes.json()
+        if (!docs?.[0]) continue
+
+        const page = docs[0]
+        const layout = [...page.layout]
+        if (layout[assignment.blockIndex]) {
+          layout[assignment.blockIndex] = {
+            ...layout[assignment.blockIndex],
+            backgroundImage: doc.id,
+          }
+        }
+
+        await fetch(`${baseUrl}/api/pages/${page.id}`, {
+          method: 'PATCH',
+          headers: { ...auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layout }),
+          signal: AbortSignal.timeout(10000),
+        })
+
+        uploaded++
+      } catch {
+        continue
+      }
+    }
+
+    log('Factory', uploaded > 0 ? `${uploaded} images uploaded to tenant.` : 'No images uploaded (CSS fallbacks active).', 'done')
+  }
+
   // ── Persistence (shared between swarm and fallback paths) ──
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -492,7 +888,7 @@ export class SwarmPipeline {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     customerId: any, bmcId: any, contentPkg: ContentPackage,
     buildLogs: { agent: string; text: string; status: string }[],
-    adminEmail?: string, adminPassword?: string,
+    adminEmail?: string, adminPassword?: string, mcpApiKey?: string,
     pagesSeeded?: number, globalsSeeded?: number,
     bridgeMeta?: {
       jobId?: string
@@ -520,7 +916,7 @@ export class SwarmPipeline {
       siteUrl: `${protocol}://${domain}`, adminUrl: `${protocol}://${domain}/admin`,
       pagesCreated: contentPkg.pages.map(p => ({ slug: p.slug, title: p.title })),
       buildLogs, seedStatus, ...(pagesSeeded !== undefined && { pagesSeeded }),
-      ...(adminEmail && { adminEmail }), ...(adminPassword && { adminPassword }),
+      ...(adminEmail && { adminEmail }), ...(adminPassword && { adminPassword }), ...(mcpApiKey && { mcpApiKey }),
       // Bridge metadata
       ...(bridgeMeta?.jobId && { jobId: bridgeMeta.jobId }),
       ...(bridgeMeta?.stage && { stage: bridgeMeta.stage }),

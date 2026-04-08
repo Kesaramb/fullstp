@@ -53,23 +53,33 @@ export function buildApp(nodeappPath, logger) {
     throw new RunnerError('INSTALL_FAILED', `pnpm install failed: ${err.message.slice(0, 200)}`)
   }
 
-  // Run database migrations. The golden-image template includes pre-baked
-  // migration files (src/migrations/) that create ALL tables including sub-tables
-  // like users_sessions. This is more reliable than push:true which may miss
-  // relationship tables.
+  // Run database migrations. The golden-image includes pre-baked migration files
+  // that create core tables (users, users_sessions, pages, media, etc.).
+  // push:true in payload.config.ts handles any additional tables from new blocks/plugins.
   logger.emit('building', 'runner', 'running', 'Running database migrations...')
   try {
-    const migrateOutput = run('npx payload migrate 2>&1 | tail -10', { cwd: nodeappPath, timeout: 120000, env: tenantEnv })
+    const migrateOutput = run('npx payload migrate 2>&1', { cwd: nodeappPath, timeout: 120000, env: tenantEnv })
+    logger.emit('building', 'runner', 'running', `Migration output (last 500): ${migrateOutput.slice(-500)}`)
     if (migrateOutput.includes('No migrations to run')) {
       logger.emit('building', 'runner', 'done', 'No pending migrations (schema already up to date)')
     } else if (migrateOutput.toLowerCase().includes('error') && !migrateOutput.includes('error.log')) {
-      logger.emit('building', 'runner', 'error', `Migration warning: ${migrateOutput.slice(-200)}`)
+      logger.emit('building', 'runner', 'error', `Migration warning: ${migrateOutput.slice(-300)}`)
     } else {
       logger.emit('building', 'runner', 'done', 'Database migrations applied — all tables created')
     }
   } catch (err) {
-    logger.emit('building', 'runner', 'error', `Migration failed: ${err.message.slice(0, 300)}`, { errorCode: 'MIGRATE_FAILED' })
-    throw new RunnerError('MIGRATE_FAILED', `Database migration failed: ${err.message.slice(0, 200)}`)
+    const fullOutput = (err.stdout || '') + (err.stderr || '')
+    logger.emit('building', 'runner', 'error', `Migration HEAD: ${fullOutput.slice(0, 600)}`, { errorCode: 'MIGRATE_FAILED' })
+    logger.emit('building', 'runner', 'error', `Migration TAIL: ${fullOutput.slice(-600)}`)
+    throw new RunnerError('MIGRATE_FAILED', `Database migration failed: ${fullOutput.slice(0, 400)}`)
+  }
+
+  // Verify tables were actually created
+  try {
+    const tableCheck = run(`psql "${tenantEnv.DATABASE_URI}" -c "SELECT COUNT(*) as cnt FROM information_schema.tables WHERE table_schema='public'" -t 2>&1`, { cwd: nodeappPath, timeout: 10000 })
+    logger.emit('building', 'runner', 'running', `Post-migration table count: ${tableCheck.trim()}`)
+  } catch (checkErr) {
+    logger.emit('building', 'runner', 'running', `Table check failed: ${checkErr.message.slice(0, 200)}`)
   }
 
   logger.emit('building', 'runner', 'running', 'Generating Payload admin importMap...')

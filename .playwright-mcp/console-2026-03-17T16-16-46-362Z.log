@@ -1,0 +1,14 @@
+[    1230ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://blue-lotus-spa.167.86.81.161.nip.io/admin/login:0
+[    2884ms] TypeError: Cannot destructure property 'config' of 'K(...)' as it is undefined.
+    at G (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/4856-9ae37ad049b74ac3.js:7:245510)
+    at l9 (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:51107)
+    at oT (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:70691)
+    at oW (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:80861)
+    at ib (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:114390)
+    at http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:114235
+    at iv (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:114243)
+    at io (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:111326)
+    at iY (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:132642)
+    at MessagePort.w (http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/chunks/1986-cd0e4d5d2ee82371.js:1:153155)
+[    3150ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://blue-lotus-spa.167.86.81.161.nip.io/favicon.ico:0
+[    6151ms] [WARNING] The resource http://blue-lotus-spa.167.86.81.161.nip.io/_next/static/css/697cc81b95b7eec3.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://blue-lotus-spa.167.86.81.161.nip.io/admin/login:0

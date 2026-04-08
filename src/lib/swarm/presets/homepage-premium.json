@@ -1,0 +1,70 @@
+{
+  "slug": "home",
+  "titleTemplate": "{{businessName}} — {{tagline}} — Home",
+  "blocks": [
+    {
+      "blockType": "hero",
+      "variant": "highImpact",
+      "heading": "{{hero_heading}}",
+      "subheading": "{{hero_subheading}}",
+      "badge": "{{hero_badge}}",
+      "ctaLabel": "{{hero_cta_label}}",
+      "ctaLink": "{{hero_cta_link}}",
+      "highlights": [
+        { "text": "{{highlight_1}}" },
+        { "text": "{{highlight_2}}" },
+        { "text": "{{highlight_3}}" },
+        { "text": "{{highlight_4}}" }
+      ]
+    },
+    {
+      "blockType": "brandNarrative",
+      "eyebrow": "{{narrative_eyebrow}}",
+      "heading": "{{narrative_heading}}",
+      "body": {
+        "root": {
+          "type": "root",
+          "children": [
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_1}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_2}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_3}}" }], "version": 1 }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0,
+          "version": 1
+        }
+      },
+      "imagePosition": "right"
+    },
+    {
+      "blockType": "featureGrid",
+      "heading": "{{features_heading}}",
+      "subheading": "{{features_subheading}}",
+      "columns": "4",
+      "features": [
+        { "icon": "{{feature_1_icon}}", "title": "{{feature_1_title}}", "description": "{{feature_1_desc}}" },
+        { "icon": "{{feature_2_icon}}", "title": "{{feature_2_title}}", "description": "{{feature_2_desc}}" },
+        { "icon": "{{feature_3_icon}}", "title": "{{feature_3_title}}", "description": "{{feature_3_desc}}" },
+        { "icon": "{{feature_4_icon}}", "title": "{{feature_4_title}}", "description": "{{feature_4_desc}}" }
+      ]
+    },
+    {
+      "blockType": "testimonials",
+      "heading": "{{testimonials_heading}}",
+      "testimonials": [
+        { "quote": "{{testimonial_1_quote}}", "author": "{{testimonial_1_author}}", "role": "{{testimonial_1_role}}" },
+        { "quote": "{{testimonial_2_quote}}", "author": "{{testimonial_2_author}}", "role": "{{testimonial_2_role}}" },
+        { "quote": "{{testimonial_3_quote}}", "author": "{{testimonial_3_author}}", "role": "{{testimonial_3_role}}" }
+      ]
+    },
+    {
+      "blockType": "closingBanner",
+      "eyebrow": "{{closing_eyebrow}}",
+      "heading": "{{closing_heading}}",
+      "description": "{{closing_description}}",
+      "linkLabel": "{{closing_cta_label}}",
+      "linkUrl": "/contact"
+    }
+  ]
+}

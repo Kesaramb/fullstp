@@ -3,8 +3,7 @@
  * Tenant Bootstrap Script
  *
  * Deterministically initializes the tenant database and first admin user
- * BEFORE PM2 starts serving traffic. This eliminates the race condition
- * where the first HTTP request triggers Payload init + schema push.
+ * BEFORE PM2 starts serving traffic. Also creates a default contact form.
  *
  * Usage:
  *   pnpm exec tsx scripts/bootstrap-tenant.ts \
@@ -50,6 +49,25 @@ function output(result: Record<string, unknown>) {
   }
 }
 
+function lexical(text: string) {
+  return {
+    root: {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', text }],
+          version: 1,
+        },
+      ],
+      direction: 'ltr',
+      format: '',
+      indent: 0,
+      version: 1,
+    },
+  }
+}
+
 // ── Bootstrap ──
 
 async function bootstrap() {
@@ -58,28 +76,22 @@ async function bootstrap() {
     adminCreated: false,
     adminEmail,
     adminExists: false,
+    formId: null,
   }
 
   try {
-    // 1. Initialize Payload — this triggers push:true schema creation
-    log('Initializing Payload (schema push)...')
+    // 1. Initialize Payload against the migrated schema
+    log('Initializing Payload...')
     const payload = await getPayload({ config })
     log('Payload initialized — schema is ready')
     result.schemaReady = true
 
     // 2. Create first admin if not already present (idempotent)
-    //    Use create directly — if user exists, Payload throws a validation error
-    //    which we catch and treat as "already exists".
-    //    We avoid payload.find() here because push:true may not create all
-    //    sub-tables (e.g. users_sessions) before the first query runs.
     log(`Creating admin user: ${adminEmail}`)
     try {
       await payload.create({
         collection: 'users',
-        data: {
-          email: adminEmail,
-          password: adminPassword,
-        },
+        data: { email: adminEmail, password: adminPassword },
       })
       log('Admin user created successfully')
       result.adminCreated = true
@@ -91,9 +103,44 @@ async function bootstrap() {
         result.adminExists = true
         result.adminCreated = false
       } else {
-        // Re-throw if it's not a duplicate error
         throw createErr
       }
+    }
+
+    // 3. Create default contact form (idempotent)
+    log('Creating default contact form...')
+    try {
+      const { docs: existingForms } = await payload.find({
+        collection: 'forms',
+        where: { title: { equals: 'Contact Form' } },
+        limit: 1,
+      })
+
+      if (existingForms.length > 0) {
+        log('Contact form already exists — skipping')
+        result.formId = existingForms[0].id
+      } else {
+        const form = await payload.create({
+          collection: 'forms',
+          data: {
+            title: 'Contact Form',
+            fields: [
+              { name: 'name', label: 'Name', blockType: 'text', required: true },
+              { name: 'email', label: 'Email', blockType: 'email', required: true },
+              { name: 'message', label: 'Message', blockType: 'textarea', required: true },
+            ],
+            submitButtonLabel: 'Send Message',
+            confirmationType: 'message',
+            confirmationMessage: lexical('Thank you for reaching out. We will get back to you soon.'),
+          } as Record<string, unknown>,
+        })
+        log(`Contact form created (ID: ${form.id})`)
+        result.formId = form.id
+      }
+    } catch (formErr: unknown) {
+      const msg = formErr instanceof Error ? formErr.message : String(formErr)
+      log(`Contact form creation failed (non-fatal): ${msg}`)
+      // Non-fatal — the site works without a form
     }
 
     output(result)
@@ -101,6 +148,14 @@ async function bootstrap() {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     log(`Bootstrap failed: ${message}`)
+    // Log the full error with cause chain for debugging
+    if (err instanceof Error && err.cause) {
+      log(`Cause: ${err.cause instanceof Error ? err.cause.message : String(err.cause)}`)
+    }
+    if (err && typeof err === 'object') {
+      const detail = (err as any).detail || (err as any).hint || (err as any).code || ''
+      if (detail) log(`Detail: ${detail}`)
+    }
     result.error = message.slice(0, 500)
     output(result)
     process.exit(1)

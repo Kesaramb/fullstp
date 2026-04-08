@@ -147,5 +147,6 @@ export function bootstrapTenant(nodeappPath, domain, logger) {
     adminEmail: bootstrapResult.adminEmail || adminEmail,
     adminPass,
     schemaReady: true,
+    formId: bootstrapResult.formId || null,
   }
 }

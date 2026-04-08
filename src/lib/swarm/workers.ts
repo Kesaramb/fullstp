@@ -1,7 +1,7 @@
 /**
  * Worker Agents — UI Architect and Payload Expert.
  *
- * UI Architect:   designs visual frontend (FORBIDDEN from CMS logic)
+ * UI Architect:   designs visual frontend (receives copy + design brief, adds animation notes)
  * Payload Expert: converts UI design to CMS blocks (FORBIDDEN from styling)
  *
  * DevOps is NOT a Claude-powered worker — it uses the existing
@@ -11,6 +11,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type {
   StrategyBrief,
+  DesignBrief,
+  WrittenCopy,
   FrontendDesign,
   ContentPackage,
   ContentSchemaMap,
@@ -32,22 +34,24 @@ export class UIArchitectWorker {
   }
 
   /**
-   * Design the visual frontend — sections, copy, visual treatments.
-   * No CMS awareness. Thinks in hero/content/cta sections, not Payload blocks.
+   * Design the visual frontend — arrange copy visually, add animation notes.
+   * Receives written copy and design brief. Does NOT rewrite copy.
    */
   async designFrontend(
     strategy: StrategyBrief,
+    designBrief: DesignBrief,
+    copy: WrittenCopy,
     memory: SharedMemory,
     log: LogFn
   ): Promise<FrontendDesign> {
     log('UI Agent', `Designing frontend for ${strategy.businessName}...`, 'running')
-    log('UI Agent', `Brand voice: ${strategy.brandVoice}`, 'running')
+    log('UI Agent', `Palette: ${designBrief.palette}, Font: ${designBrief.fontPairing}`, 'running')
 
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       system: UI_ARCHITECT_SYSTEM,
-      messages: [{ role: 'user', content: uiArchitectPrompt(strategy) }],
+      messages: [{ role: 'user', content: uiArchitectPrompt(strategy, designBrief, copy) }],
     })
 
     const text = extractText(response)
@@ -75,13 +79,14 @@ export class PayloadExpertWorker {
 
   /**
    * Convert the UI Architect's visual design into a Payload CMS content package.
-   * Maps hero/content/cta sections to hero/richContent/callToAction blocks.
+   * Maps all 10 section types to their corresponding CMS block types.
    *
    * Returns both the full ContentPackage (for deployment) and a lightweight
    * ContentSchemaMap (for Queen consensus — avoids the token trap).
    */
   async convertToBlocks(
     design: FrontendDesign,
+    designBrief: DesignBrief,
     memory: SharedMemory,
     log: LogFn
   ): Promise<{ content: ContentPackage; schema: ContentSchemaMap }> {
@@ -94,7 +99,7 @@ export class PayloadExpertWorker {
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       system: PAYLOAD_EXPERT_SYSTEM,
-      messages: [{ role: 'user', content: payloadExpertPrompt(design, corrections) }],
+      messages: [{ role: 'user', content: payloadExpertPrompt(design, designBrief, corrections) }],
     })
 
     const text = extractText(response)

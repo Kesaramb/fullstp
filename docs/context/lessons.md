@@ -12,6 +12,9 @@ Pre-seeded knowledge from architecture decisions and known gotchas. Updated as a
 - Payload Local API (`payload.find()`, `payload.create()`) is server-side only. Never call from client components.
 - Admin panel runs under `(payload)/admin` route group. Do not place application routes inside this group.
 - `sharp` must be explicitly imported in `payload.config.ts` — shorthand property syntax does not auto-import it.
+- When using select fields inside block arrays, the swarm must emit the field's exact stored values, not admin labels. In this project `featureGrid.features.icon` must be lowercase values like `star`, `shield`, `sparkles`, etc.
+- The Payload form-builder plugin requires a valid `confirmationMessage` payload when `confirmationType` is `message`. Without it, bootstrap can succeed overall while form creation silently fails and downstream `formBlock` seeding breaks.
+- Payload admin views in App Router need a real admin root provider stack in `src/app/(payload)/layout.tsx`. Rendering `RootPage` alone is not enough; without `RootProvider` plus a bound `handleServerFunctions` server action, `/admin/login` can 500 with `Cannot destructure property 'config' of 'U(...)' as it is undefined`.
 
 ## SQLite
 
@@ -59,6 +62,7 @@ Pre-seeded knowledge from architecture decisions and known gotchas. Updated as a
 - `v-change-web-domain-backend-port` creates per-port proxy templates automatically (e.g., `nodeapp3007`). This is the primary method; custom nginx includes are the fallback.
 - Server has 58GB RAM and 1.5TB disk — capacity is ~100 tenants at 512MB each, not 50.
 - Ports 3001-3007 are already occupied by existing apps. Next FullStop tenant starts at port 3008.
+- When validating deployment fixes, prefer a fresh domain + fresh port over reusing a failed test tenant. Reusing the same slot can fail preflight with `PORT_IN_USE` and `DOMAIN_EXISTS`, which hides whether the underlying app fix actually worked.
 
 ## Docker (Phase 2 Runtime)
 

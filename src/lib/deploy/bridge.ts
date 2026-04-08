@@ -11,6 +11,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { execSync } from 'child_process'
 import type { ContentPackage } from '@/lib/swarm/types'
 import {
@@ -82,9 +83,8 @@ function getSSHConfig() {
 }
 
 async function getSSHClient() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { NodeSSH } = require('node-ssh') as typeof import('node-ssh')
-  return new NodeSSH()
+  const mod = await import('node-ssh')
+  return new mod.NodeSSH()
 }
 
 async function sshExec(
@@ -129,7 +129,7 @@ export function packageTemplate(): string {
     `--exclude='.cache' ` +
     `--exclude='*.tsbuildinfo' ` +
     `-C ${goldenImageDir} .`,
-    { timeout: 30000 }
+    { timeout: 30000, env: { ...process.env, COPYFILE_DISABLE: '1' } }
   )
 
   validateArchive(tarballPath)
@@ -166,7 +166,6 @@ export function validateArchive(tarballPath: string): void {
 }
 
 export function hashTemplate(tarballPath: string): string {
-  const crypto = require('crypto')
   const content = fs.readFileSync(tarballPath)
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 16)
 }
@@ -230,22 +229,36 @@ async function uploadTemplateTarball(
   log('DevOps', 'Uploading template tarball...', 'running')
 
   const tarballContent = fs.readFileSync(tarballPath)
+  const expectedSize = tarballContent.length
   const tarballB64 = tarballContent.toString('base64')
-  const chunkSize = 500000
+  // Always use chunked upload — single printf with >100KB base64
+  // can exceed SSH shell ARG_MAX on some systems
+  const chunkSize = 65000
 
   await sshExec(ssh, `rm -f ${jobDir}/template.tgz ${jobDir}/template.b64`, 5000)
-  if (tarballB64.length > chunkSize) {
-    for (let i = 0; i < tarballB64.length; i += chunkSize) {
-      const chunk = tarballB64.slice(i, i + chunkSize)
-      await sshExec(ssh, `printf '%s' '${chunk}' >> ${jobDir}/template.b64`, 30000)
+
+  const totalChunks = Math.ceil(tarballB64.length / chunkSize)
+  for (let i = 0; i < tarballB64.length; i += chunkSize) {
+    const chunk = tarballB64.slice(i, i + chunkSize)
+    const chunkNum = Math.floor(i / chunkSize) + 1
+    await sshExec(ssh, `printf '%s' '${chunk}' >> ${jobDir}/template.b64`, 30000)
+    if (totalChunks > 3 && chunkNum % 3 === 0) {
+      log('DevOps', `Uploading tarball chunk ${chunkNum}/${totalChunks}...`, 'running')
     }
-    await sshExec(ssh, `base64 -d ${jobDir}/template.b64 > ${jobDir}/template.tgz && rm ${jobDir}/template.b64`, 30000)
-  } else {
-    await sshExec(ssh, `printf '%s' '${tarballB64}' | base64 -d > ${jobDir}/template.tgz`, 30000)
   }
+  await sshExec(ssh, `base64 -d ${jobDir}/template.b64 > ${jobDir}/template.tgz && rm ${jobDir}/template.b64`, 30000)
 
   const sizeCheck = await sshExec(ssh, `stat -c '%s' ${jobDir}/template.tgz 2>/dev/null || echo '0'`)
-  log('DevOps', `Template uploaded (${Math.round(parseInt(sizeCheck, 10) / 1024)}KB).`, 'done')
+  const remoteSize = parseInt(sizeCheck, 10)
+
+  if (remoteSize === 0 || Math.abs(remoteSize - expectedSize) > 100) {
+    throw new Error(
+      `Template upload size mismatch: expected ${expectedSize} bytes, got ${remoteSize} bytes on server. ` +
+      `Base64 length: ${tarballB64.length}, chunks: ${totalChunks}`
+    )
+  }
+
+  log('DevOps', `Template uploaded (${Math.round(remoteSize / 1024)}KB).`, 'done')
 }
 
 export async function syncRunnerAndUploadJob(
@@ -379,20 +392,21 @@ export async function startJob(jobId: string, log: LogFn): Promise<void> {
     log('DevOps', `Runner verify: ${verifyResult.trim().split('\n').pop()}`, 'running')
 
     // Launch the runner as a detached background process.
-    // Use separate commands to avoid && chain failure hiding the error.
-    const launchCommand = [
+    // Write a small launcher script to avoid shell quoting issues with & and &&.
+    const launcherScript = [
+      `#!/bin/bash`,
       `cd ${BRIDGE.runnerPath}`,
-      // Write runner.log immediately so we can always read diagnostics
       `echo "=== runner launch $(date -Iseconds) ===" > ${jobDir}/runner.log`,
-      // Start runner in background, append stdout+stderr to runner.log
-      `nohup node ./runner.js deploy --job ${jobId} >> ${jobDir}/runner.log 2>&1 &`,
+      `nohup node ./runner.js deploy --job ${jobId} >> ${jobDir}/runner.log 2>&1 </dev/null &`,
       `echo $! > ${jobDir}/runner.pid`,
-      // Brief pause to let Node start and fail fast if there's an import error
       `sleep 1`,
-      `echo "runner.pid=$(cat ${jobDir}/runner.pid) alive=$(kill -0 $(cat ${jobDir}/runner.pid) 2>/dev/null && echo yes || echo no)"`,
-    ].join(' && ')
+      `PID=$(cat ${jobDir}/runner.pid)`,
+      `if kill -0 $PID 2>/dev/null; then echo "runner.pid=$PID alive=yes"; else echo "runner.pid=$PID alive=no"; fi`,
+    ].join('\n')
 
-    const launchOutput = await sshExec(ssh, `bash -lc ${shellQuote(launchCommand)}`, 15000)
+    await sshExec(ssh, `cat > /tmp/fullstp-launch.sh << 'LAUNCHER'\n${launcherScript}\nLAUNCHER`, 5000)
+    const launchOutput = await sshExec(ssh, `bash /tmp/fullstp-launch.sh`, 15000)
+    await sshExec(ssh, `rm -f /tmp/fullstp-launch.sh`, 3000).catch(() => {})
     if (launchOutput.trim()) {
       log('DevOps', `Launch: ${launchOutput.trim()}`, 'running')
     }

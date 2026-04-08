@@ -208,7 +208,7 @@ describe('Bootstrap Contract', () => {
     })
 
     it('gets adminEmail/adminPass from bootstrap, not start', () => {
-      expect(content).toContain('const { adminEmail, adminPass } = bootstrapTenant')
+      expect(content).toContain('const { adminEmail, adminPass, formId } = bootstrapTenant')
     })
 
     it('sets file ownership to admin:admin BEFORE PM2 start', () => {

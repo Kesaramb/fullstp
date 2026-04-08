@@ -3,6 +3,9 @@ import { fileURLToPath } from 'url'
 import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { seoPlugin } from '@payloadcms/plugin-seo'
+import { formBuilderPlugin } from '@payloadcms/plugin-form-builder'
+import { mcpPlugin } from '@payloadcms/plugin-mcp'
 import sharp from 'sharp'
 
 import { Pages } from './src/collections/Pages'
@@ -42,11 +45,39 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
     },
-    // Push schema to DB on init — required for fresh tenant deployments
-    // where no migration files exist yet. Payload will create all tables
-    // automatically on first app start.
-    push: true,
+    push: false,
   }),
+
+  plugins: [
+    seoPlugin({
+      collections: ['pages'],
+      uploadsCollection: 'media',
+      generateTitle: ({ doc }) =>
+        `${(doc as Record<string, unknown>)?.title || 'Page'} | ${process.env.SITE_NAME || 'Site'}`,
+      generateURL: ({ doc }) =>
+        `/${(doc as Record<string, unknown>)?.slug || ''}`,
+    }),
+    formBuilderPlugin({
+      fields: {
+        text: true,
+        textarea: true,
+        email: true,
+        select: true,
+        checkbox: true,
+      },
+    }),
+    mcpPlugin({
+      collections: {
+        pages: { enabled: true },
+        media: { enabled: true },
+      },
+      globals: {
+        header: { enabled: true },
+        footer: { enabled: true },
+        'site-settings': { enabled: true },
+      },
+    }),
+  ],
 
   sharp,
 })

@@ -106,6 +106,16 @@ export const Deployments: CollectionConfig = {
       },
     },
     {
+      name: 'mcpApiKey',
+      type: 'text',
+      hidden: true, // Never serialized to REST/GraphQL responses
+      admin: {
+        description: 'Tenant MCP API key — server-side only, never sent to browser.',
+        position: 'sidebar',
+        readOnly: true,
+      },
+    },
+    {
       name: 'buildLogs',
       type: 'json',
       admin: {

@@ -1,0 +1,13 @@
+{
+  "description": "{{footer_description}}",
+  "copyrightName": "{{businessName}}",
+  "footerLinks": [
+    { "label": "Home", "url": "/" },
+    { "label": "{{nav_2_label}}", "url": "{{nav_2_url}}" },
+    { "label": "{{nav_3_label}}", "url": "{{nav_3_url}}" },
+    { "label": "{{nav_4_label}}", "url": "{{nav_4_url}}" }
+  ],
+  "socialLinks": [],
+  "bottomMessage": "{{footer_bottom_message}}",
+  "copyright": "© 2026 {{businessName}}. All rights reserved."
+}

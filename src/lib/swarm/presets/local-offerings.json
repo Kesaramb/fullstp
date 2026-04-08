@@ -1,0 +1,32 @@
+{
+  "slug": "offerings",
+  "titleTemplate": "{{businessName}} — What We Offer",
+  "blocks": [
+    {
+      "blockType": "hero",
+      "variant": "mediumImpact",
+      "heading": "{{hero_heading}}",
+      "subheading": "{{hero_subheading}}",
+      "ctaLabel": "{{hero_cta_label}}",
+      "ctaLink": "{{hero_cta_link}}"
+    },
+    {
+      "blockType": "featureGrid",
+      "heading": "{{features_heading}}",
+      "subheading": "{{features_subheading}}",
+      "columns": "3",
+      "features": [
+        { "icon": "{{feature_1_icon}}", "title": "{{feature_1_title}}", "description": "{{feature_1_desc}}" },
+        { "icon": "{{feature_2_icon}}", "title": "{{feature_2_title}}", "description": "{{feature_2_desc}}" },
+        { "icon": "{{feature_3_icon}}", "title": "{{feature_3_title}}", "description": "{{feature_3_desc}}" }
+      ]
+    },
+    {
+      "blockType": "closingBanner",
+      "heading": "{{closing_heading}}",
+      "description": "{{closing_description}}",
+      "linkLabel": "{{closing_cta_label}}",
+      "linkUrl": "{{closing_cta_link}}"
+    }
+  ]
+}

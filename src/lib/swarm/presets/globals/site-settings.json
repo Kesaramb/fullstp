@@ -1,0 +1,9 @@
+{
+  "siteName": "{{businessName}}",
+  "siteDescription": "{{siteDescription}}",
+  "theme": {
+    "palette": "{{palette}}",
+    "fontPairing": "{{fontPairing}}",
+    "borderRadius": "{{borderRadius}}"
+  }
+}

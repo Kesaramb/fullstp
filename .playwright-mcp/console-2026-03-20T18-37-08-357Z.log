@@ -1,0 +1,16 @@
+[    1369ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ https://paws-and-claws.167.86.81.161.nip.io/admin/login:0
+[    1455ms] TypeError: Cannot destructure property 'config' of 'V(...)' as it is undefined.
+    at H (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/9599-764961e97d53e26a.js:30:338165)
+    at l9 (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:51107)
+    at oT (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:70691)
+    at oW (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:80861)
+    at ib (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:114390)
+    at https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:114235
+    at iv (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:114243)
+    at io (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:111326)
+    at iY (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/74d063bf-7bb2bacdeb061600.js:1:132642)
+    at MessagePort.w (https://paws-and-claws.167.86.81.161.nip.io/_next/static/chunks/1986-cd0e4d5d2ee82371.js:1:153155)
+[    4417ms] [WARNING] The resource https://paws-and-claws.167.86.81.161.nip.io/_next/static/css/91958c353a213ae2.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://paws-and-claws.167.86.81.161.nip.io/admin/login:0
+[    4417ms] [WARNING] The resource https://paws-and-claws.167.86.81.161.nip.io/_next/static/css/a60c3c29caae56ed.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://paws-and-claws.167.86.81.161.nip.io/admin/login:0
+[    4417ms] [WARNING] The resource https://paws-and-claws.167.86.81.161.nip.io/_next/static/css/a5ecc5bdde19f9a3.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://paws-and-claws.167.86.81.161.nip.io/admin/login:0
+[    4417ms] [WARNING] The resource https://paws-and-claws.167.86.81.161.nip.io/_next/static/css/850439e143b13c67.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://paws-and-claws.167.86.81.161.nip.io/admin/login:0

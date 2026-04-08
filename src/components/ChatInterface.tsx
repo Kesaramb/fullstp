@@ -47,6 +47,9 @@ interface HandoffData {
   businessName: string
   domain: string
   deploymentId?: string
+  adminEmail?: string
+  adminPassword?: string
+  mcpApiKey?: string
 }
 
 function canOperate(handoff?: HandoffData): boolean {
@@ -61,7 +64,7 @@ function buildInitialMessages(handoff?: HandoffData): Message[] {
         id: 'msg-1',
         kind: 'message',
         sender: 'agent',
-        text: `Your site for ${handoff.businessName} is live! 🎉\n\n🔗 ${handoff.domain}\n\nI'm your Client Manager — I'll handle all updates to your site from here. No dashboards, no logins, just tell me what you need.`,
+        text: `Your site for ${handoff.businessName} is live! 🎉\n\n🔗 ${handoff.domain}${handoff.adminEmail ? `\n\n🔐 **Admin Panel**\n📍 ${handoff.domain}/admin\n📧 ${handoff.adminEmail}\n🔑 ${handoff.adminPassword}` : ''}${handoff.mcpApiKey ? `\n\n🔌 **Payload MCP**\nEndpoint: ${handoff.domain}/api/mcp\nAPI Key: ${handoff.mcpApiKey}` : ''}\n\nI'm your Client Manager — I'll handle all updates to your site from here. No dashboards, no logins, just tell me what you need.`,
         time: now(),
         position: 'top',
       },

@@ -1,0 +1,40 @@
+{
+  "slug": "work",
+  "titleTemplate": "{{businessName}} — Work",
+  "blocks": [
+    {
+      "blockType": "hero",
+      "variant": "lowImpact",
+      "heading": "{{hero_heading}}",
+      "subheading": "{{hero_subheading}}",
+      "badge": "{{hero_badge}}"
+    },
+    {
+      "blockType": "featureGrid",
+      "heading": "{{features_heading}}",
+      "subheading": "{{features_subheading}}",
+      "columns": "3",
+      "features": [
+        { "icon": "{{feature_1_icon}}", "title": "{{feature_1_title}}", "description": "{{feature_1_desc}}" },
+        { "icon": "{{feature_2_icon}}", "title": "{{feature_2_title}}", "description": "{{feature_2_desc}}" },
+        { "icon": "{{feature_3_icon}}", "title": "{{feature_3_title}}", "description": "{{feature_3_desc}}" }
+      ]
+    },
+    {
+      "blockType": "testimonials",
+      "heading": "{{testimonials_heading}}",
+      "testimonials": [
+        { "quote": "{{testimonial_1_quote}}", "author": "{{testimonial_1_author}}", "role": "{{testimonial_1_role}}" },
+        { "quote": "{{testimonial_2_quote}}", "author": "{{testimonial_2_author}}", "role": "{{testimonial_2_role}}" }
+      ]
+    },
+    {
+      "blockType": "callToAction",
+      "heading": "{{closing_heading}}",
+      "body": "{{closing_description}}",
+      "linkLabel": "{{closing_cta_label}}",
+      "linkUrl": "{{closing_cta_link}}",
+      "variant": "primary"
+    }
+  ]
+}

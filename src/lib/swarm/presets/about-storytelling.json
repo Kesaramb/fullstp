@@ -1,0 +1,52 @@
+{
+  "slug": "about",
+  "titleTemplate": "About — {{businessName}}",
+  "blocks": [
+    {
+      "blockType": "hero",
+      "variant": "lowImpact",
+      "heading": "{{hero_heading}}",
+      "subheading": "{{hero_subheading}}",
+      "badge": "{{hero_badge}}",
+      "ctaLabel": "{{hero_cta_label}}",
+      "ctaLink": "{{hero_cta_link}}"
+    },
+    {
+      "blockType": "brandNarrative",
+      "eyebrow": "{{narrative_eyebrow}}",
+      "heading": "{{narrative_heading}}",
+      "body": {
+        "root": {
+          "type": "root",
+          "children": [
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_1}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_2}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{narrative_body_3}}" }], "version": 1 }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0,
+          "version": 1
+        }
+      },
+      "imagePosition": "left"
+    },
+    {
+      "blockType": "richContent",
+      "content": {
+        "root": {
+          "type": "root",
+          "children": [
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{richcontent_body_1}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{richcontent_body_2}}" }], "version": 1 },
+            { "type": "paragraph", "children": [{ "type": "text", "text": "{{richcontent_body_3}}" }], "version": 1 }
+          ],
+          "direction": "ltr",
+          "format": "",
+          "indent": 0,
+          "version": 1
+        }
+      }
+    }
+  ]
+}
