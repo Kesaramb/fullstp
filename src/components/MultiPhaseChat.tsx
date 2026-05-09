@@ -308,10 +308,10 @@ function AuthModal({
 
 // ── MultiPhaseChat ─────────────────────────────────────────────────────────────
 
-export default function MultiPhaseChat() {
-  const [phase, setPhase] = useState<Phase>('landing')
+export default function MultiPhaseChat({ prefilledInitial }: { prefilledInitial?: string } = {}) {
+  const [phase, setPhase] = useState<Phase>(() => prefilledInitial ? 'strategy' : 'landing')
   const [bmc, setBmc] = useState<BMC | null>(null)
-  const [initialMessage, setInitialMessage] = useState('')
+  const [initialMessage, setInitialMessage] = useState(prefilledInitial ?? '')
   const [handoff, setHandoff] = useState<Handoff | null>(null)
   const [customerInfo, setCustomerInfo] = useState<{ name: string; email: string } | null>(null)
   const [strategyHistory, setStrategyHistory] = useState<ConversationEntry[]>([])

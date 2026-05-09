@@ -1,5 +1,5 @@
-import MultiPhaseChat from '@/components/MultiPhaseChat'
+import MarketingHomepage from '@/components/MarketingHomepage'
 
 export default function HomePage() {
-  return <MultiPhaseChat />
+  return <MarketingHomepage />
 }
