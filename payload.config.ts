@@ -11,6 +11,7 @@ import { Media } from '@/collections/Media'
 import { Users } from '@/collections/Users'
 import { Customers } from '@/collections/Customers'
 import { BMCs } from '@/collections/BMCs'
+import { BrandKits } from '@/collections/BrandKits'
 import { Deployments } from '@/collections/Deployments'
 import { Header } from '@/globals/Header'
 import { Footer } from '@/globals/Footer'
@@ -27,7 +28,7 @@ export default buildConfig({
     },
   },
 
-  collections: [Pages, Media, Users, Customers, BMCs, Deployments],
+  collections: [Pages, Media, Users, Customers, BMCs, BrandKits, Deployments],
 
   globals: [Header, Footer, SiteSettings],
 
