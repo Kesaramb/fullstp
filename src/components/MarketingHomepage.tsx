@@ -54,23 +54,23 @@ const PRICING_TIERS = [
 const FAQS = [
   {
     q: 'What if I want to cancel?',
-    a: 'Your site keeps running — it\'s your code, on your infrastructure. Download the repo anytime and run it with `docker compose up`. No export wizards, no data held hostage.',
+    a: 'Your site keeps running — it\'s your code, on your infrastructure. Download the repo and run it yourself with `docker compose up`. Not an export wizard. A real, working application.',
   },
   {
-    q: 'How does this compare to Webflow or Squarespace?',
-    a: 'Those platforms lock you into their ecosystem. FullStop gives you a production-grade Next.js + Payload CMS codebase — a real software repository you own outright, not a hosted page-builder account.',
+    q: 'How is this different from Wix or Squarespace?',
+    a: 'Those platforms are great for building. FullStop is built for operating — AI agents manage your site ongoing, so it never goes stale. And unlike page builders, you get a real Next.js + Payload CMS codebase you own outright. Most platforms make migration hard. We make ownership native.',
   },
   {
     q: 'Do I need any technical skills?',
-    a: 'None at all. You chat with the AI CEO agent in plain language. It handles strategy, design, copy, coding, and deployment. You only receive the finished site.',
+    a: 'None. You describe your business in plain English. The AI agents handle strategy, design, copy, code, and deployment. You receive the finished site — and chat to change anything after.',
   },
   {
     q: 'How long does the build take?',
-    a: 'Most sites go live in 2–4 minutes. The factory pipeline runs fully autonomously from the moment you confirm your email.',
+    a: 'Most sites are live within minutes of starting. The factory pipeline runs fully autonomously — no waiting for a developer to pick up the ticket.',
   },
   {
-    q: 'Who writes the content?',
-    a: 'Your AI Digital Team generates initial copy from the strategy session. You can update it anytime by chatting — no CMS dashboard required.',
+    q: 'Who keeps the site updated after launch?',
+    a: 'Your AI Digital Team does. Need to update hours, add a service, publish a blog, or change the hero? Send a message. No CMS login required. No agency call needed.',
   },
 ]
 
@@ -114,17 +114,17 @@ export default function MarketingHomepage() {
         <div className="max-w-3xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-white/70 backdrop-blur-sm border border-blue-100 rounded-full px-4 py-1.5 text-sm font-medium text-blue-700 mb-8">
             <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            Zero-Human Digital Agency
+            AI-first digital agency
           </div>
 
           <h1 className="text-5xl md:text-6xl font-black text-gray-900 leading-tight tracking-tight mb-6">
-            Your website,<br />
-            <span className="text-blue-500">live in 24 hours.</span>
+            Your website, managed<br />
+            <span className="text-blue-500">through chat.</span>
           </h1>
 
           <p className="text-xl text-gray-600 leading-relaxed mb-10 max-w-xl mx-auto">
-            Tell us about your business. AI agents build and manage your professional website —
-            you own the code, cancel anytime.
+            Built fast. Updated anytime. Owned by you. AI agents launch your site and
+            keep it running — no agency, no dashboard, no dependency.
           </p>
 
           <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
@@ -148,10 +148,10 @@ export default function MarketingHomepage() {
           </form>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-gray-400 text-sm">
-            <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> No dashboard</span>
+            <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> Updates via chat</span>
             <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> You own the code</span>
-            <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> Cancel anytime</span>
-            <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> Live in 24 hours</span>
+            <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> No agency dependency</span>
+            <span className="flex items-center gap-1.5"><Check size={14} className="text-green-500" /> Live in hours</span>
           </div>
         </div>
       </section>
@@ -169,20 +169,20 @@ export default function MarketingHomepage() {
               {
                 step: '01',
                 icon: <Zap size={24} className="text-blue-500" />,
-                title: 'Chat with the CEO agent',
-                body: 'Describe your business in plain language. The AI extracts your strategy, brand voice, and goals — no forms, no briefs.',
+                title: 'Describe your business',
+                body: 'Chat with the CEO agent in plain language — no forms, no briefs. It asks the right questions and extracts your full brand strategy from a single conversation.',
               },
               {
                 step: '02',
                 icon: <Code size={24} className="text-blue-500" />,
-                title: 'Factory builds your site',
-                body: 'Design Director, Content Writer, and DevOps agents collaborate to generate code, write copy, and deploy — in minutes, not weeks.',
+                title: 'AI agents build and deploy',
+                body: 'Five specialist agents — Design Director, Content Writer, UI Architect, and DevOps — collaborate, run automated quality checks, and ship your site.',
               },
               {
                 step: '03',
                 icon: <Clock size={24} className="text-blue-500" />,
-                title: 'Digital Team manages it',
-                body: 'Your AI team keeps your site fresh with content updates, SEO, and analytics — just chat to make changes, no CMS skills required.',
+                title: 'Chat to update, forever',
+                body: 'New service? New hours? New landing page? Send a message. Your AI Digital Team handles every change — no CMS login, no developer call.',
               },
             ].map(item => (
               <div key={item.step} className="relative p-8 rounded-2xl bg-gray-50 border border-gray-100">
@@ -205,30 +205,30 @@ export default function MarketingHomepage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <p className="text-sm font-semibold tracking-widest text-blue-500 uppercase mb-3">Why FullStop</p>
-            <h2 className="text-4xl font-black text-gray-900">Built different, by design</h2>
+            <h2 className="text-4xl font-black text-gray-900">Not just built. Operated.</h2>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {[
               {
                 icon: <Shield size={22} className="text-blue-500" />,
-                title: 'You own the code',
-                body: 'Every site is a real Next.js + Payload CMS repository. Download it, run it locally, deploy it yourself — zero lock-in, zero export wizards.',
+                title: 'Your code, always',
+                body: 'Every site is a real Next.js + Payload CMS repository you own outright. Most platforms make migration hard. FullStop makes ownership native — download and run it anywhere, anytime.',
               },
               {
                 icon: <Clock size={22} className="text-blue-500" />,
-                title: 'Live in under 24 hours',
-                body: 'Traditional agencies take 8–16 weeks. FullStop\'s factory pipeline deploys a production-ready site in minutes from your first message.',
+                title: 'Live in hours, not months',
+                body: 'Traditional agencies take 8–16 weeks. FullStop\'s factory pipeline deploys a production-ready site in minutes — from first message to live URL.',
               },
               {
                 icon: <Zap size={22} className="text-blue-500" />,
-                title: '90% cheaper than agencies',
-                body: 'No designers, no developers, no project managers to bill. AI handles every step, so you get agency-quality results at SaaS pricing.',
+                title: 'Your site never goes stale',
+                body: 'The problem isn\'t building a site — it\'s keeping it current. Your AI Digital Team handles every update via chat: hours, services, blog posts, seasonal offers.',
               },
               {
                 icon: <Code size={22} className="text-blue-500" />,
-                title: 'No dashboard, just chat',
-                body: 'Need to update your menu or change your hero copy? Just describe the change in plain language. Your AI Digital Team handles the rest.',
+                title: 'No agency dependency',
+                body: 'No retainer. No project manager. No "I\'ll get back to you." Just describe what you need in plain language and it\'s done — typically faster than you could log into a CMS.',
               },
             ].map(f => (
               <div key={f.title} className="flex gap-5 p-7 rounded-2xl border border-gray-100 bg-white shadow-sm">
@@ -326,10 +326,10 @@ export default function MarketingHomepage() {
       <section className="py-24 px-6 bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda]">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-4xl font-black text-gray-900 mb-4">
-            Ready to launch?
+            Stay because it works.<br />Not because you're trapped.
           </h2>
           <p className="text-gray-600 text-lg mb-8">
-            Describe your business and your site will be live by tomorrow.
+            Describe your business. Your site is live today — and managed by AI from that point forward.
           </p>
           <a
             href="/launch"

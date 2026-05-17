@@ -1,9 +1,9 @@
-# FullStop — Product Pitch
-## "The Zero-Human Digital Agency"
+# FullStop — Product Pitch (v2)
+## Refined after competitive analysis
 
 ---
 
-> *Format: Steve Jobs-style keynote script. Each `[SLIDE]` is a beat — a single powerful idea. Deliver slowly. Let silence work for you.*
+> *Format: Steve Jobs-style keynote script. Each `[SLIDE]` is a beat. Deliver slowly. Let silence work.*
 
 ---
 
@@ -19,160 +19,165 @@
 
 You know that feeling.
 
-You had the idea. You registered the domain. You hired the agency. You sent the brief, sat in the kickoff, approved the wireframes, gave feedback on the mockups, waited three weeks for the revised mockups, gave more feedback, waited again —
+You hired the agency. You sat in the kickoff. You approved the wireframes, gave feedback on the mockups, waited three weeks for the revised mockups, gave more feedback, waited again —
 
-And eight weeks later, you got a website that cost $15,000. That doesn't quite say what you meant. And now you need to go back to the developer every time you want to change a word.
+Eight weeks later: a website that cost $15,000. Doesn't quite say what you meant. And now you need to call the developer every time you want to change a word.
 
-That's not a website. **That's a hostage situation.**
+That's not a website. **That's a dependency.**
 
 ---
 
-**[SLIDE: The Problem — in numbers]**
+**[SLIDE: The problem — in numbers]**
 
-> **600 million small businesses** operate on planet Earth today.
+> **400 million small businesses** operate globally.
 >
-> **Most of them have a bad website. Or no website at all.**
+> The web design market is worth **$60 billion today, growing to $90 billion by 2030.**
+>
+> Most SMEs are underserved. Not because they don't understand the value. Because the current model is broken in exactly three ways.
 
-Not because they don't understand the value. They understand it perfectly.
-
-It's because the current model — agencies, freelancers, page builders — is broken in exactly three ways:
-
-**Too slow.** Eight to sixteen weeks.
-**Too expensive.** $5,000 to $50,000 to build. $150/hour to change a button.
-**Too fragile.** You're locked in. The agency owns the relationship. The platform owns the data.
+**Too slow.** Eight to sixteen weeks to launch.
+**Too expensive.** $5,000 to $50,000 to build. Hourly rates to change anything.
+**Too sticky.** You're dependent — on the agency relationship, on the platform, on someone else's schedule.
 
 ---
 
-**[SLIDE: A new model is possible.]**
+**[SLIDE: AI builders didn't fix it.]**
 
-What if you could describe your business in plain English — the way you'd explain it to a friend — and have a professional, production-grade website live on the internet by tomorrow morning?
+You've seen the wave of AI website builders. Wix. Squarespace. Hostinger. They all say the same thing now: "chat with AI and get a website in minutes."
 
-Not a template. Not a page builder. A *real* website. Built on real code. That you own.
+That's fine. But it missed the point.
 
-What if that website was then managed, updated, and optimised continuously by a team of AI agents — so it never goes stale, never ranks worse than it should, and never needs a developer to change a word?
+The problem isn't *building* the website. Any AI can generate a homepage.
 
-And what if all of it cost less than your coffee budget?
+**The problem is everything that comes after.**
 
-**Ladies and gentlemen — this is FullStop.**
+Updating your menu. Adding a service page. Publishing a blog. Fixing the SEO. Adding the new team member. Running the seasonal offer. Integrating the booking form. Monitoring what's working.
+
+Every single one of those things still requires *you* to go back, log into a dashboard you don't understand, and do it yourself. Or call someone.
+
+**The website is live. But you're still dependent.**
 
 ---
 
-**[SLIDE: FULLSTOP — Zero-Human Digital Agency]**
+**[SLIDE: FULLSTOP]**
 
-FullStop is not a website builder.
-FullStop is not an agency.
-FullStop is not a template marketplace.
+FullStop is an AI-first digital agency platform. We build your website — and then we *manage* it for you, through chat, forever.
 
-FullStop is the world's first **Zero-Human Digital Agency** — delivered as a subscription.
+One conversation to start. Ongoing chat to update. AI agents handling everything in between.
 
-You describe your business. A team of AI agents builds and launches your website. Another team manages it, forever. No humans involved. No project managers billing hours. No developers charging for every pixel.
+No agency retainer. No CMS training. No "let me check with the developer on that."
 
-Just results.
+Just a live, improving, professional website — that responds to you like a team member.
 
 ---
 
 **[SLIDE: How It Works — 3 steps]**
 
-Here's how simple this is.
+**Step one: You describe your business.**
+Not a form. Not a brief. Just a conversation with the CEO Agent — an AI that's been trained to ask exactly the right questions and extract a complete brand strategy from plain English.
 
-**Step one: You chat.**
-You open FullStop and you start talking. Not filling out a form. Not uploading a brief. Just talking — the way you'd explain your business to a smart friend. "I'm opening a café in Melbourne called Rumba. Modern Vietnamese, community vibe, late-night crowd." That's it. The CEO Agent listens, asks exactly the right follow-up questions, and extracts a complete business strategy. Brand voice. Target audience. Competitive position. Page architecture.
+**Step two: The factory builds your site.**
+Five specialized AI agents collaborate behind the scenes: Design Director, Content Writer, UI Architect, Payload Expert, and DevOps. Every site passes automated multi-agent quality checks — brand consistency, content alignment, CMS structure, deployment health — before it goes live.
 
-**Step two: The factory builds.**
-Behind the scenes, a team of five specialized AI agents goes to work. The Design Director chooses your visual identity — palette, typography, layout. The Content Writer crafts every headline, every paragraph, every CTA. The UI Architect arranges the visual experience. The Payload Expert maps it all into a production CMS. The DevOps agent deploys it to a live server. This entire process takes **minutes, not months.**
-
-**Step three: Your Digital Team manages it.**
-Once your site is live, a permanent AI team takes over. They keep your content fresh. They handle your SEO. They run analytics. And whenever you want a change? You just chat. "Add a brunch menu page." Done. No CMS training required. No developer call. Just chat.
+**Step three: Your Digital Team runs it.**
+From day one, a persistent AI team manages your site. Need to add a page? Update your pricing? Publish a blog post? You chat. They handle it. No dashboard. No CMS skills required.
 
 ---
 
 **[SLIDE: The thing that makes this different.]**
 
-Every other tool in this market — Wix, Squarespace, Webflow — has a dirty secret:
+Here's what every competitor has in common:
 
-**They own your business.**
+They optimize for you staying inside their platform.
 
-The moment you stop paying, your site disappears. Want to move? Too bad — your content is trapped in their proprietary format. Your site is not a website. It's a rental.
+Wix makes migration hard. Squarespace's "export" is just content — not a running application. Webflow exports static HTML. None of them give you a working software system you can take anywhere.
 
-FullStop is built on a different philosophy.
+FullStop is built on a different principle.
 
-Every FullStop site is a **real software repository**. Next.js. Payload CMS. Your own database. Production-grade code. When FullStop delivers your site, we hand you the keys to a running car — not a lease agreement.
+Every FullStop site is a **real production repository** — Next.js, Payload CMS, your own database. When you download it, you get a running application. `docker compose up` and it's live, on your own server, independent of us.
 
-Want to cancel? Download your repo. Run `docker compose up`. Your site is live, on your own server, forever. No export wizard. No data held hostage. No conversation to have.
+We call this **Ejectable**. And it's not a feature — it's a trust contract.
 
-**We call this: Ejectable.**
+Most platforms make migration hard. FullStop makes ownership native.
 
-This is not a feature. This is a fundamental design principle. FullStop clients are not customers. They're owners.
+*Stay because it works. Not because you're trapped.*
 
 ---
 
 **[SLIDE: The Architecture — for the skeptics]**
 
-Let me show you what's under the hood. Because this isn't magic. This is engineering.
+This is what's under the hood.
 
-**The Factory Pipeline** runs in 9 deterministic stages:
+**The Factory Pipeline** — 9 deterministic stages:
 
 ```
-t1  Queen Agent: Extracts strategy from your conversation
-t2  Design Director: Selects visual identity (palette, fonts, hero layout)
-t3  Content Writer: Writes emotionally resonant copy for every section
-t4  UI Architect: Arranges the visual experience
-t5  Payload Expert: Maps it to a production CMS content model
-t6  Byzantine Consensus: The Queen validates alignment across all agents
-t7  DevOps: SSH deployment to your live server
-t8  Content Seeding: Your pages populated in real time
-t9  Handoff: You receive admin credentials, live URL, and a deployment email
+t1  CEO Agent: Brand strategy from conversation
+t2  Design Director: Visual identity selection
+t3  Content Writer: Copy for every section
+t4  UI Architect: Page composition
+t5  Payload Expert: Production CMS mapping
+t6  Multi-agent QA: Consistency checks across all outputs
+t7  DevOps: SSH deployment to live server
+t8  Content seeding via Payload API
+t9  Handoff: credentials, live URL, deployment email
 ```
 
-Five Claude AI agents. One pipeline. One result: your site, live.
+**Multi-agent QA** — before deployment, the Queen Agent independently validates that every agent's output is consistent: design and content aligned, CMS structure matching the visual design, deployment health confirmed. The pipeline self-heals on mismatches. Automated checks at every stage — not human review, but also not naive shipping.
 
-**The Repo OS** — the repository is the operating system. Six layers of context, skills, execution, verification, session management, and human oversight make every AI action deterministic and auditable. This is not a chatbot generating HTML. This is a controlled software factory.
-
-**Byzantine Consensus** — before deployment, the Queen Agent independently validates that every AI agent's output is consistent. Design and content aligned? Code and CMS matched? If anything is off, the pipeline self-heals. No bad sites ship.
+**The Repo OS** — the repository itself is the operating system for the agents. Six structured layers (Context, Skills, Execution, Verification, Session, Oversight) make every AI action auditable and repeatable. This is not a chatbot generating HTML. This is a controlled software factory.
 
 ---
 
 **[SLIDE: Unit Economics — for investors]**
 
-Let's talk about the business.
+**The market:**
+- 400M+ SMEs globally (World Bank: 90%+ of all businesses)
+- $60B+ web design market, growing to $90B+ by 2030 (Mordor Intelligence)
+- Most SME web spend still goes to agencies and freelancers — high-friction, high-cost, high-churn
 
-**The market**: 600 million SMBs globally. Most underserved by digital. A $500B+ agency and web services industry that hasn't fundamentally changed in 20 years.
+**The model:** Monthly recurring SaaS. Per-tenant. Near-zero marginal cost to *generate*. Cost center is ongoing operations, support, and infra — all of which scale with the AI agent tier, not human headcount.
 
-**The model**: Subscription SaaS. Monthly recurring revenue. Near-zero marginal cost per tenant.
-
-| Tier | Price | Target |
-|------|-------|--------|
+| Tier | Price | Target customer |
+|------|-------|----------------|
 | Starter | $99/mo | Solopreneurs, local businesses |
 | Growth | $249/mo | Growing SMBs |
 | Scale | $499/mo | Established businesses |
 
-**The economics are extraordinary.**
+**Why this beats the alternatives on economics:**
 
-A traditional agency spends $5,000–$15,000 of *human time* to build one site. FullStop's cost to build a site is primarily compute and API tokens — a few dollars. The AI agents don't take vacations. They don't have good days and bad days. They don't bill overtime.
+A traditional agency spends $5,000–$15,000 in human time to build one site. FullStop's marginal build cost is compute and API tokens — a few dollars. The gap is the margin.
 
-At $249/month, a single Growth customer pays back their acquisition cost in one month. At 1,000 customers, FullStop generates $2.5M ARR with infrastructure costs that would make a traditional agency weep.
+More importantly: at $99–$499/month, FullStop is not selling generation. It's selling *continuous operations*. Ongoing content, SEO, updates, management. That's where the subscription earns its value month after month — and why retention is structurally different from a one-shot generator.
 
-**The moat** is not the technology. Anyone can call an API. The moat is:
+**The moat is three things:**
 
-1. **The Repo OS** — the structured, layered system that makes AI output deterministic and auditable. This takes years to build right.
-2. **The Golden Image** — the master boilerplate that every tenant site is cloned from. Better every week. All tenants benefit.
-3. **The flywheel** — every site deployed teaches the system. Every block, every design decision, every content pattern gets better with scale.
+1. **The Repo OS** — the structured, layered factory architecture that makes AI output deterministic. Anyone can call an API. Not everyone can build a reliable production pipeline on top of one.
+2. **The operations model** — persistent AI agents that *manage* sites over time. No competitor has this. Wix generates. We operate.
+3. **Ejectability as trust** — a moat built on belief rather than lock-in. Customers who feel safe staying tend to stay longer than customers who feel trapped.
 
 ---
 
-**[SLIDE: The Vision — where this goes]**
+**[SLIDE: Go-to-Market — where we start]**
 
-Phase 1: Websites. Done in minutes. Live in 24 hours.
+We are not launching to "all small businesses." That is the fastest way to build nothing for everyone.
 
-Phase 2: The Digital Team takes over. Ongoing management. SEO. Content. Analytics. Your AI team that never sleeps.
+**We start with one vertical: local service businesses.**
 
-Phase 3: The entire digital operation of a small business — social, email, ads, customer support — run by agents. Coordinated. Affordable. Professional.
+Plumbers. Electricians. Clinics. Salons. Contractors. Accountants. Consultants.
 
-**The long arc of this company is simple:**
+Here's why this vertical first:
 
-Every small business on earth deserves a world-class digital presence. Today, only large companies can afford one. We're going to fix that.
+- They need leads, not aesthetics. ROI is immediate and measurable.
+- They update content often — services, hours, offers, team members. The operations model is perfect for them.
+- They compare us to *agencies*, not to Hostinger. Our price and speed look extraordinary by that comparison.
+- They hate technology. "Just chat" is a genuine relief, not just a feature.
+- Repeat site structure per vertical → reusable templates → better output quality → faster builds.
 
-Not with cheaper humans. With no humans at all.
+The offer to this market is simple:
+
+> *"We launch your lead-generating website in 24 hours and keep it updated every month. You just send us changes in chat."*
+
+No jargon. No platform pitch. Just a clear promise with a clear price.
 
 ---
 
@@ -180,60 +185,76 @@ Not with cheaper humans. With no humans at all.
 
 **For users:** Describe your business. We'll build the rest.
 
-**For investors:** We are the Stripe of digital presence for small business. The infrastructure layer that unlocks a market that was previously locked behind the cost of human expertise. We're raising to scale the factory, build the Digital Team agents, and reach the first 10,000 tenants.
+**For investors:** We are building the operations layer for SME digital presence — a subscription model that replaces both the agency (for initial build) and the ongoing maintenance relationship. The addressable revenue is not one-time builds. It's the monthly retainer that every SME currently pays a freelancer, an agency, or a platform — and gets mediocre service in return.
 
-**For partners:** If you serve SMBs — accountants, coaches, SaaS platforms, banks — we are a white-label digital agency you can offer your clients from day one. No headcount. No overhead. A new revenue stream that didn't exist yesterday.
+**For channel partners — agencies, accountants, business coaches, SaaS platforms:** If you serve SMEs, FullStop is a white-label AI production factory you can offer your clients. No headcount. No overhead. A new recurring revenue stream delivered under your brand.
 
 ---
 
-**[SLIDE: Black screen. Four words.]**
+**[SLIDE: Black screen. The positioning.]**
 
-# Live in 24 hours.
+# Your website, managed through chat.
+# Built fast. Updated anytime. Owned by you.
 
 ---
 
 **fullstp.app**
 
-*Starter plan from $99/month. No setup fee. No contract. You own the code.*
+*Starter from $99/month. No setup fee. No contract. Your code, always.*
 
 ---
 
 ## KEY SOUNDBITES
-*(For press, demos, and interviews)*
 
-- *"We didn't make agencies cheaper. We made them unnecessary."*
-- *"Every FullStop site is ejectable. We win by being so good you never want to leave — not by making it impossible."*
+- *"We didn't make agencies cheaper. We made them optional."*
+- *"Most platforms optimize for keeping you in. FullStop optimizes for keeping you in control."*
+- *"Stay because it works. Not because you're trapped."*
 - *"Five AI agents. One conversation. One live website. By morning."*
-- *"This is what a digital agency looks like when you remove every human from the loop — and add a conscience about who owns the result."*
-- *"Squarespace rents you a website. FullStop gives you one."*
-- *"The agency model hasn't changed since 1995. We're changing it."*
-- *"The barrier to a professional web presence isn't skill. It's money and time. We're eliminating both."*
+- *"The problem was never building the website. The problem was everything after."*
+- *"Squarespace exports content. FullStop delivers a running application."*
+- *"The barrier to a professional web presence isn't skill. It's dependency. We're eliminating that."*
 
 ---
 
 ## ONE-PAGE INVESTOR SUMMARY
 
 **Company:** FullStop
-**Category:** Zero-Human Digital Agency / AI SaaS
+**Category:** AI-first digital agency platform / Operations SaaS
 **Stage:** MVP shipped, first tenants deploying
-**Ask:** [TBD — insert raise amount]
 
-**Problem:** 600M SMBs. Most have bad or no website. Agency model is slow ($15K, 8 weeks), expensive, and creates lock-in. Page builders are cheap but create lock-in and look amateur.
+**Problem:** 400M+ SMEs globally. Most have a bad or absent web presence — not because they don't understand the value, but because the build/manage cycle is too slow, too expensive, and creates ongoing dependency on agencies, platforms, or freelancers.
 
-**Solution:** Conversational AI factory that builds and manages production-grade websites. Customer owns the code. Delivered in 24 hours.
+**Solution:** Conversational AI factory that builds production-grade websites (ejectable code, real repo) and then manages them continuously via a persistent Digital Team agent layer. Changes via chat. No dashboard skills required.
 
-**Revenue:** Monthly SaaS. $99–$499/mo per tenant. Near-zero marginal cost.
+**Revenue:** Monthly SaaS subscription. $99–$499/mo per tenant. Value is in ongoing operations, not one-time generation.
 
-**Moat:** Repo OS architecture (deterministic AI factory), Golden Image boilerplate (improves with scale), Byzantine consensus (no bad sites ship), ejectable code (trust-first brand).
+**Moat:** Factory pipeline architecture (deterministic, auditable AI execution), persistent operations agents (no competitor has this), ejectability as trust differentiator.
 
-**Team:** [Insert founding team bios]
+**Go-to-Market:** Vertical-first. Local service businesses (clinics, salons, contractors, consultants) as wedge. Channel distribution via agencies and SMB-adjacent SaaS platforms.
 
-**Market:** $500B+ global web services industry. 600M SMB TAM.
+**Market:** $60B+ web design market (Mordor Intelligence, 2025), growing to $90B+ by 2030. Plus adjacent recurring maintenance/management spend.
 
-**Traction:** [Insert early customers, pilot numbers, conversion metrics]
+**Team:** [Insert]
 
-**Use of Funds:** Scale factory infrastructure → 10K tenants. Build Digital Team agent tier. BD partnerships with SMB-adjacent platforms.
+**Traction:** [Insert — time to live site, deployment count, retention, gross margin, support load]
+
+**Use of Funds:** Scale factory infrastructure → 10K tenants. Build Digital Team operations layer. Vertical template packs. Channel partner BD.
 
 ---
 
-*Pitch document prepared by FullStop product team, May 2026.*
+## WHAT WE CHANGED FROM v1 (and why)
+
+| v1 claim | v2 claim | Reason |
+|----------|----------|--------|
+| "World's first Zero-Human Digital Agency" | "AI-first digital agency platform" | Too absolute; one bad output is a brand story |
+| "600M SMBs" | "400M+ SMEs globally" | World Bank / IFC figures |
+| "$500B+ web services industry" | "$60B+ web design market" | Mordor Intelligence 2025 figure |
+| "No bad sites ship" | "Every site passes automated multi-agent QA" | Specific and defensible |
+| "Byzantine consensus" | "Multi-agent QA checks" | Jargon → plain language |
+| "They own your business" | "Most platforms make migration hard. FullStop makes ownership native." | Less theatrical, harder to attack |
+| "No good days/bad days" | "Repeatable, auditable, cheaper to scale than human-only delivery" | Honest about AI failure modes |
+| Website *building* as wedge | Website *operations* as wedge | That's the actual unserved gap |
+
+---
+
+*FullStop product pitch v2 — May 2026. Revised for accuracy and competitive precision.*
