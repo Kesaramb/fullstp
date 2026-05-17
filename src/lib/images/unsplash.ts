@@ -19,7 +19,7 @@ export interface UnsplashImage {
   photographerUrl: string
 }
 
-export type ImageTargetField = 'backgroundImage' | 'image'
+export type ImageTargetField = 'backgroundImage' | 'image' | 'media'
 
 interface UnsplashApiPhoto {
   urls: {
@@ -55,34 +55,44 @@ const UNSPLASH_API_BASE = 'https://api.unsplash.com'
 /**
  * Fetch relevant stock photos from Unsplash for a given industry and business.
  *
- * Returns up to 4 images. Each image includes proper Unsplash attribution
- * in the alt text as required by the Unsplash API guidelines.
+ * Each image includes proper Unsplash attribution in the alt text per the
+ * Unsplash API guidelines.
  *
  * Returns an empty array if:
  * - UNSPLASH_ACCESS_KEY env var is not set
  * - API request fails for any reason
  * - No results are found
  */
+export interface FetchOptions {
+  /** How many images to try to collect. Default 12. */
+  budget?: number
+  /** Mood slug (e.g. 'editorial-luxe'). Used to bias search terms. */
+  mood?: string
+}
+
 export async function fetchUnsplashImages(
   industry: string,
   businessName: string,
+  opts: FetchOptions = {},
 ): Promise<UnsplashImage[]> {
   const accessKey = process.env.UNSPLASH_ACCESS_KEY
   if (!accessKey) {
     return []
   }
 
-  const searchTerms = resolveSearchTerms(industry, businessName)
+  const budget = Math.max(1, opts.budget ?? 12)
+  const searchTerms = resolveSearchTerms(industry, businessName, opts.mood)
   const images: UnsplashImage[] = []
   const seen = new Set<string>()
 
-  // Fetch from multiple search terms to get variety
-  // Stop once we have enough images for hero + narrative coverage
+  // Fetch from multiple search terms to get variety. Each term contributes
+  // up to ~4 images. With a 12-image budget across 4 search terms, that's
+  // 4 API requests per deploy — well within Unsplash's 50/hr free tier.
   for (const query of searchTerms) {
-    if (images.length >= 4) break
+    if (images.length >= budget) break
 
     try {
-      const perPage = Math.min(4, 4 - images.length)
+      const perPage = Math.min(6, budget - images.length)
       const url = new URL(`${UNSPLASH_API_BASE}/search/photos`)
       url.searchParams.set('query', query)
       url.searchParams.set('per_page', String(perPage))
@@ -108,7 +118,7 @@ export async function fetchUnsplashImages(
       const data = (await response.json()) as UnsplashSearchResponse
 
       for (const photo of data.results) {
-        if (images.length >= 4) break
+        if (images.length >= budget) break
         if (seen.has(photo.links.html)) continue
         seen.add(photo.links.html)
 
@@ -155,6 +165,35 @@ export interface ImageAssignment {
   imageHeight: number
 }
 
+/** Hero variants that actually render a `backgroundImage`. Other variants
+ *  (lowImpact, editorialAsymmetric, gradientMeshSpotlight, agentInteractive,
+ *  textRevealCanvas) are intentionally text/mesh-only — assigning an image
+ *  to them would be ignored anyway. */
+const HERO_VARIANTS_WITH_IMAGE = new Set([
+  'highImpact', 'mediumImpact', 'bentoSplit',
+  'bentoCanvas', 'spotlightStage', 'cinemaImmersive',
+])
+
+/** Block types that have a `media` field (Payload upload relation). */
+const MEDIA_BLOCK_TYPES = new Set(['mediaBlock'])
+
+/**
+ * Assign fetched images to content package blocks.
+ *
+ * Coverage:
+ *   - Hero (highImpact, mediumImpact, bentoSplit, bentoCanvas, spotlightStage) → backgroundImage
+ *   - BrandNarrative (every occurrence) → image
+ *   - MediaBlock (every occurrence) → media
+ *
+ * Strategy: TWO-PASS.
+ *   Pass 1 — give every Hero with backgroundImage support the FIRST images
+ *            (premium quality, fresh from search). Home hero gets index 0,
+ *            then catalog hero, then about/contact heroes if applicable.
+ *   Pass 2 — fill remaining narrative + media blocks in page order.
+ *
+ * This guarantees the most prominent block on the page (the hero) always
+ * gets a top-quality image instead of being randomly distributed.
+ */
 export function assignImagesToContent(
   images: UnsplashImage[],
   pages: { slug: string; layout: Record<string, unknown>[] }[],
@@ -163,42 +202,86 @@ export function assignImagesToContent(
 
   const assignments: ImageAssignment[] = []
   let imageIdx = 0
+  const take = (): UnsplashImage | null => imageIdx < images.length ? images[imageIdx++] : null
 
+  // Sort pages: home first, then catalog (services/products/menu/...), then others
+  const pageOrder = (slug: string) => {
+    if (slug === 'home') return 0
+    if (['products', 'services', 'features', 'menu', 'work', 'offerings'].includes(slug)) return 1
+    if (slug === 'about') return 2
+    if (slug === 'contact') return 4
+    return 3
+  }
+  const sortedPages = [...pages].sort((a, b) => pageOrder(a.slug) - pageOrder(b.slug))
+
+  // PASS 1 — heroes get priority (home > catalog > others)
+  for (const page of sortedPages) {
+    if (imageIdx >= images.length) break
+    for (let blockIdx = 0; blockIdx < page.layout.length; blockIdx++) {
+      const block = page.layout[blockIdx]
+      const blockType = String(block.blockType ?? '')
+      const variant = String(block.variant ?? '')
+      if (blockType === 'hero' && HERO_VARIANTS_WITH_IMAGE.has(variant)) {
+        const img = take()
+        if (img) {
+          assignments.push({
+            pageSlug: page.slug,
+            blockIndex: blockIdx,
+            targetField: 'backgroundImage',
+            imageUrl: img.url,
+            imageAlt: img.alt,
+            imageWidth: img.width,
+            imageHeight: img.height,
+          })
+        }
+        break  // one hero per page only
+      }
+    }
+  }
+
+  // PASS 2 — fill non-hero image-bearing blocks (narrative + media) in original page order
   for (const page of pages) {
     for (let blockIdx = 0; blockIdx < page.layout.length; blockIdx++) {
-      if (imageIdx >= images.length) break
+      if (imageIdx >= images.length) return assignments  // hard stop
 
       const block = page.layout[blockIdx]
+      const blockType = String(block.blockType ?? '')
 
-      // Hero blocks with highImpact or mediumImpact get background images
-      if (
-        block.blockType === 'hero' &&
-        (block.variant === 'highImpact' || block.variant === 'mediumImpact')
-      ) {
-        const img = images[imageIdx++]
-        assignments.push({
-          pageSlug: page.slug,
-          blockIndex: blockIdx,
-          targetField: 'backgroundImage',
-          imageUrl: img.url,
-          imageAlt: img.alt,
-          imageWidth: img.width,
-          imageHeight: img.height,
-        })
+      // Skip heroes — already handled in pass 1
+      if (blockType === 'hero') continue
+
+      // BrandNarrative → image (every occurrence, on every page)
+      if (blockType === 'brandNarrative') {
+        const img = take()
+        if (img) {
+          assignments.push({
+            pageSlug: page.slug,
+            blockIndex: blockIdx,
+            targetField: 'image',
+            imageUrl: img.url,
+            imageAlt: img.alt,
+            imageWidth: img.width,
+            imageHeight: img.height,
+          })
+        }
+        continue
       }
 
-      // brandNarrative blocks can use an image
-      if (block.blockType === 'brandNarrative' && imageIdx < images.length) {
-        const img = images[imageIdx++]
-        assignments.push({
-          pageSlug: page.slug,
-          blockIndex: blockIdx,
-          targetField: 'image',
-          imageUrl: img.url,
-          imageAlt: img.alt,
-          imageWidth: img.width,
-          imageHeight: img.height,
-        })
+      // MediaBlock → `media` field (matches the upload field name in MediaBlock config)
+      if (MEDIA_BLOCK_TYPES.has(blockType)) {
+        const img = take()
+        if (img) {
+          assignments.push({
+            pageSlug: page.slug,
+            blockIndex: blockIdx,
+            targetField: 'media',
+            imageUrl: img.url,
+            imageAlt: img.alt,
+            imageWidth: img.width,
+            imageHeight: img.height,
+          })
+        }
+        continue
       }
     }
   }

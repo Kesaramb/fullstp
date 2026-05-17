@@ -9,6 +9,13 @@ import { MediaBlockComponent } from '../blocks/MediaBlock/Component'
 import { BannerBlock } from '../blocks/Banner/Component'
 import { ClosingBannerBlock } from '../blocks/ClosingBanner/Component'
 import { FormBlockComponent } from '../blocks/FormBlock/Component'
+// PR4 — new conversion + credibility blocks
+import { StatsBlock } from '../blocks/Stats/Component'
+import { FaqBlock } from '../blocks/FAQ/Component'
+import { LogoCloudBlock } from '../blocks/LogoCloud/Component'
+import { PricingBlock } from '../blocks/Pricing/Component'
+import { ProcessBlock } from '../blocks/Process/Component'
+import { PullQuoteBlock } from '../blocks/PullQuote/Component'
 
 type Block = {
   blockType: string
@@ -28,6 +35,13 @@ const blockComponents: Record<string, React.ComponentType<{ block: any }>> = {
   banner: BannerBlock,
   closingBanner: ClosingBannerBlock,
   formBlock: FormBlockComponent,
+  // PR4 — new blocks
+  stats: StatsBlock,
+  faq: FaqBlock,
+  logoCloud: LogoCloudBlock,
+  pricing: PricingBlock,
+  process: ProcessBlock,
+  pullQuote: PullQuoteBlock,
 }
 
 interface RenderBlocksProps {

@@ -5,9 +5,41 @@ import { motion } from 'framer-motion'
 import useEmblaCarousel from 'embla-carousel-react'
 import Autoplay from 'embla-carousel-autoplay'
 import { fadeInUp } from '../../lib/animations'
+import { MarqueeWallTestimonials } from './MarqueeWall'
+
+// Deterministic gradient + initials avatar — picks from a curated palette
+// so each tenant looks varied without ever calling an avatar API.
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #f97316, #db2777)',  // sunset
+  'linear-gradient(135deg, #06b6d4, #3b82f6)',  // sea
+  'linear-gradient(135deg, #10b981, #14b8a6)',  // forest
+  'linear-gradient(135deg, #8b5cf6, #d946ef)',  // orchid
+  'linear-gradient(135deg, #f59e0b, #ef4444)',  // ember
+  'linear-gradient(135deg, #6366f1, #8b5cf6)',  // dusk
+  'linear-gradient(135deg, #ec4899, #f43f5e)',  // bloom
+  'linear-gradient(135deg, #0ea5e9, #6366f1)',  // sky
+] as const
+
+function hash(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+  if (parts.length === 1 && parts[0].length >= 2) {
+    return (parts[0][0] + parts[0][1]).toUpperCase()
+  }
+  return name.slice(0, 2).toUpperCase() || '?'
+}
 
 interface TestimonialsProps {
   block: {
+    variant?: string
     heading: string
     testimonials?: {
       quote: string
@@ -19,6 +51,11 @@ interface TestimonialsProps {
 }
 
 export function TestimonialsBlock({ block }: TestimonialsProps) {
+  // Variant dispatch
+  if (block.variant === 'marqueeWall') {
+    return <MarqueeWallTestimonials block={block} />
+  }
+
   const items = block.testimonials || []
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: 'center' }, [Autoplay({ delay: 5000 })])
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -67,15 +104,15 @@ export function TestimonialsBlock({ block }: TestimonialsProps) {
                         <img
                           src={t.avatar.url}
                           alt={t.avatar.alt || t.author}
-                          className="h-12 w-12 rounded-full object-cover ring-2 ring-[var(--color-accent,#3b82f6)]/20 ring-offset-2"
+                          className="h-14 w-14 rounded-full object-cover ring-2 ring-[var(--color-accent,#3b82f6)]/20 ring-offset-2"
                         />
                       ) : (
                         <div
-                          className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white ring-2 ring-[var(--color-accent,#3b82f6)]/20 ring-offset-2"
-                          style={{ backgroundColor: `hsl(${(t.author.charCodeAt(0) * 137) % 360}, 55%, 50%)` }}
+                          className="flex h-14 w-14 items-center justify-center rounded-full text-base font-bold text-white tracking-tight ring-2 ring-[var(--color-accent,#3b82f6)]/20 ring-offset-2 shadow-depth-sm"
+                          style={{ background: AVATAR_GRADIENTS[hash(t.author) % AVATAR_GRADIENTS.length], letterSpacing: '-0.02em' }}
                           aria-hidden="true"
                         >
-                          {t.author.charAt(0).toUpperCase()}
+                          {getInitials(t.author)}
                         </div>
                       )}
                       <div className="text-left">

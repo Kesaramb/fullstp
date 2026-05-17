@@ -16,6 +16,23 @@ function run(cmd, timeout = 30000) {
   }
 }
 
+/**
+ * Run a command and return its combined stdout+stderr even on non-zero exit.
+ * Used when we need the real error message (Let's Encrypt failures, etc.) —
+ * unlike run() which silently swallows the error and returns null.
+ */
+function runVerbose(cmd, timeout = 30000) {
+  try {
+    const output = execSync(cmd, { encoding: 'utf8', timeout, stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+    return { ok: true, output, code: 0 }
+  } catch (err) {
+    const stdout = (err.stdout || '').toString().trim()
+    const stderr = (err.stderr || '').toString().trim()
+    const combined = [stdout, stderr].filter(Boolean).join(' | ') || err.message || 'unknown error'
+    return { ok: false, output: combined, code: err.status ?? -1 }
+  }
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -59,18 +76,32 @@ export async function verifyDeployment(domain, logger) {
   }
   logger.emit('verifying', 'runner', 'done', `Hestia host-routed response OK (HTTP ${routedCode})`)
 
-  logger.emit('verifying', 'runner', 'running', 'Requesting SSL certificate...')
-  const sslResult = run(`${HESTIA} && v-add-letsencrypt-domain admin ${domain} 2>&1`, 60000)
-  if (sslResult && !sslResult.includes('Error')) {
-    const forceResult = run(`${HESTIA} && v-add-web-domain-ssl-force admin ${domain} 2>&1`)
-    if (forceResult && !forceResult.includes('Error')) {
+  logger.emit('verifying', 'runner', 'running', 'Requesting SSL certificate (Let\'s Encrypt)...')
+  const ssl = runVerbose(`${HESTIA} && v-add-letsencrypt-domain admin ${domain} 2>&1`, 90000)
+  const sslSuccess = ssl.ok && !ssl.output.toLowerCase().includes('error')
+  if (sslSuccess) {
+    const force = runVerbose(`${HESTIA} && v-add-web-domain-ssl-force admin ${domain} 2>&1`, 30000)
+    if (force.ok && !force.output.toLowerCase().includes('error')) {
       sslEnabled = true
       logger.emit('verifying', 'runner', 'done', 'SSL certificate issued. HTTPS forced.')
     } else {
-      logger.emit('verifying', 'runner', 'error', 'SSL issued but force-SSL failed — HTTP will be used')
+      logger.emit('verifying', 'runner', 'error', `SSL issued but force-SSL failed: ${force.output.slice(0, 200)}`)
     }
   } else {
-    logger.emit('verifying', 'runner', 'error', `SSL skipped: ${(sslResult || 'unknown error').slice(0, 150)}`)
+    // Let's Encrypt failed — log the real reason so we can act on it.
+    logger.emit('verifying', 'runner', 'error', `LE failed (exit ${ssl.code}): ${ssl.output.slice(0, 400)}`, { errorCode: 'LE_FAILED' })
+
+    // Fallback: HestiaCP self-signed cert. HTTPS works with a browser warning,
+    // which is acceptable for nip.io test deployments and lets the API + admin
+    // panel still serve over TLS for SDKs that require HTTPS.
+    logger.emit('verifying', 'runner', 'running', 'Falling back to self-signed certificate...')
+    const selfSigned = runVerbose(`${HESTIA} && v-add-web-domain-ssl admin ${domain} 2>&1`, 30000)
+    if (selfSigned.ok && !selfSigned.output.toLowerCase().includes('error')) {
+      sslEnabled = true
+      logger.emit('verifying', 'runner', 'done', 'Self-signed SSL certificate installed (browser will warn — acceptable for nip.io).')
+    } else {
+      logger.emit('verifying', 'runner', 'error', `Self-signed SSL failed: ${selfSigned.output.slice(0, 200)} — site will be HTTP-only`)
+    }
   }
 
   logger.emit('verifying', 'runner', 'running', 'Checking public reachability...')

@@ -154,32 +154,69 @@ export const industryKeywords: Record<string, string[]> = {
 }
 
 /**
- * Resolve search terms for a given industry string.
+ * Mood-aware modifier strings appended to search queries to bias Unsplash
+ * results toward the visual aesthetic of the chosen design mood.
+ */
+const MOOD_MODIFIERS: Record<string, string[]> = {
+  'editorial-luxe':    ['minimal', 'luxury', 'editorial', 'soft natural light'],
+  'bento-modular':     ['modern', 'clean', 'tech', 'product photography'],
+  'brutalist-bold':    ['bold', 'high contrast', 'graphic', 'industrial'],
+  'glass-spatial':     ['futuristic', 'glass', 'gradient', 'tech minimal'],
+  'warm-artisan':      ['warm', 'handmade', 'artisan', 'cozy natural'],
+  'motion-narrative':  ['cinematic', 'modern', 'dynamic', 'tech'],
+  'cinema-immersive':  ['cinematic', 'moody', 'atmospheric', 'dramatic light'],
+  'clean-editorial':   ['minimal', 'editorial', 'calm', 'natural'],
+}
+
+/**
+ * Resolve search terms for a given industry string. Mood-aware: appends
+ * mood-specific style modifiers so each tenant's images match its visual
+ * direction (a brutalist site and a warm-artisan site won't get the same
+ * stock photos).
  *
  * Performs fuzzy matching by checking if the industry keyword appears
- * anywhere in the input. Falls back to the business name + generic
- * terms if no match is found.
+ * anywhere in the input. Falls back to industry + business name + adjectives
+ * if no match is found.
  */
-export function resolveSearchTerms(industry: string, businessName: string): string[] {
+export function resolveSearchTerms(
+  industry: string,
+  businessName: string,
+  mood?: string,
+): string[] {
   const lower = industry.toLowerCase()
 
-  // Direct match
+  // Pick base terms from the industry library, fuzzy-matched
+  let base: string[] | null = null
   if (industryKeywords[lower]) {
-    return industryKeywords[lower]
-  }
-
-  // Fuzzy match: check if any known industry keyword is contained in the input
-  for (const [key, terms] of Object.entries(industryKeywords)) {
-    if (lower.includes(key) || key.includes(lower)) {
-      return terms
+    base = industryKeywords[lower]
+  } else {
+    for (const [key, terms] of Object.entries(industryKeywords)) {
+      if (lower.includes(key) || key.includes(lower)) { base = terms; break }
     }
   }
 
-  // Fallback: use the industry and business name as search terms
-  return [
-    `${industry} business professional`,
-    `${industry} office modern`,
-    `${businessName} ${industry}`,
-    'professional business modern',
-  ]
+  // Generic fallback that produces better results than "X business professional"
+  if (!base) {
+    base = [
+      `${industry}`,
+      `${industry} workspace`,
+      `${industry} interior`,
+      `${businessName}`,
+    ]
+  }
+
+  // No mood → return base terms as-is
+  const modifiers = mood ? MOOD_MODIFIERS[mood] : null
+  if (!modifiers || modifiers.length === 0) return base
+
+  // Interleave base × modifier — produces e.g.
+  //   "artisan bakery fresh bread warm"
+  //   "pastry display bakery handmade"
+  // ...so search results are biased toward the chosen mood while staying
+  // anchored to the industry.
+  const out: string[] = []
+  for (let i = 0; i < base.length; i++) {
+    out.push(`${base[i]} ${modifiers[i % modifiers.length]}`)
+  }
+  return out
 }

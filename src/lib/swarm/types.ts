@@ -368,6 +368,15 @@ export type SectionType =
   | 'closingBanner'
   | 'banner'
   | 'formBlock'
+  // PR4 — new conversion + credibility blocks
+  | 'stats'
+  | 'faq'
+  | 'logoCloud'
+  | 'pricing'
+  | 'process'
+  | 'pullQuote'
+  | 'callToAction'
+  | 'richContent'
 
 // ── BMC (input from Strategy phase) ──
 
@@ -397,10 +406,16 @@ export interface StrategyBrief {
 // ── Design Director: Design Brief ──
 
 export interface DesignBrief {
-  heroVariant: 'highImpact' | 'mediumImpact' | 'lowImpact'
-  palette: 'midnight' | 'ocean' | 'forest' | 'sunset' | 'lavender' | 'ember'
-  fontPairing: 'geist-inter' | 'playfair-sourcesans' | 'playfair-inter' | 'dmsans-dmserif' | 'spacegrotesk-inter'
+  heroVariant: 'highImpact' | 'mediumImpact' | 'lowImpact' | 'editorialAsymmetric' | 'bentoSplit' | 'gradientMeshSpotlight' | 'bentoCanvas' | 'agentInteractive' | 'spotlightStage' | 'textRevealCanvas' | 'cinemaImmersive'
+  palette: 'midnight' | 'ocean' | 'forest' | 'sunset' | 'lavender' | 'ember' | 'charcoal' | 'cream' | 'sage' | 'cobalt' | 'terracotta' | 'slate' | 'noir' | 'bloom' | 'obsidian' | 'onyx'
+  fontPairing: 'geist-inter' | 'playfair-sourcesans' | 'playfair-inter' | 'dmsans-dmserif' | 'spacegrotesk-inter' | 'fraunces-inter' | 'instrumentserif-inter' | 'archivo-archivo' | 'cormorant-jost'
   borderRadius: 'none' | 'sm' | 'md' | 'lg'
+  /**
+   * PR2: design mood — when set, the dynamic preset compiler is used instead
+   * of static preset JSONs. Mood implies a coherent set of block-variant
+   * choices across the whole site (Hero, FeatureGrid).
+   */
+  mood?: 'editorial-luxe' | 'bento-modular' | 'brutalist-bold' | 'glass-spatial' | 'warm-artisan' | 'motion-narrative' | 'cinema-immersive' | 'clean-editorial'
   pagePresets?: Record<string, string>
   /** @deprecated Use pagePresets instead. Kept for backward compat with in-flight deploys. */
   pageLayouts?: {
@@ -423,6 +438,11 @@ export interface WrittenCopy {
       eyebrow?: string
       ctaText?: string
       ctaLink?: string
+      // Hero enrichment (PR-Hero-Premium)
+      secondaryCtaText?: string
+      secondaryCtaLink?: string
+      trustPills?: { value: string; label: string }[]
+      proofLogoNames?: string[]
       highlights?: string[]
       features?: { icon: string; title: string; description: string }[]
       testimonials?: { quote: string; author: string; role: string }[]

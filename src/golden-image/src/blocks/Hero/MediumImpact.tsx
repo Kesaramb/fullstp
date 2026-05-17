@@ -3,6 +3,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Badge } from '../../components/ui/Badge'
+import { PremiumButton } from '../../components/ui/PremiumButton'
 import { fadeInUp, slideInRight } from '../../lib/animations'
 
 interface Props {
@@ -38,15 +39,9 @@ export function MediumImpactHero({ block }: Props) {
               </p>
             )}
             {block.ctaLabel && block.ctaLink && (
-              <a
-                href={block.ctaLink}
-                className="group inline-flex min-h-[44px] items-center gap-2.5 rounded-[var(--radius,0.5rem)] bg-[var(--color-primary,#0f172a)] px-8 py-4 text-base font-semibold text-white shadow-depth transition-shadow transition-transform duration-300 hover:shadow-depth-lg hover:-translate-y-0.5"
-              >
+              <PremiumButton variant="hover-glow" tone="dark" size="lg" href={block.ctaLink}>
                 {block.ctaLabel}
-                <svg aria-hidden="true" className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-                </svg>
-              </a>
+              </PremiumButton>
             )}
             {block.highlights && block.highlights.length > 0 && (
               <div className="mt-8 flex flex-wrap gap-2.5">

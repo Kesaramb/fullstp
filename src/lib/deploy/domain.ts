@@ -32,6 +32,25 @@ export function generateDomain(businessName: string): string {
 }
 
 /**
+ * Generate the next free domain. If the base slug is already used on the
+ * server, append `-2`, `-3`, ... until a free one is found.
+ *
+ * usedDomains: list of full domains currently registered on the server
+ * (e.g., ["brevity-news.167.86.81.161.nip.io", ...]).
+ */
+export function generateUniqueDomain(businessName: string, usedDomains: string[]): string {
+  const used = new Set(usedDomains)
+  const baseSlug = sanitizeSlug(businessName)
+  const base = `${baseSlug}.${SERVER_IP}.nip.io`
+  if (!used.has(base)) return base
+  for (let n = 2; n <= 99; n++) {
+    const candidate = `${baseSlug}-${n}.${SERVER_IP}.nip.io`
+    if (!used.has(candidate)) return candidate
+  }
+  throw new Error(`No available domain slug for "${businessName}" (tried base + -2..-99)`)
+}
+
+/**
  * Get the next available port for a new tenant.
  * Ports 3001-3007 are currently in use by existing apps.
  * Starts allocating from 3008.

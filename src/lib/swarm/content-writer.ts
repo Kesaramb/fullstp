@@ -23,13 +23,28 @@ For each page and each block in the sequence, write the copy. Output structured 
 
 ## Block Copy Specifications
 
-### hero
-- heading: Powerful headline (5-10 words, speaks to audience's desire)
-- subheading: Supporting sentence (15-25 words)
-- badge: Optional short label above heading (2-3 words, e.g. "Award Winning", "Est. 2015")
-- ctaText: Button text (2-4 words, action-oriented)
-- ctaLink: URL path (e.g. "/contact", "/services")
-- highlights: Optional array of 2-4 short value props (3-5 words each)
+### hero (THE most important block — spend 80% of effort here)
+The hero is the first impression. Treat it with the rigor of a magazine cover designer.
+
+REQUIRED:
+- heading: Powerful 5-10 word headline. Front-load the most important word. Specific, not generic. Reads like a manifesto, not a tagline.
+- subheading: ONE supporting sentence (15-25 words) that says WHY the heading matters and WHO it's for.
+- badge: 2-4 word eyebrow above heading. e.g. "New: AI Mode" / "Trusted Since 2015" / "Available Worldwide". Active/specific.
+- ctaText: Specific button text (2-4 words). Match the conversion goal: "Start Free", "Book a Tasting", "Reserve Your Suite". Never "Get Started" or "Learn More".
+- ctaLink: URL path matching conversion (e.g. "/pricing", "#reserve").
+
+PREMIUM ENRICHMENT (write these for primary heroes — they're what makes the page look 2025, not 2018):
+- secondaryCtaText + secondaryCtaLink: A LOWER-friction option alongside the primary CTA. e.g. "See how it works" / "Watch 2-min demo" / "Read the menu" / "Browse the look book".
+- trustPills: Array of 3 quantified credibility signals. Each item is { value, label }. Examples:
+   * { value: "10K+", label: "teams" }
+   * { value: "$30M", label: "ARR" }
+   * { value: "SOC 2", label: "compliant" }
+   * { value: "4.9★", label: "App Store" }
+   * { value: "Est. 2015", label: "decade of craft" }
+   * { value: "150+", label: "cities" }
+   Pick ones that fit the actual business. If genuinely no credentials yet, omit (don't fake).
+- proofLogoNames: Array of 4-6 customer/partner brand names rendered as a "trusted by" marquee. Use real-feeling but PLAUSIBLE company names that fit the audience (e.g., for SaaS: "Linear", "Vercel", "Notion-like" names; for hospitality: notable hotels in the city; for craft: featured publications). If unknown, use generic-but-credible names.
+- highlights: Array of 3-4 short value props (3-5 words each) — these become suggestion chips on AgentInteractive variant or quick stats on Bento variants. e.g., "No credit card", "10-min setup", "Cancel anytime"
 
 ### brandNarrative
 - eyebrow: Small label above heading (2-3 words)

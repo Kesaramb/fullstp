@@ -685,3 +685,29 @@ export async function getUsedPorts(): Promise<number[]> {
     return []
   }
 }
+
+/**
+ * List domains currently registered on the server (HestiaCP web domains
+ * and tenant directories). Used by pipeline to pick a unique domain so
+ * re-running a deploy for the same business name produces e.g. -2, -3.
+ */
+export async function getUsedDomains(): Promise<string[]> {
+  const config = getSSHConfig()
+  if (!config) return []
+
+  try {
+    const ssh = await getSSHClient()
+    await ssh.connect(config)
+
+    const result = await ssh.execCommand(
+      "ls /home/admin/web/ 2>/dev/null | grep '\\.nip\\.io$' || true"
+    )
+    ssh.dispose()
+
+    return result.stdout.trim()
+      ? result.stdout.trim().split('\n').filter(Boolean)
+      : []
+  } catch {
+    return []
+  }
+}

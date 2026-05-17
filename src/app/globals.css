@@ -1,9 +1,8 @@
-@import "tailwindcss";
+@layer tailwind, site, payload-default, payload;
+@import "tailwindcss" layer(tailwind);
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  font-family: system-ui, -apple-system, sans-serif;
+@layer site {
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+  }
 }

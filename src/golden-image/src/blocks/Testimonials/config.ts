@@ -4,6 +4,15 @@ export const Testimonials: Block = {
   slug: 'testimonials',
   labels: { singular: 'Testimonials', plural: 'Testimonials' },
   fields: [
+    {
+      name: 'variant',
+      type: 'select',
+      defaultValue: 'carousel',
+      options: [
+        { label: 'Carousel (default)', value: 'carousel' },
+        { label: 'Marquee Wall (3 rows scrolling)', value: 'marqueeWall' },
+      ],
+    },
     { name: 'heading', type: 'text', required: true },
     {
       name: 'testimonials',

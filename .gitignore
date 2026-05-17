@@ -38,3 +38,10 @@ plans/*.md
 
 # Temp
 temp/
+.tmp/
+
+# Playwright MCP session logs
+.playwright-mcp/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

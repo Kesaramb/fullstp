@@ -4,6 +4,17 @@ export const FeatureGrid: Block = {
   slug: 'featureGrid',
   labels: { singular: 'Feature Grid', plural: 'Feature Grids' },
   fields: [
+    {
+      name: 'variant',
+      type: 'select',
+      defaultValue: 'default',
+      options: [
+        { label: 'Default Cards', value: 'default' },
+        { label: 'Bento Asymmetric', value: 'bentoAsymmetric' },
+        { label: 'Numbered Rail', value: 'numberedRail' },
+        { label: 'Glassmorphic Cards', value: 'glassmorphicCards' },
+      ],
+    },
     { name: 'heading', type: 'text', required: true },
     { name: 'subheading', type: 'textarea' },
     {
@@ -14,6 +25,10 @@ export const FeatureGrid: Block = {
         { label: '3 Columns', value: '3' },
         { label: '4 Columns', value: '4' },
       ],
+      admin: {
+        condition: (_data, siblingData) =>
+          siblingData?.variant !== 'numberedRail' && siblingData?.variant !== 'bentoAsymmetric',
+      },
     },
     {
       name: 'features',

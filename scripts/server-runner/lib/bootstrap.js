@@ -56,6 +56,12 @@ export function bootstrapTenant(nodeappPath, domain, logger) {
   logger.emit('bootstrapping', 'runner', 'running',
     `Tenant env keys: ${Object.keys(tenantEnv).join(', ') || 'NONE — .env missing!'}`)
 
+  // CRITICAL: Override NODE_ENV=development for the bootstrap step so that
+  // Payload's `push: true` flag actually fires and creates the schema from
+  // the live config. In production NODE_ENV, push is silently ignored,
+  // and there are no migration files (we removed `payload migrate` from
+  // the build step in PR4 v3). The actual app still runs as production
+  // via PM2 — only this one-shot bootstrap script gets the dev override.
   const result = spawnSync(
     'pnpm', ['exec', 'tsx', 'scripts/bootstrap-tenant.ts',
       '--admin-email', adminEmail,
@@ -67,7 +73,7 @@ export function bootstrapTenant(nodeappPath, domain, logger) {
       encoding: 'utf8',
       timeout: 180000, // 3 minutes
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ...tenantEnv },
+      env: { ...process.env, ...tenantEnv, NODE_ENV: 'development' },
     },
   )
 
