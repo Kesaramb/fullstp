@@ -43,7 +43,7 @@ export class QueenAgent {
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: CEO_CHAT_SYSTEM,
+      system: [{ type: 'text', text: CEO_CHAT_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     })
 
@@ -82,7 +82,7 @@ export class QueenAgent {
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
-      system: QUEEN_STRATEGY_SYSTEM,
+      system: [{ type: 'text', text: QUEEN_STRATEGY_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: queenStrategyPrompt(bmc) }],
     })
 
@@ -116,7 +116,7 @@ export class QueenAgent {
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: QUEEN_CONSENSUS_SYSTEM,
+      system: [{ type: 'text', text: QUEEN_CONSENSUS_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: queenConsensusPrompt(design, schema) }],
     })
 

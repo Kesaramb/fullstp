@@ -540,3 +540,53 @@ export type LogFn = (
   text: string,
   status: 'running' | 'done' | 'error'
 ) => void
+
+// ── Graphics Department ──
+
+export type LogoStyle = 'wordmark' | 'lettermark' | 'emblem' | 'combination'
+
+export interface BrandColor {
+  hex: string
+  name: string
+  usage: string
+}
+
+export interface BrandIdentityBrief {
+  brandPersonality: string
+  logoSpec: {
+    concept: string
+    style: LogoStyle
+    primaryColor: string
+    secondaryColor: string
+    fontFamily: string
+    svgCode: string        // Full SVG markup for the primary logo
+    iconSvgCode: string    // Icon-only variant (square, no wordmark)
+  }
+  colorSystem: {
+    primary: BrandColor
+    secondary: BrandColor
+    accent: BrandColor
+    background: BrandColor
+    text: BrandColor
+  }
+  typographySystem: {
+    display: { family: string; weight: string; style: string; usage: string }
+    body: { family: string; weight: string; style: string; usage: string }
+    accent: { family: string; weight: string; style: string; usage: string }
+  }
+  brandPattern: {
+    description: string
+    svgCode: string        // Tileable SVG pattern
+  }
+  socialTemplates: SocialTemplate[]
+  brandGuidelinesMarkdown: string
+}
+
+export interface SocialTemplate {
+  name: string
+  platform: 'instagram_square' | 'instagram_story' | 'facebook_post' | 'linkedin_post'
+  widthPx: number
+  heightPx: number
+  htmlTemplate: string    // Self-contained HTML with inline CSS, uses {{variables}}
+  variables: string[]     // List of template variable names e.g. ['headline', 'body', 'cta']
+}

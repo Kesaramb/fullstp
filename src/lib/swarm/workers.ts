@@ -50,7 +50,7 @@ export class UIArchitectWorker {
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
-      system: UI_ARCHITECT_SYSTEM,
+      system: [{ type: 'text', text: UI_ARCHITECT_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: uiArchitectPrompt(strategy, designBrief, copy) }],
     })
 
@@ -98,7 +98,7 @@ export class PayloadExpertWorker {
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
-      system: PAYLOAD_EXPERT_SYSTEM,
+      system: [{ type: 'text', text: PAYLOAD_EXPERT_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: payloadExpertPrompt(design, designBrief, corrections) }],
     })
 

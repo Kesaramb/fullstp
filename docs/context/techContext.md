@@ -4,13 +4,14 @@
 
 | Component | Technology | Version | Role |
 |-----------|-----------|---------|------|
-| CMS | Payload CMS | 3.0 | Code-first content modeling, admin UI, Local API |
-| Framework | Next.js | 15+ | App Router, RSC, ISR, standalone Docker output |
+| CMS | Payload CMS | 3.12 | Code-first content modeling, admin UI, Local API |
+| Framework | Next.js | 15 | App Router, RSC, ISR, standalone output |
 | Database | SQLite | via `@payloadcms/db-sqlite` | Per-tenant isolated DB, WAL mode |
 | ORM Layer | Drizzle + libSQL | (bundled) | Query builder under Payload's DB adapter |
-| Reverse Proxy | Caddy | 2.x | On-Demand TLS, dynamic tenant routing |
+| Reverse Proxy | Nginx + HestiaCP | — | Phase 1 (0–50 tenants); PM2 process management |
 | Object Storage | Cloudflare R2 | S3-compat | Media uploads, zero egress fees |
-| Container Runtime | Docker | 24+ | 250MB RAM per tenant container |
+| AI SDK | Anthropic SDK | ^0.78 | All Claude API calls — Queen, workers, CEO chat |
+| Email | Resend | ^6 | Post-deployment notifications to customers |
 | Language | TypeScript | 5.x | Strict mode, `payload generate:types` for CMS types |
 
 ## Payload CMS 3.0 Specifics
@@ -59,8 +60,57 @@
 - **Bucket strategy**: One bucket per tenant OR prefix-isolated shared bucket (TBD per scaling needs)
 - **Access**: S3-compatible API keys stored in tenant container env vars
 
+## AI Agent Architecture
+
+### Model Routing
+Agents use different models based on task complexity to optimise cost:
+
+| Agent | Model | Rationale |
+|-------|-------|-----------|
+| Design Director | `claude-haiku-4-5` | Selection task — fast, cheap |
+| Queen (strategy, consensus, CEO chat) | `claude-sonnet-4-6` | Reasoning required |
+| Content Writer | `claude-sonnet-4-6` | Creative writing quality |
+| UI Architect | `claude-sonnet-4-6` | Complex arrangement |
+| Payload Expert | `claude-sonnet-4-6` | Schema mapping fidelity |
+
+### Prompt Caching
+All five agents use `cache_control: {type: 'ephemeral'}` on their system prompts. The system parameter is always an array of `{type: 'text', text, cache_control}` objects — **never a plain string**. This reduces per-request token cost by ~60% on repeated calls since system prompts are large (1K–2K tokens) and stable.
+
+### Factory Pipeline Stages
+```
+t0  Persist BMC + Customer (Payload Local API)
+t1  Queen: StrategyBrief        — claude-sonnet-4-6
+t2  DesignDirector: DesignBrief — claude-haiku-4-5
+t3  ContentWriter: WrittenCopy  — claude-sonnet-4-6
+t4  UIArchitect: FrontendDesign — claude-sonnet-4-6
+t5  PayloadExpert: ContentPkg   — claude-sonnet-4-6
+t6  Queen: Byzantine consensus  — claude-sonnet-4-6
+t7  deployTenantViaBridge()     — SSH to HestiaCP
+t8  seedRemoteContent()         — Payload REST API
+t9  Persist deployment, send email, emit build_complete
+```
+
+## Channel (Marketing Site)
+
+The root `/` route is `MarketingHomepage` — a full marketing page for fullstp.com itself that explains the product before asking visitors to engage.
+
+- **Hero**: Embedded chat input that passes text via `?initial=` query param to `/launch`
+- **`/launch` route**: Hosts `MultiPhaseChat` with `prefilledInitial` prop support
+- **Design**: Matches the gradient aesthetic (`from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda]`) from the existing LandingChat component
+
+## Resend Email
+
+`src/lib/email/resend.ts` — fires after successful deployment to notify the customer.
+
+- **Trigger**: After `persistDeployment()` succeeds, before `emit('build_complete', ...)`
+- **Env var**: `RESEND_API_KEY`
+- **From**: `noreply@fullstp.app`
+- **Non-fatal**: `.catch(() => {})` — email failure never blocks the SSE handoff
+- **Payload**: Domain, admin credentials (if SSH deploy), CTA to live site
+
 ## Key Integrations
 
-- **Vercel**: Not used. Self-hosted via Docker + Caddy.
-- **CI/CD**: GitHub Actions for Golden Image. Factory agents handle tenant deploys.
-- **Monitoring**: Container-level health checks + Payload admin dashboard.
+- **Vercel**: Not used. Self-hosted via PM2 + HestiaCP + Nginx (Phase 1).
+- **CI/CD**: GitHub Actions for Golden Image. Factory agents handle tenant deploys via SSH bridge.
+- **Monitoring**: PM2 process health + Payload admin dashboard.
+- **Email**: Resend for transactional notifications (deployment confirmation).
