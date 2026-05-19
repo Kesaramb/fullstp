@@ -49,19 +49,19 @@ export class QueenAgent {
 
     const text = extractText(response)
 
-    // Strict contract: check if response is JSON with _strategyComplete.
-    // Strip markdown code fences first — the model sometimes wraps JSON in ```json...```
-    // despite the prompt saying to output only the raw object.
-    const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-    if (trimmed.startsWith('{') && trimmed.includes('"_strategyComplete"')) {
+    // If the response contains a strategy-complete JSON object, extract it.
+    // The model is instructed to send pure JSON when done, but sometimes
+    // wraps it in conversational text or markdown fences. parseJSON tolerates
+    // both via indexOf('{') / lastIndexOf('}').
+    if (text.includes('"_strategyComplete"')) {
       try {
-        const data = parseJSON<Record<string, unknown>>(trimmed)
+        const data = parseJSON<Record<string, unknown>>(text)
         if (data._strategyComplete === true) {
           const { _strategyComplete: _, ...bmc } = data
           return { type: 'strategy_complete', bmc }
         }
       } catch {
-        // Not valid JSON — treat as text message
+        // Couldn't parse — fall through to text response
       }
     }
 

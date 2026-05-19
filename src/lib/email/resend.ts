@@ -1,7 +1,12 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM = 'FullStop <noreply@fullstp.app>'
+
+function getResendClient(): Resend | null {
+  const key = process.env.RESEND_API_KEY
+  if (!key) return null
+  return new Resend(key)
+}
 
 export async function sendDeploymentNotification(params: {
   customerEmail: string
@@ -11,6 +16,12 @@ export async function sendDeploymentNotification(params: {
   adminEmail?: string
   adminPassword?: string
 }): Promise<void> {
+  const resend = getResendClient()
+  if (!resend) {
+    console.warn('[email] RESEND_API_KEY not set — skipping deployment notification')
+    return
+  }
+
   const { customerEmail, customerName, businessName, domain, adminEmail, adminPassword } = params
 
   const greeting = customerName ? `Hi ${customerName},` : 'Hi there,'

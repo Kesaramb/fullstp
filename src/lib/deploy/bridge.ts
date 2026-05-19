@@ -685,3 +685,21 @@ export async function getUsedPorts(): Promise<number[]> {
     return []
   }
 }
+
+export async function getUsedDomains(): Promise<string[]> {
+  const config = getSSHConfig()
+  if (!config) return []
+
+  try {
+    const ssh = await getSSHClient()
+    await ssh.connect(config)
+    const result = await ssh.execCommand('ls -1 /home/admin/web/ 2>/dev/null')
+    ssh.dispose()
+
+    return result.stdout.trim()
+      ? result.stdout.trim().split('\n').map((d: string) => d.trim()).filter(Boolean)
+      : []
+  } catch {
+    return []
+  }
+}

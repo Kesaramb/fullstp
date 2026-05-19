@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
+import { PERSONAS, TEAM_ORDER, type Persona } from '@/lib/swarm/personas'
+import { translateEvent } from '@/lib/swarm/build-translator'
 
 interface BMC {
   businessName: string
@@ -13,11 +14,18 @@ interface BMC {
   brandMood?: string
 }
 
-interface BuildLog {
+interface ChatMessage {
   id: string
-  agent: string
+  personaId: string
   text: string
   status: 'running' | 'done' | 'error'
+  bubbleKey: string
+  timestamp: number
+}
+
+interface TypingState {
+  personaId: string
+  activity: string
 }
 
 interface Props {
@@ -27,19 +35,10 @@ interface Props {
   onComplete: (handoff: { businessName: string; domain: string; deploymentId?: string }) => void
 }
 
-const AGENT_COLORS: Record<string, string> = {
-  Queen: 'text-purple-400',
-  CEO: 'text-purple-400',
-  'UI Agent': 'text-blue-400',
-  'Payload Expert': 'text-cyan-400',
-  DevOps: 'text-green-400',
-  Factory: 'text-emerald-400',
-}
-
 // ── Module-level state: survives HMR re-mounts ──
-// Keyed by businessName so parallel builds don't collide.
 const buildCache = new Map<string, {
-  logs: BuildLog[]
+  messages: ChatMessage[]
+  typing: TypingState[]
   isDone: boolean
   streamActive: boolean
   handoff?: { businessName: string; domain: string; deploymentId?: string }
@@ -49,20 +48,21 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
   const cacheKey = bmc.businessName
   const cache = buildCache.get(cacheKey)
 
-  const [logs, setLogs] = useState<BuildLog[]>(cache?.logs ?? [])
+  const [messages, setMessages] = useState<ChatMessage[]>(cache?.messages ?? [])
+  const [typing, setTyping] = useState<TypingState[]>(cache?.typing ?? [])
   const [isDone, setIsDone] = useState(cache?.isDone ?? false)
   const [elapsed, setElapsed] = useState(0)
-  const logsEndRef = useRef<HTMLDivElement>(null)
+  const scrollEndRef = useRef<HTMLDivElement>(null)
   const startTime = useRef(Date.now())
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
 
-  // If cache already has a completed handoff (from before HMR), fire it
+  // Re-fire handoff if cache already completed (post-HMR)
   useEffect(() => {
     if (cache?.isDone && cache.handoff) {
-      setTimeout(() => onCompleteRef.current(cache.handoff!), 2000)
+      setTimeout(() => onCompleteRef.current(cache.handoff!), 2400)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -73,15 +73,12 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
   }, [])
 
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
+    scrollEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, typing])
 
   useEffect(() => {
-    // If a stream is already active (or completed) for this build, skip
     if (cache?.streamActive || cache?.isDone) return
-
-    // Mark stream as active at module level (survives HMR)
-    buildCache.set(cacheKey, { logs: [], isDone: false, streamActive: true })
+    buildCache.set(cacheKey, { messages: [], typing: [], isDone: false, streamActive: true })
 
     async function stream() {
       const response = await fetch('/api/swarm', {
@@ -91,22 +88,11 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
       })
 
       if (!response.ok) {
-        if (response.status === 409) {
-          // Build already in progress — we're reconnecting after HMR
-          // Keep showing cached logs, stream is handled by the original mount
-          return
-        }
+        if (response.status === 409) return // already in progress, another mount handles it
         const errText = await response.text().catch(() => 'Unknown error')
-        const errLog: BuildLog = {
-          id: `err-${Date.now()}`,
-          agent: 'Factory',
-          text: `Build request failed (${response.status}): ${errText}`,
-          status: 'error',
-        }
-        setLogs(prev => [...prev, errLog])
+        applyError(`Build request failed (${response.status}): ${errText}`)
         return
       }
-
       if (!response.body) return
 
       const reader = response.body.getReader()
@@ -128,31 +114,12 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
           } else if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6))
-
               if (eventType === 'log') {
-                setLogs(prev => {
-                  const existing = prev.find(l => l.text === data.text)
-                  let next: BuildLog[]
-                  if (existing) {
-                    next = prev.map(l => l.text === data.text ? { ...l, status: data.status } : l)
-                  } else {
-                    next = [...prev, { id: `${Date.now()}-${Math.random()}`, agent: data.agent, text: data.text, status: data.status }]
-                  }
-                  // Persist to module-level cache for HMR survival
-                  const c = buildCache.get(cacheKey)
-                  if (c) c.logs = next
-                  return next
-                })
+                handleLogEvent(data)
               } else if (eventType === 'build_complete') {
-                setIsDone(true)
-                const c = buildCache.get(cacheKey)
-                if (c) {
-                  c.isDone = true
-                  c.handoff = data.handoff
-                }
-                setTimeout(() => {
-                  onCompleteRef.current(data.handoff)
-                }, 2000)
+                handleBuildComplete(data)
+              } else if (eventType === 'build_error') {
+                applyError(data.error ?? 'Build failed')
               }
             } catch { /* ignore parse errors */ }
             eventType = ''
@@ -162,92 +129,214 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     }
 
     stream().catch(err => {
-      setLogs(prev => [...prev, {
-        id: `err-${Date.now()}`,
-        agent: 'Factory',
-        text: `Connection failed: ${err instanceof Error ? err.message : String(err)}`,
-        status: 'error',
-      }])
+      applyError(`Connection failed: ${err instanceof Error ? err.message : String(err)}`)
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  function handleLogEvent(raw: { agent: string; text: string; status: 'running' | 'done' | 'error' }) {
+    const translated = translateEvent(raw)
+    if (translated.kind === 'drop') return
+
+    if (translated.kind === 'typing') {
+      setTyping(prev => {
+        const filtered = prev.filter(t => t.personaId !== translated.persona.id)
+        const next = [...filtered, { personaId: translated.persona.id, activity: translated.activity }]
+        persistCache({ typing: next })
+        return next
+      })
+      return
+    }
+
+    if (translated.kind === 'message') {
+      // Clear typing from this persona
+      setTyping(prev => {
+        const next = prev.filter(t => t.personaId !== translated.persona.id)
+        persistCache({ typing: next })
+        return next
+      })
+
+      setMessages(prev => {
+        const existing = prev.find(m => m.bubbleKey === translated.bubbleKey)
+        let next: ChatMessage[]
+        if (existing) {
+          next = prev.map(m => m.bubbleKey === translated.bubbleKey
+            ? { ...m, text: translated.text, status: translated.status }
+            : m)
+        } else {
+          next = [...prev, {
+            id: `${Date.now()}-${Math.random()}`,
+            personaId: translated.persona.id,
+            text: translated.text,
+            status: translated.status,
+            bubbleKey: translated.bubbleKey,
+            timestamp: Date.now(),
+          }]
+        }
+        persistCache({ messages: next })
+        return next
+      })
+    }
+  }
+
+  function handleBuildComplete(data: { handoff: { businessName: string; domain: string; deploymentId?: string } }) {
+    setIsDone(true)
+    setTyping([])
+    persistCache({ isDone: true, handoff: data.handoff, typing: [] })
+    setTimeout(() => onCompleteRef.current(data.handoff), 2400)
+  }
+
+  function applyError(message: string) {
+    setMessages(prev => {
+      const next = [...prev, {
+        id: `err-${Date.now()}`,
+        personaId: 'owen',
+        text: message,
+        status: 'error' as const,
+        bubbleKey: `err-${Date.now()}`,
+        timestamp: Date.now(),
+      }]
+      persistCache({ messages: next })
+      return next
+    })
+  }
+
+  function persistCache(patch: Partial<{
+    messages: ChatMessage[]
+    typing: TypingState[]
+    isDone: boolean
+    handoff: { businessName: string; domain: string; deploymentId?: string }
+  }>) {
+    const current = buildCache.get(cacheKey) ?? { messages: [], typing: [], isDone: false, streamActive: true }
+    buildCache.set(cacheKey, { ...current, ...patch })
+  }
+
   const formatTime = (s: number) => `${Math.floor(s / 60)}m ${s % 60}s`
+  const activePersonaIds = new Set(typing.map(t => t.personaId))
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-8 font-mono">
-      <div className="w-full max-w-3xl">
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center px-6 py-10 font-sans">
+      <div className="w-full max-w-2xl">
 
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <span className="text-yellow-400 text-2xl">✦</span>
-            <h1 className="text-white text-2xl font-bold tracking-tight">
-              FullStop Factory
-            </h1>
-            <span className="text-gray-500 text-sm">—</span>
-            <span className="text-gray-400 text-sm">Building {bmc.businessName}</span>
+        <div className="mb-8">
+          <div className="flex items-baseline gap-3 mb-1">
+            <h1 className="text-zinc-100 text-2xl font-semibold tracking-tight">FullStop</h1>
+            <span className="text-zinc-600 text-sm">·</span>
+            <span className="text-zinc-400 text-sm">Building {bmc.businessName}</span>
           </div>
-          <div className="flex items-center justify-center gap-2 text-gray-500 text-xs">
-            {isDone ? (
-              <><CheckCircle2 size={12} className="text-emerald-400" /> <span className="text-emerald-400">Complete in {formatTime(elapsed)}</span></>
-            ) : (
-              <><Loader2 size={12} className="animate-spin" /> <span>Running · {formatTime(elapsed)}</span></>
-            )}
-          </div>
+          <p className="text-zinc-500 text-xs">
+            {isDone
+              ? <>Complete in {formatTime(elapsed)} · Handing off to your team…</>
+              : <>Your team is on it · {formatTime(elapsed)}</>}
+          </p>
         </div>
 
-        {/* Terminal */}
-        <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden shadow-[0_20px_60px_rgb(0,0,0,0.5)]">
-
-          {/* Terminal chrome */}
-          <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
-            <div className="w-3 h-3 rounded-full bg-red-500/70" />
-            <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-            <div className="w-3 h-3 rounded-full bg-green-500/70" />
-            <span className="ml-2 text-gray-500 text-xs">factory-pipeline — zsh</span>
-          </div>
-
-          {/* Log output */}
-          <div className="p-6 min-h-[380px] max-h-[480px] overflow-y-auto space-y-2.5">
-            {logs.map(log => (
-              <div key={log.id} className="flex items-start gap-3 text-sm leading-relaxed">
-                <div className="flex-none mt-0.5">
-                  {log.status === 'done' && <CheckCircle2 size={14} className="text-emerald-400" />}
-                  {log.status === 'running' && <Loader2 size={14} className="animate-spin text-gray-400" />}
-                  {log.status === 'error' && <AlertCircle size={14} className="text-red-400" />}
+        {/* Team online row */}
+        <div className="mb-4 flex items-center gap-6 px-5 py-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/60 backdrop-blur">
+          {TEAM_ORDER.map(id => {
+            const p = PERSONAS[id]
+            const isActive = activePersonaIds.has(id)
+            return (
+              <div key={id} className="flex items-center gap-2.5">
+                <div className="relative">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center ${p.accentBg} ${isActive ? `ring-2 ${p.accentRing} ring-offset-2 ring-offset-zinc-950` : ''} transition-all duration-300`}>
+                    <span className={`text-sm font-medium ${p.accentText}`}>{p.initials}</span>
+                  </div>
+                  {isActive && (
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${p.accentDot} ring-2 ring-zinc-950 animate-pulse`} />
+                  )}
                 </div>
-                <div>
-                  <span className={`font-semibold mr-2 ${AGENT_COLORS[log.agent] ?? 'text-gray-400'}`}>
-                    [{log.agent}]
-                  </span>
-                  <span className="text-gray-300">{log.text}</span>
+                <div className="hidden md:flex flex-col leading-tight">
+                  <span className="text-zinc-200 text-xs font-medium">{p.name}</span>
+                  <span className="text-zinc-500 text-[10px]">{p.role}</span>
                 </div>
               </div>
-            ))}
+            )
+          })}
+        </div>
+
+        {/* Chat panel */}
+        <div className="bg-zinc-900/40 backdrop-blur rounded-2xl border border-zinc-800/60 overflow-hidden">
+          <div className="p-6 min-h-[420px] max-h-[540px] overflow-y-auto space-y-5">
+
+            {messages.length === 0 && typing.length === 0 && !isDone && (
+              <div className="flex items-center gap-3 text-zinc-500 text-sm">
+                <div className="flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span>Gathering the team…</span>
+              </div>
+            )}
+
+            {messages.map(m => {
+              const persona = PERSONAS[m.personaId] ?? PERSONAS.owen
+              return <Bubble key={m.id} persona={persona} text={m.text} status={m.status} />
+            })}
+
+            {typing.map(t => {
+              const persona = PERSONAS[t.personaId]
+              if (!persona) return null
+              return <TypingRow key={`typing-${t.personaId}`} persona={persona} activity={t.activity} />
+            })}
 
             {isDone && (
-              <div className="mt-4 pt-4 border-t border-gray-800 text-center">
-                <p className="text-emerald-400 font-semibold">
-                  ✦ Handing off to your Digital Team...
+              <div className="mt-4 pt-4 border-t border-zinc-800/60 text-center">
+                <p className="text-zinc-300 text-sm">
+                  Build complete. Opening your site shortly.
                 </p>
               </div>
             )}
 
-            {logs.length === 0 && (
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <Loader2 size={14} className="animate-spin" />
-                <span>Initialising factory pipeline...</span>
-              </div>
-            )}
-
-            <div ref={logsEndRef} />
+            <div ref={scrollEndRef} />
           </div>
         </div>
 
-        <p className="text-center text-gray-600 text-xs mt-6">
-          Your site is being built. This usually takes 2–4 minutes.
+        <p className="text-center text-zinc-600 text-xs mt-6">
+          {isDone ? 'Site is live.' : 'Your site usually takes 2–4 minutes to build.'}
         </p>
+      </div>
+    </div>
+  )
+}
+
+function Bubble({ persona, text, status }: { persona: Persona; text: string; status: 'running' | 'done' | 'error' }) {
+  const isError = status === 'error'
+  return (
+    <div className="flex gap-3 group animate-[fadeIn_280ms_ease-out]">
+      <div className={`flex-none w-9 h-9 rounded-full flex items-center justify-center ${persona.accentBg}`}>
+        <span className={`text-sm font-medium ${persona.accentText}`}>{persona.initials}</span>
+      </div>
+      <div className="flex-1 min-w-0 pt-0.5">
+        <div className="flex items-baseline gap-2">
+          <span className="text-zinc-100 text-sm font-medium">{persona.name}</span>
+          <span className="text-zinc-500 text-xs">{persona.role}</span>
+        </div>
+        <p className={`text-sm leading-relaxed mt-1 ${isError ? 'text-rose-300' : 'text-zinc-300'}`}>
+          {text}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function TypingRow({ persona, activity }: { persona: Persona; activity: string }) {
+  return (
+    <div className="flex gap-3 items-start">
+      <div className={`flex-none w-9 h-9 rounded-full flex items-center justify-center ${persona.accentBg} ring-2 ${persona.accentRing}`}>
+        <span className={`text-sm font-medium ${persona.accentText}`}>{persona.initials}</span>
+      </div>
+      <div className="flex-1 pt-2">
+        <div className="inline-flex items-center gap-3 px-3 py-1.5 rounded-full bg-zinc-800/40">
+          <span className="text-zinc-400 text-xs">{persona.name} · {activity}</span>
+          <span className="flex gap-1">
+            <span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </span>
+        </div>
       </div>
     </div>
   )
