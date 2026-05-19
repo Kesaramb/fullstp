@@ -208,7 +208,7 @@ export class ContentWriterWorker {
     const response = await this.client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
-      system: CONTENT_WRITER_SYSTEM,
+      system: [{ type: 'text', text: CONTENT_WRITER_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{
         role: 'user',
         content: `Strategy Brief:

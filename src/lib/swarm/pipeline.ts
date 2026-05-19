@@ -28,10 +28,10 @@ import { buildContentFromPresets } from './preset-loader'
 import { SharedMemory } from './shared-memory'
 import type { BMC, ContentPackage, WrittenCopy, DesignBrief, LogFn, BusinessArchetype, ArchetypeConfig } from './types'
 import { ARCHETYPE_CONFIGS } from './types'
-import { generateDomain, sanitizeSlug } from '@/lib/deploy/domain'
-import { deployTenantViaBridge, getUsedPorts, isDeploymentConfigured } from '@/lib/deploy/bridge'
-import { getNextPort } from '@/lib/deploy/domain'
+import { pickAvailableDomain, getNextPort } from '@/lib/deploy/domain'
+import { deployTenantViaBridge, getUsedPorts, getUsedDomains, isDeploymentConfigured } from '@/lib/deploy/bridge'
 import { fetchUnsplashImages, assignImagesToContent, type ImageAssignment } from '@/lib/images/unsplash'
+import { sendDeploymentNotification } from '@/lib/email/resend'
 
 const MAX_HEAL_ATTEMPTS = 2
 
@@ -59,7 +59,8 @@ export class SwarmPipeline {
     log: LogFn,
     emit: (event: string, data: Record<string, unknown>) => void
   ): Promise<void> {
-    const domain = generateDomain(bmc.businessName)
+    const usedDomains = await getUsedDomains()
+    const domain = pickAvailableDomain(bmc.businessName, usedDomains)
     const buildLogs: { agent: string; text: string; status: string }[] = []
 
     const trackedLog: LogFn = (agent, text, status) => {
@@ -166,6 +167,20 @@ export class SwarmPipeline {
       if (sshConfigured && !allSeeded) {
         trackedLog('Factory', `Partial seed (${pSeeded} pages, ${gSeeded} globals) — customer stays in building phase.`, 'error')
       }
+    }
+
+    // ── Send deployment notification email ──
+    if (customer.email) {
+      sendDeploymentNotification({
+        customerEmail: customer.email,
+        customerName: customer.name,
+        businessName: bmc.businessName,
+        domain,
+        adminEmail: deployResult?.adminEmail,
+        adminPassword: deployResult?.adminPassword,
+      }).catch(() => {
+        // Non-fatal: email failure must not block the handoff
+      })
     }
 
     // ── Handoff: include admin creds + MCP key so user can access Payload admin panel ──

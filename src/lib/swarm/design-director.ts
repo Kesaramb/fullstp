@@ -120,7 +120,7 @@ export class DesignDirectorWorker {
     const response = await this.client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 1024,
-      system: DESIGN_DIRECTOR_SYSTEM,
+      system: [{ type: 'text', text: DESIGN_DIRECTOR_SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{
         role: 'user',
         content: `Strategy Brief:

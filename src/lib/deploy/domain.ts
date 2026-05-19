@@ -32,6 +32,22 @@ export function generateDomain(businessName: string): string {
 }
 
 /**
+ * Pick the first available domain for a business name. If the base domain
+ * is already registered on the server, append -2, -3, ... up to -99.
+ */
+export function pickAvailableDomain(businessName: string, usedDomains: string[]): string {
+  const baseSlug = sanitizeSlug(businessName)
+  const used = new Set(usedDomains)
+  const base = `${baseSlug}.${SERVER_IP}.nip.io`
+  if (!used.has(base)) return base
+  for (let n = 2; n <= 99; n++) {
+    const candidate = `${baseSlug}-${n}.${SERVER_IP}.nip.io`
+    if (!used.has(candidate)) return candidate
+  }
+  throw new Error(`No available domain for "${businessName}" (tried base and -2 through -99).`)
+}
+
+/**
  * Get the next available port for a new tenant.
  * Ports 3001-3007 are currently in use by existing apps.
  * Starts allocating from 3008.

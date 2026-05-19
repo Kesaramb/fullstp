@@ -37,6 +37,7 @@
     "postcss": "^8.5.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "resend": "^6.12.3",
     "sharp": "^0.33.0",
     "tailwindcss": "^4.2.1"
   },
