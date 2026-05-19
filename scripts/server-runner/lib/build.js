@@ -53,26 +53,15 @@ export function buildApp(nodeappPath, logger) {
     throw new RunnerError('INSTALL_FAILED', `pnpm install failed: ${err.message.slice(0, 200)}`)
   }
 
-  // Run database migrations. The golden-image includes pre-baked migration files
-  // that create core tables (users, users_sessions, pages, media, etc.).
-  // push:true in payload.config.ts handles any additional tables from new blocks/plugins.
-  logger.emit('building', 'runner', 'running', 'Running database migrations...')
-  try {
-    const migrateOutput = run('npx payload migrate 2>&1', { cwd: nodeappPath, timeout: 120000, env: tenantEnv })
-    logger.emit('building', 'runner', 'running', `Migration output (last 500): ${migrateOutput.slice(-500)}`)
-    if (migrateOutput.includes('No migrations to run')) {
-      logger.emit('building', 'runner', 'done', 'No pending migrations (schema already up to date)')
-    } else if (migrateOutput.toLowerCase().includes('error') && !migrateOutput.includes('error.log')) {
-      logger.emit('building', 'runner', 'error', `Migration warning: ${migrateOutput.slice(-300)}`)
-    } else {
-      logger.emit('building', 'runner', 'done', 'Database migrations applied — all tables created')
-    }
-  } catch (err) {
-    const fullOutput = (err.stdout || '') + (err.stderr || '')
-    logger.emit('building', 'runner', 'error', `Migration HEAD: ${fullOutput.slice(0, 600)}`, { errorCode: 'MIGRATE_FAILED' })
-    logger.emit('building', 'runner', 'error', `Migration TAIL: ${fullOutput.slice(-600)}`)
-    throw new RunnerError('MIGRATE_FAILED', `Database migration failed: ${fullOutput.slice(0, 400)}`)
-  }
+  // PR4 v3: Skip migrations entirely. The bootstrap step (next) runs Payload
+  // init with NODE_ENV=development which makes push:true fire and creates
+  // the schema from the live config in one shot. This avoids the migrate:create
+  // chicken-and-egg problem (auto-generated migrations can conflict with
+  // intermediate hand-written ones for plugin tables like MCP api keys).
+  //
+  // Trade-off: no migration audit trail. Acceptable for single-tenant-per-customer
+  // factory where each DB is created fresh from config.
+  logger.emit('building', 'runner', 'done', 'Schema sync deferred to bootstrap (push:true via NODE_ENV=development override)')
 
   // Verify tables were actually created
   try {

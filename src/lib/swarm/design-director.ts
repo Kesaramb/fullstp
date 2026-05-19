@@ -1,107 +1,103 @@
 /**
- * Design Director Agent — selects palette, fonts, hero variant, and page composition.
+ * Design Director Agent — picks a coherent visual identity for the tenant.
  *
- * This is a SELECTION task (not creative writing), so it uses claude-haiku-4-5
- * for fast, low-cost execution. The DesignDirector doesn't write copy — it
- * decides the visual identity and page block composition based on industry
- * and brand mood from the strategy brief.
+ * PR2 model: choose ONE of 8 design moods. The mood implies palette, font,
+ * border radius, and a cohesive set of block-variant choices (Hero,
+ * FeatureGrid, etc.). The DesignDirector may override the mood's defaults
+ * if industry demands it (e.g. force `forest` palette for an eco brand
+ * even on a mood whose default is midnight).
+ *
+ * Uses claude-haiku-4-5 because this is a SELECTION task, not creative writing.
  */
 
 import Anthropic from '@anthropic-ai/sdk'
 import type { StrategyBrief, DesignBrief, LogFn } from './types'
 import type { SharedMemory } from './shared-memory'
+import { MOODS, MOOD_SLUGS, isValidMood } from './moods'
+import { pagesForArchetype } from './preset-compiler'
+import { pickDiversityBucket, formatBucketForPrompt } from './diversity-injector'
+
+const MOOD_CATALOG = MOOD_SLUGS.map(slug => {
+  const m = MOODS[slug]
+  return `### ${m.label} (${m.slug})
+${m.description}
+Defaults: palette=${m.defaults.palette}, font=${m.defaults.fontPairing}, radius=${m.defaults.borderRadius}
+Good for: ${m.goodFor.join(', ')}
+Avoid for: ${m.avoidFor.join(', ')}`
+}).join('\n\n')
 
 const DESIGN_DIRECTOR_SYSTEM = `You are the Design Director of the FullStop Software Factory.
 
-Your role: Choose the visual identity and page composition for a new website based on a strategy brief.
+Your role: Choose a coherent visual mood for a new website based on the strategy brief.
 
-You have these options:
+## Available Design Moods
 
-## Color Palettes
-- midnight: slate-900 primary, blue-500 accent — Tech, corporate, SaaS
-- ocean: sky-900 primary, cyan-400 accent — Wellness, health, spa, medical
-- forest: emerald-900 primary, green-400 accent — Sustainability, organic, eco, agriculture
-- sunset: orange-900 primary, amber-400 accent — Food, hospitality, restaurant, bakery
-- lavender: violet-900 primary, purple-400 accent — Beauty, luxury, fashion, jewelry
-- ember: rose-900 primary, red-400 accent — Fashion, creative agency, art, entertainment
+${MOOD_CATALOG}
 
-## Font Pairings
-- geist-inter: Modern, clean (tech, SaaS, corporate)
-- playfair-sourcesans: Elegant, editorial (luxury, beauty, food, hospitality)
-- playfair-inter: Refined, high-contrast editorial (bakeries, cafes, artisan hospitality, premium local brands)
-- dmsans-dmserif: Warm, artisanal (bakery, crafts, local businesses, cafes)
-- spacegrotesk-inter: Bold, tech-forward (startups, gaming, innovation)
+## Palettes (14 options — pick the one whose VALUE PROPOSITION + CUSTOMER best fits)
+- midnight:   slate + cobalt blue — modern tech, SaaS, fintech (default), serious B2B
+- ocean:      deep sky + cyan — wellness, health clinics, spa, hydration
+- forest:     deep emerald + green — sustainability, organic, eco, agriculture
+- sunset:     burnt sienna + amber — diners, hospitality, casual food (default)
+- lavender:   deep violet + lavender — beauty, perfumery, jewelry, soft luxury
+- ember:      rose-burgundy + coral — fashion week, creative agency, bold entertainment
+- charcoal:   near-black + warm grey — premium editorial, fine art, photography, architecture
+- cream:      soft warm brown + dijon amber — patisserie, florist, boutique, slow craft
+- sage:       muted forest green + soft eucalyptus — yoga, meditation, ayurveda, organic apothecary
+- cobalt:     deep blue + bright sky — fintech, developer tools, high-stakes analytical B2B
+- terracotta: burnt orange + clay — Mediterranean food, ceramics, southwest, mezcal
+- slate:      cool slate + warm grey — consulting, law firms, accountants, professional services
+- noir:       jet black + saffron yellow — wine bar, jazz club, cocktail program, premium night-time
+- bloom:      deep magenta + hot pink — design agency, kids brand, vibrant creative
 
-## Hero Variants
-- highImpact: Full-height gradient with animation — bold businesses, tech, food
-- mediumImpact: Split layout (text left, image right) — services, wellness, professional
-- lowImpact: Minimal centered text — luxury, beauty, understated brands
+## Font Pairings (9 options — match VOICE + ENERGY)
+- geist-inter:          all Inter — modern, clean, neutral. Tech, SaaS, B2B
+- playfair-sourcesans:  Playfair + Source Sans — classic editorial, luxury hospitality
+- playfair-inter:       Playfair + Inter — refined editorial with tech body
+- dmsans-dmserif:       DM Serif + DM Sans — warm, artisanal, friendly local
+- spacegrotesk-inter:   Space Grotesk + Inter — bold tech, startup, gaming
+- fraunces-inter:       Fraunces + Inter — soft contemporary serif, modern editorial, optical-sized
+- instrumentserif-inter: Instrument Serif + Inter — high-contrast Vogue-style, fashion / beauty / boutique luxury
+- archivo-archivo:      Archivo throughout — strong industrial sans, fintech / B2B authority
+- cormorant-jost:       Cormorant Garamond + Jost — elegant display serif + geometric sans, perfumery / jewelry / fine dining
 
-## Available Block Types
-- hero: Main hero section (every page starts with this)
-- brandNarrative: Side-by-side text + image storytelling
-- featureGrid: Icon + text cards (3 or 4 columns)
-- testimonials: Customer quotes carousel
-- mediaBlock: Full-width or contained image
-- richContent: Long-form text content (Lexical rich text)
-- callToAction: CTA card with button
-- closingBanner: Emotional closing CTA with gradient background
-- banner: Info/success/warning highlight strip
-- formBlock: Contact form (name, email, message)
-
-## Page Presets (pick one per page, must match the business archetype)
-
-### Home page presets (all archetypes):
-- homepage-premium: hero(highImpact) → brandNarrative → featureGrid(4col) → testimonials → closingBanner — Bold, full-featured.
-- homepage-editorial: hero(mediumImpact) → brandNarrative → featureGrid(3col) → testimonials → closingBanner — Refined, editorial.
-
-### Shared pages (all archetypes):
-- about-storytelling: hero(lowImpact) → brandNarrative → richContent — Story-driven about page.
-- contact-warm: hero(lowImpact) → richContent → formBlock — Warm contact page.
-
-### Archetype-specific pages (pick based on businessArchetype in strategy):
-- services-showcase: For "service" archetype — hero → featureGrid(4col) → brandNarrative → closingBanner
-- product-showcase: For "product" archetype — hero → featureGrid(4col) → brandNarrative → closingBanner
-- experience-menu: For "experience" archetype — hero → featureGrid(3col) → brandNarrative → closingBanner
-- creative-portfolio: For "creative" archetype — hero → featureGrid(3col) → testimonials → callToAction
-- local-offerings: For "local" archetype — hero → featureGrid(3col) → closingBanner
-- saas-features: For "saas" archetype — hero → featureGrid(4col) → testimonials → closingBanner
-
-CRITICAL: The page slugs in pagePresets MUST match the archetype:
-- product: { home, products, about, contact }
-- service: { home, services, about, contact }
-- experience: { home, menu, about, contact }
-- creative: { home, work, about, contact }
-- local: { home, offerings, about, contact }
-- saas: { home, features, about, contact }
-
-Output JSON:
+## Output JSON
 {
-  "heroVariant": "highImpact" | "mediumImpact" | "lowImpact",
-  "palette": "midnight" | "ocean" | "forest" | "sunset" | "lavender" | "ember",
-  "fontPairing": "geist-inter" | "playfair-sourcesans" | "playfair-inter" | "dmsans-dmserif" | "spacegrotesk-inter",
-  "borderRadius": "none" | "sm" | "md" | "lg",
-  "pagePresets": {
-    "<slug>": "<preset-name>"
-  }
+  "mood": "<one of: ${MOOD_SLUGS.join(' | ')}>",
+  "palette": "<one of the 14 palettes — see catalog above>",
+  "fontPairing": "<one of the 9 font pairings — see catalog above>",
+  "borderRadius": "none | sm | md | lg",
+  "heroVariant": "<the hero variant the mood implies, or a hero variant valid for this mood>",
+  "rationale": "<one sentence: why these specific palette + font choices for THIS business — reference the value prop and customer>"
 }
 
-Rules:
-- Match palette to industry. Don't use midnight for a bakery or sunset for a law firm.
-- Match font pairing to brand mood. Playfair for elegant, Space Grotesk for bold tech.
-- homepage-premium for bold/confident brands, homepage-editorial for refined/editorial brands.
-- borderRadius: "md" is safe default. "none" for brutalist, "lg" for soft/friendly.
-- Output ONLY valid JSON, no commentary.
+## Rules — READ CAREFULLY
+- The Strategy Brief contains a VALUE PROPOSITION and a TARGET AUDIENCE. Both MUST inform your palette and font choice.
+  - "Breakfast worth getting up for" + diner audience → terracotta or cream + dmsans-dmserif (warm, friendly)
+  - "Fine dining tasting menu" + foodie audience → noir or charcoal + cormorant-jost (premium, restrained)
+  - "Bookkeeping for small businesses" + SMB owner audience → slate or cobalt + archivo-archivo (trustworthy)
+  - "Design tools for indie makers" + solo founder audience → bento-modular mood + cobalt + geist-inter (modern, clean)
+  - "Yoga + breathwork retreats" + wellness-seeker audience → sage palette + fraunces-inter (calm, considered)
+- Pick exactly ONE mood from the goodFor list — never from avoidFor.
+- borderRadius: "none" for brutalist/industrial, "sm" for editorial, "md" for default modern, "lg" for soft/playful.
+- heroVariant MUST be a real variant the mood uses (don't invent).
+- DO NOT default to midnight + geist-inter unless the business is genuinely a tech/SaaS company.
+- DO NOT default to sunset for every food business — patisseries get cream, diners get terracotta or sunset, fine dining gets noir or charcoal, gastropubs get noir.
+- Output ONLY valid JSON. No commentary outside the rationale field.
 
-CRITICAL DESIGN RULES:
-- 4.5:1 minimum contrast ratio for all text
-- If the background is light, cream, or pastel, body text must be dark enough to pass WCAG AA. Never use low-contrast muted warm text on pale backgrounds.
-- SVG icons only (Lucide) — never emoji
-- CSS gradient fallbacks for all image containers — sites must look complete without photos
-- Animation: 150-300ms micro-interactions, transform/opacity only
-- One primary CTA per screen section
-- Mobile-first: min 16px body text, 44px touch targets
-- Use consistent 4/8px spacing system`
+## Critical design rules (these constrain ALL choices)
+- 4.5:1 minimum contrast for body text
+- SVG icons (Lucide) only — never emoji
+- One primary CTA per section
+- Mobile-first: 16px body text, 44px touch targets`
+
+interface DesignDirectorOutput {
+  mood: string
+  palette: DesignBrief['palette']
+  fontPairing: DesignBrief['fontPairing']
+  borderRadius: DesignBrief['borderRadius']
+  heroVariant: DesignBrief['heroVariant']
+}
 
 export class DesignDirectorWorker {
   private client: Anthropic
@@ -115,23 +111,40 @@ export class DesignDirectorWorker {
     memory: SharedMemory,
     log: LogFn
   ): Promise<DesignBrief> {
-    log('Design Director', `Selecting visual identity for ${strategy.businessName}...`, 'running')
+    log('Design Director', `Selecting mood for ${strategy.businessName}...`, 'running')
+
+    const archetype = strategy.businessArchetype || 'service'
+    const pageSlugs = pagesForArchetype(archetype)
+
+    // Pull richer BMC + V2 brief signal from memory (set by Queen V2)
+    // so DesignDirector can read value proposition + persona explicitly.
+    const briefV2 = memory.get('strategyBriefV2') as { uniqueSellingPoint?: string; oneLineDescription?: string; brandPersona?: string; primaryPersona?: { label?: string; jobToBeDone?: string } } | undefined
+
+    // Diversity bucket — hash the business name to a stable bucket so two
+    // similar BMCs (e.g. two bakeries) get different visual languages.
+    // The LLM MUST pick from the bucket's allowed lists.
+    const bucket = pickDiversityBucket(strategy.businessName, strategy.industry)
+    log('Design Director', `Diversity bucket assigned: ${bucket.name} (mood pool: ${bucket.moods.join(', ')})`, 'running')
+
+    const systemWithBucket = DESIGN_DIRECTOR_SYSTEM + '\n\n' + formatBucketForPrompt(bucket)
 
     const response = await this.client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 1024,
-      system: [{ type: 'text', text: DESIGN_DIRECTOR_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      system: systemWithBucket,
       messages: [{
         role: 'user',
         content: `Strategy Brief:
 - Business: ${strategy.businessName} (${strategy.industry})
-- Business Archetype: ${strategy.businessArchetype || 'service'}
+- Business Archetype: ${archetype}
+- Value Proposition: ${briefV2?.uniqueSellingPoint || briefV2?.oneLineDescription || strategy.brandVoice}
 - Target Audience: ${strategy.targetAudience}
 - Brand Voice: ${strategy.brandVoice}
+- Brand Persona (Jungian): ${briefV2?.brandPersona || 'unspecified'}
+- Customer JTBD: ${briefV2?.primaryPersona?.jobToBeDone || 'unspecified'}
 - Messaging Pillars: ${strategy.messagingPillars.join(' | ')}
-- Pages: ${strategy.pageIntents.map(p => p.slug).join(', ')}
 
-Select the visual identity and page composition. Use page slugs matching the archetype.`,
+Pick a mood appropriate for this brand and industry.`,
       }],
     })
 
@@ -140,23 +153,63 @@ Select the visual identity and page composition. Use page slugs matching the arc
       .map(b => b.text)
       .join('')
 
-    const brief = parseJSON<DesignBrief>(text)
+    const parsed = parseJSON<DesignDirectorOutput>(text)
 
-    memory.set('designBrief', brief, 'design-director')
-    memory.logEvent('design-brief', 'design-director', 'Design brief created', 'done')
-
-    log('Design Director', `Palette: ${brief.palette}, Font: ${brief.fontPairing}, Hero: ${brief.heroVariant}`, 'done')
-    if (brief.pagePresets) {
-      for (const [slug, preset] of Object.entries(brief.pagePresets)) {
-        log('Design Director', `  ${slug}: ${preset}`, 'done')
-      }
-    } else if (brief.pageLayouts) {
-      for (const page of brief.pageLayouts) {
-        log('Design Director', `  ${page.slug}: ${page.blockSequence.join(' → ')}`, 'done')
+    // Validate mood — must be in the diversity bucket OR fall back to bucket's first option.
+    let safeMood: import('./moods').MoodSlug
+    if (isValidMood(parsed.mood) && bucket.moods.includes(parsed.mood)) {
+      safeMood = parsed.mood
+    } else {
+      safeMood = bucket.moods[0]
+      if (parsed.mood && parsed.mood !== safeMood) {
+        log('Design Director', `LLM picked mood "${parsed.mood}" outside bucket — clamping to "${safeMood}"`, 'running')
       }
     }
+    const moodConfig = MOODS[safeMood]
+
+    // Same clamp for palette / font / heroVariant — must be in bucket
+    const safePalette = parsed.palette && bucket.palettes.includes(parsed.palette)
+      ? parsed.palette : bucket.palettes[0]
+    const safeFont = parsed.fontPairing && bucket.fonts.includes(parsed.fontPairing)
+      ? parsed.fontPairing : bucket.fonts[0]
+    const safeHero = parsed.heroVariant && bucket.heroVariants.includes(parsed.heroVariant)
+      ? parsed.heroVariant
+      : (bucket.heroVariants.includes(moodConfig.blockVariants.hero)
+          ? moodConfig.blockVariants.hero
+          : bucket.heroVariants[0])
+
+    const brief: DesignBrief = {
+      mood: safeMood,
+      palette: safePalette,
+      fontPairing: safeFont,
+      borderRadius: parsed.borderRadius || moodConfig.defaults.borderRadius,
+      heroVariant: safeHero,
+      // pagePresets stays undefined — pipeline.ts uses the dynamic compiler when mood is set
+    }
+
+    // Stash the page slugs the compiler will need
+    memory.set('pageSlugs', pageSlugs, 'design-director')
+    memory.set('designBrief', brief, 'design-director')
+    memory.logEvent('design-brief', 'design-director', `Mood: ${safeMood}`, 'done')
+
+    log('Design Director', `Mood: ${moodConfig.label} (${safeMood})`, 'done')
+    log('Design Director', `Palette: ${brief.palette}, Font: ${brief.fontPairing}, Hero: ${brief.heroVariant}`, 'done')
+    log('Design Director', `Pages: ${pageSlugs.join(', ')}`, 'done')
 
     return brief
+  }
+}
+
+/** Sensible mood fallback per archetype if the LLM returns something invalid. */
+function fallbackMoodFor(archetype: string): import('./moods').MoodSlug {
+  switch (archetype) {
+    case 'saas':       return 'glass-spatial'
+    case 'product':    return 'editorial-luxe'
+    case 'experience': return 'cinema-immersive'
+    case 'creative':   return 'brutalist-bold'
+    case 'local':      return 'warm-artisan'
+    case 'service':
+    default:           return 'clean-editorial'
   }
 }
 

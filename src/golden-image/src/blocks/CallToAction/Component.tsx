@@ -1,4 +1,9 @@
+'use client'
+
 import React from 'react'
+import { motion } from 'framer-motion'
+import { PremiumButton, type PremiumButtonVariant, type PremiumButtonTone } from '../../components/ui/PremiumButton'
+import { fadeInUp } from '../../lib/animations'
 
 interface CallToActionBlockProps {
   block: {
@@ -10,33 +15,25 @@ interface CallToActionBlockProps {
   }
 }
 
-const variantStyles = {
+// Each Payload variant maps to a section style + a PremiumButton variant + tone
+const variantConfig = {
   primary: {
-    section: 'bg-slate-900 text-white',
-    button: `inline-flex items-center gap-2 rounded-full bg-white px-8 py-4
-      text-base font-semibold text-slate-900
-      shadow-lg shadow-white/10 transition-all duration-200
-      hover:bg-slate-100 hover:shadow-xl hover:-translate-y-0.5
-      focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-slate-900`,
-    bodyColor: 'text-slate-300',
+    section: 'bg-[var(--color-primary,#0f172a)] text-white',
+    bodyColor: 'text-white/75',
+    btnVariant: 'liquid-glass' as PremiumButtonVariant,
+    btnTone: 'light' as PremiumButtonTone,
   },
   secondary: {
-    section: 'bg-slate-50 text-slate-900',
-    button: `inline-flex items-center gap-2 rounded-full bg-slate-900 px-8 py-4
-      text-base font-semibold text-white
-      shadow-lg shadow-slate-900/20 transition-all duration-200
-      hover:bg-slate-800 hover:shadow-xl hover:-translate-y-0.5
-      focus:outline-none focus:ring-2 focus:ring-slate-900/50 focus:ring-offset-2`,
-    bodyColor: 'text-slate-600',
+    section: 'bg-[var(--color-bg-alt,#f8fafc)] text-[var(--color-text,#0f172a)]',
+    bodyColor: 'text-[var(--color-text,#0f172a)]/70',
+    btnVariant: 'hover-glow' as PremiumButtonVariant,
+    btnTone: 'dark' as PremiumButtonTone,
   },
   outline: {
-    section: 'bg-white text-slate-900 border-y border-slate-200',
-    button: `inline-flex items-center gap-2 rounded-full border-2 border-slate-900 px-8 py-4
-      text-base font-semibold text-slate-900
-      transition-all duration-200
-      hover:bg-slate-900 hover:text-white hover:-translate-y-0.5
-      focus:outline-none focus:ring-2 focus:ring-slate-900/50 focus:ring-offset-2`,
-    bodyColor: 'text-slate-600',
+    section: 'bg-[var(--color-bg,#ffffff)] text-[var(--color-text,#0f172a)] border-y border-[var(--color-border,#e2e8f0)]',
+    bodyColor: 'text-[var(--color-text,#0f172a)]/65',
+    btnVariant: 'shine' as PremiumButtonVariant,
+    btnTone: 'dark' as PremiumButtonTone,
   },
 } as const
 
@@ -48,31 +45,31 @@ function resolveLink(url: string): string {
 
 export function CallToActionBlock({ block }: CallToActionBlockProps) {
   const variant = block.variant || 'primary'
-  const styles = variantStyles[variant]
+  const config = variantConfig[variant]
   const href = resolveLink(block.linkUrl)
 
   return (
-    <section className={`py-20 ${styles.section}`}>
-      <div className="site-container">
+    <section className={`py-20 md:py-24 ${config.section}`}>
+      <motion.div className="site-container" {...fadeInUp}>
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-4">
+          <h2
+            className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-4"
+            style={{ fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}
+          >
             {block.heading}
           </h2>
 
           {block.body && (
-            <p className={`text-lg leading-relaxed mb-10 ${styles.bodyColor}`}>
+            <p className={`text-lg leading-relaxed mb-10 ${config.bodyColor}`}>
               {block.body}
             </p>
           )}
 
-          <a href={href} className={styles.button}>
+          <PremiumButton variant={config.btnVariant} tone={config.btnTone} size="lg" href={href}>
             {block.linkLabel}
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-            </svg>
-          </a>
+          </PremiumButton>
         </div>
-      </div>
+      </motion.div>
     </section>
   )
 }

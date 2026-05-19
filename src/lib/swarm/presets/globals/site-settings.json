@@ -4,6 +4,21 @@
   "theme": {
     "palette": "{{palette}}",
     "fontPairing": "{{fontPairing}}",
-    "borderRadius": "{{borderRadius}}"
+    "borderRadius": "{{borderRadius}}",
+    "customColors": {
+      "--color-primary":       "{{custom_color_primary}}",
+      "--color-primary-light": "{{custom_color_primary_light}}",
+      "--color-accent":        "{{custom_color_accent}}",
+      "--color-accent-light":  "{{custom_color_accent_light}}",
+      "--color-bg":            "{{custom_color_bg}}",
+      "--color-bg-alt":        "{{custom_color_bg_alt}}",
+      "--color-text":          "{{custom_color_text}}",
+      "--color-text-muted":    "{{custom_color_text_muted}}",
+      "--color-border":        "{{custom_color_border}}",
+      "--color-muted":         "{{custom_color_muted}}"
+    },
+    "customFontHeading": "{{custom_font_heading_name}}",
+    "customFontBody": "{{custom_font_body_name}}",
+    "customGoogleFontsUrl": "{{custom_google_fonts_url}}"
   }
 }

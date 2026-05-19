@@ -40,23 +40,26 @@ export function generateDomain(businessName: string): string {
 }
 
 /**
- * Pick the first available domain for a business name. If the base domain
- * is already registered on the server, append -v2, -v3, ... up to -v99.
+ * Generate the next free domain. If the base slug is already used on the
+ * server, append `-v2`, `-v3`, ... up to `-v99` until a free one is found.
+ *
+ * usedDomains: list of full domains currently registered on the server
+ * (e.g., ["brevity-news.167.86.81.161.nip.io", ...]).
  *
  * Suffix format note: nip.io's IP parser treats any digit-after-dash as part
  * of the IP. `name-2.167.86.81.161.nip.io` would resolve to `2.167.86.81`
  * (wrong server). Prefixing the suffix index with `v` breaks the numeric run.
  */
-export function pickAvailableDomain(businessName: string, usedDomains: string[]): string {
-  const baseSlug = sanitizeSlug(businessName)
+export function generateUniqueDomain(businessName: string, usedDomains: string[]): string {
   const used = new Set(usedDomains)
+  const baseSlug = sanitizeSlug(businessName)
   const base = `${baseSlug}.${SERVER_IP}.nip.io`
   if (!used.has(base)) return base
   for (let n = 2; n <= 99; n++) {
     const candidate = `${baseSlug}-v${n}.${SERVER_IP}.nip.io`
     if (!used.has(candidate)) return candidate
   }
-  throw new Error(`No available domain for "${businessName}" (tried base and -v2 through -v99).`)
+  throw new Error(`No available domain slug for "${businessName}" (tried base + -v2..-v99)`)
 }
 
 /**

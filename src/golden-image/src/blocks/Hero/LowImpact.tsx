@@ -3,6 +3,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Badge } from '../../components/ui/Badge'
+import { PremiumButton } from '../../components/ui/PremiumButton'
 import { fadeInUp } from '../../lib/animations'
 
 interface Props {
@@ -43,12 +44,9 @@ export function LowImpactHero({ block }: Props) {
             </p>
           )}
           {block.ctaLabel && block.ctaLink && (
-            <a
-              href={block.ctaLink}
-              className="group inline-flex min-h-[44px] items-center gap-2 rounded-[var(--radius,0.5rem)] border-2 border-[var(--color-primary,#0f172a)] px-7 py-3.5 text-sm font-semibold text-[var(--color-primary,#0f172a)] transition-all duration-300 hover:bg-[var(--color-primary,#0f172a)] hover:text-white hover:-translate-y-0.5"
-            >
+            <PremiumButton variant="ghost-arrow" tone="dark" size="md" href={block.ctaLink}>
               {block.ctaLabel}
-            </a>
+            </PremiumButton>
           )}
         </motion.div>
       </div>

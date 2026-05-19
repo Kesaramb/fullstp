@@ -99,8 +99,9 @@ export function buildContentFromPresets(
     const preset = loadPagePreset(presetName)
     const values = pageValues[slug] || {}
     const filledBlocks = fillTemplate(preset.blocks, values)
+    const cleanedBlocks = stripEmptyArrayItems(filledBlocks as Record<string, unknown>[])
     const title = fillTemplate(preset.titleTemplate, { ...values, ...globalValues })
-    return { title, slug, layout: filledBlocks }
+    return { title, slug, layout: cleanedBlocks }
   })
 
   const globalsPreset = loadGlobalsPreset()
@@ -111,6 +112,65 @@ export function buildContentFromPresets(
   }
 
   return { pages, globals }
+}
+
+/**
+ * Same as buildContentFromPresets but accepts pre-built PagePreset objects
+ * (from the dynamic preset-compiler) instead of file-based preset names.
+ * Used by the PR2 mood path.
+ */
+export function buildContentFromCompiledPresets(
+  compiled: Record<string, PagePreset>,
+  pageValues: Record<string, Record<string, string>>,
+  globalValues: Record<string, string>,
+): { pages: { title: string; slug: string; layout: Record<string, unknown>[] }[]; globals: Record<string, unknown> } {
+  const pages = Object.entries(compiled).map(([slug, preset]) => {
+    const values = pageValues[slug] || {}
+    const filledBlocks = fillTemplate(preset.blocks, values)
+    const cleanedBlocks = stripEmptyArrayItems(filledBlocks as Record<string, unknown>[])
+    const title = fillTemplate(preset.titleTemplate, { ...values, ...globalValues })
+    return { title, slug, layout: cleanedBlocks }
+  })
+
+  const globalsPreset = loadGlobalsPreset()
+  const globals = {
+    siteSettings: fillTemplate(globalsPreset.siteSettings, globalValues),
+    header: fillTemplate(globalsPreset.header, globalValues),
+    footer: fillTemplate(globalsPreset.footer, globalValues),
+  }
+
+  return { pages, globals }
+}
+
+/**
+ * Walk every block in a page layout and strip array items where ALL of the
+ * item's required fields are empty/missing. This handles the case where
+ * fillTemplate substitutes "" for placeholders the LLM didn't fill, leaving
+ * zombie items like { value: "", label: "" } that would fail Payload validation.
+ *
+ * Runs on every block's array fields generically — checks every value of
+ * every entry; if all are blank, drop the entry.
+ */
+function stripEmptyArrayItems(blocks: Record<string, unknown>[]): Record<string, unknown>[] {
+  return blocks.map(block => {
+    const cleaned: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(block)) {
+      if (Array.isArray(value)) {
+        const filtered = value.filter(item => {
+          if (item == null) return false
+          if (typeof item !== 'object') return Boolean(item)
+          // Drop the item only if EVERY string-valued field is blank/placeholder
+          const stringValues = Object.values(item).filter(v => typeof v === 'string') as string[]
+          if (stringValues.length === 0) return true   // keep — has nested objects/numbers
+          return stringValues.some(s => s && s.trim() && !s.startsWith('{{'))
+        })
+        cleaned[key] = filtered
+      } else {
+        cleaned[key] = value
+      }
+    }
+    return cleaned
+  })
 }
 
 /**

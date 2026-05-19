@@ -2,12 +2,105 @@
 
 import React, { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useScroll, useTransform, useMotionValueEvent } from 'framer-motion'
 import { Menu, X, Twitter, Instagram, Linkedin, Facebook, Youtube } from 'lucide-react'
 
 type NavLink = { label: string; url: string; newTab?: boolean }
 type FooterLink = { label: string; url: string }
 type SocialLink = { platform: string; url: string }
+
+/**
+ * StickyHeader — transparent on first viewport, fades to glass + border once
+ * the user scrolls past ~80px. Editorial luxury sites use this for the
+ * "header appears after you start scrolling" effect over a full-bleed hero.
+ *
+ * Nav-link colors interpolate from light (over dark hero) → dark (over content).
+ */
+function StickyHeader({
+  displayName,
+  nav,
+  ctaButton,
+  currentPath,
+  menuOpen,
+  setMenuOpen,
+}: {
+  displayName: string
+  nav: NavLink[]
+  ctaButton?: { label: string; url: string } | null
+  currentPath: string
+  menuOpen: boolean
+  setMenuOpen: (v: boolean) => void
+}) {
+  const { scrollY } = useScroll()
+  const [scrolled, setScrolled] = useState(false)
+  useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 80))
+
+  return (
+    <motion.header
+      className="sticky top-0 z-50 transition-[background-color,border-color,backdrop-filter,box-shadow] duration-500"
+      style={{
+        backgroundColor: scrolled ? 'rgba(var(--color-bg-rgb,255,255,255),0.78)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(14px) saturate(160%)' : 'none',
+        WebkitBackdropFilter: scrolled ? 'blur(14px) saturate(160%)' : 'none',
+        borderBottom: scrolled ? '1px solid var(--color-border, #e2e8f0)' : '1px solid transparent',
+      }}
+    >
+      <div className="site-container flex items-center justify-between" style={{ paddingTop: scrolled ? '0.6rem' : '1.1rem', paddingBottom: scrolled ? '0.6rem' : '1.1rem', transition: 'padding 0.4s' }}>
+        <a
+          href="/"
+          className="text-lg md:text-xl font-bold tracking-tight transition-colors duration-500"
+          style={{
+            fontFamily: 'var(--font-heading)',
+            color: scrolled ? 'var(--color-text, #1a1a1a)' : 'var(--header-fg, var(--color-text, #1a1a1a))',
+          }}
+        >
+          {displayName}
+        </a>
+        <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+          {nav.map((link) => {
+            const isActive = !link.newTab && isInternalPath(link.url) && normalizePath(link.url) === currentPath
+            return (
+              <a
+                key={link.url}
+                href={link.url}
+                aria-current={isActive ? 'page' : undefined}
+                className="relative text-sm font-medium transition-colors duration-500 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2"
+                style={{
+                  color: isActive
+                    ? (scrolled ? 'var(--color-text, #1a1a1a)' : 'var(--header-fg, var(--color-text, #1a1a1a))')
+                    : (scrolled ? 'var(--color-text-muted, #64748b)' : 'var(--header-fg-muted, var(--color-text-muted, #64748b))'),
+                }}
+                {...(link.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+              >
+                {link.label}
+                {isActive && (
+                  <span aria-hidden="true" className="absolute -bottom-1 left-0 h-0.5 w-full rounded-full bg-[var(--color-accent,#3b82f6)]" />
+                )}
+              </a>
+            )
+          })}
+          {ctaButton?.label && ctaButton?.url && (
+            <a
+              href={ctaButton.url}
+              className="rounded-full bg-[var(--color-accent,#3b82f6)] px-5 py-2 text-sm font-semibold text-white shadow-depth-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-depth"
+            >
+              {ctaButton.label}
+            </a>
+          )}
+        </nav>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--radius,0.5rem)] p-2 md:hidden focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] transition-colors duration-500"
+          style={{ color: scrolled ? 'var(--color-text, #1a1a1a)' : 'var(--header-fg, var(--color-text, #1a1a1a))' }}
+          aria-label="Toggle menu"
+        >
+          {menuOpen ? <X aria-hidden="true" className="h-6 w-6" /> : <Menu aria-hidden="true" className="h-6 w-6" />}
+        </button>
+      </div>
+    </motion.header>
+  )
+}
 type CtaButton = { label?: string; url?: string }
 
 function normalizePath(path: string): string {
@@ -117,51 +210,18 @@ export function SiteShell({
         Skip to content
       </a>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[var(--color-border,#e2e8f0)] bg-[var(--color-bg,#ffffff)]/90 backdrop-blur-md">
-        <div className="site-container flex items-center justify-between py-4">
-          <a href="/" className="text-lg font-bold tracking-tight text-[var(--color-text,#1a1a1a)]" style={{ fontFamily: 'var(--font-heading)' }}>
-            {displayName}
-          </a>
-          <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
-            {nav.map((link) => {
-              const isActive = !link.newTab && isInternalPath(link.url) && normalizePath(link.url) === currentPath
+      {/* Header — transparent on first viewport, becomes glass when scrolled past hero.
+          For pages with cinemaImmersive hero this creates the editorial "header reveals
+          on scroll" effect that premium luxury sites (jeskojets, Aman) use. */}
+      <StickyHeader
+        displayName={displayName}
+        nav={nav}
+        ctaButton={ctaButton}
+        currentPath={currentPath}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+      />
 
-              return (
-                <a
-                  key={link.url}
-                  href={link.url}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`relative text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 ${
-                    isActive
-                      ? 'text-[var(--color-text,#1a1a1a)] after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-[var(--color-accent,#3b82f6)]'
-                      : 'text-[var(--color-text-muted,#64748b)] hover:text-[var(--color-text,#1a1a1a)]'
-                  }`}
-                  {...(link.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                >
-                  {link.label}
-                </a>
-              )
-            })}
-            {ctaButton?.label && ctaButton?.url && (
-              <a
-                href={ctaButton.url}
-                className="rounded-[var(--radius,0.5rem)] bg-[var(--color-accent,#3b82f6)] px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              >
-                {ctaButton.label}
-              </a>
-            )}
-          </nav>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--radius,0.5rem)] p-2 md:hidden focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? <X aria-hidden="true" className="h-6 w-6" /> : <Menu aria-hidden="true" className="h-6 w-6" />}
-          </button>
-        </div>
-      </header>
 
       <AnimatePresence>
         {menuOpen && (

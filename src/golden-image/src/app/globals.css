@@ -1,7 +1,18 @@
-@import "tailwindcss";
+@layer tailwind, site, payload-default, payload;
+@import "tailwindcss" layer(tailwind);
 @plugin "@tailwindcss/typography";
 
-/* Vercel Web Interface Guidelines — Global Foundation */
+/*
+ * All non-Tailwind site CSS lives in @layer site, which sits ABOVE the tailwind
+ * layer (so custom utilities like .glass-dark beat raw `bg-*` utilities) and
+ * BELOW payload-default (so the Payload admin still renders correctly under
+ * the (payload) route group).
+ *
+ * The previously-unlayered `*` reset has been removed — Tailwind v4's preflight
+ * already handles box-sizing and default margins; the duplicate rule was
+ * stomping every padding utility (px-*, py-*) on the public site.
+ */
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -11,153 +22,144 @@
   }
 }
 
-/* Touch optimization */
-a, button, [role="button"], input, select, textarea, summary {
-  touch-action: manipulation;
-}
-
-/* Tabular nums for data */
-.tabular-nums { font-variant-numeric: tabular-nums; }
-
-/* Balanced headings */
-h1, h2, h3 { text-wrap: balance; }
-
-/* ── Base resets ── */
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-html { scroll-behavior: smooth; }
-
-body {
-  font-family: var(--font-body, 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
-  line-height: 1.6;
-  color: var(--color-text, #1a1a1a);
-  background: var(--color-bg, #ffffff);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ── Page-level defaults ── */
-main { min-height: 100vh; }
-a { color: inherit; text-decoration: none; }
-img { max-width: 100%; height: auto; display: block; }
-
-.site-container {
-  width: 100%;
-  max-width: 80rem;
-  margin-inline: auto;
-  padding-inline: 1rem;
-}
-
-@media (min-width: 640px) {
-  .site-container {
-    padding-inline: 1.5rem;
+@layer site {
+  a, button, [role="button"], input, select, textarea, summary {
+    touch-action: manipulation;
   }
-}
 
-@media (min-width: 1024px) {
-  .site-container {
-    padding-inline: 2rem;
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  h1, h2, h3 { text-wrap: balance; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body, 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+    line-height: 1.6;
+    color: var(--color-text, #1a1a1a);
+    background: var(--color-bg, #ffffff);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-}
 
-/* ── Heading font ── */
-h1, h2, h3, h4 {
-  font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
-}
+  main { min-height: 100vh; }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; height: auto; display: block; }
 
-/* ── Modern utility classes ── */
+  .site-container {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
 
-/* Noise texture overlay — adds subtle grain for depth */
-.noise-overlay {
-  position: relative;
-}
-.noise-overlay::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  opacity: 0.035;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  mix-blend-mode: overlay;
-}
+  @media (min-width: 640px) {
+    .site-container {
+      padding-inline: 1.5rem;
+    }
+  }
 
-/* Mesh gradient — multi-stop radial for rich backgrounds */
-.mesh-gradient {
-  background:
-    radial-gradient(ellipse at 20% 50%, var(--color-accent, #3b82f6) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, var(--color-accent-light, #60a5fa) 0%, transparent 40%),
-    radial-gradient(ellipse at 40% 80%, var(--color-primary-light, #1e293b) 0%, transparent 50%),
-    var(--color-primary, #0f172a);
-}
+  @media (min-width: 1024px) {
+    .site-container {
+      padding-inline: 2rem;
+    }
+  }
 
-/* Glassmorphism */
-.glass {
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
+  }
 
-.glass-dark {
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
+  /* ── Modern utility classes ── */
 
-/* Modern shadow system — layered for natural depth */
-.shadow-depth-sm {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 2px 4px rgba(0, 0, 0, 0.04);
-}
-.shadow-depth {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    0 8px 24px rgba(0, 0, 0, 0.04);
-}
-.shadow-depth-lg {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.02),
-    0 8px 24px rgba(0, 0, 0, 0.06),
-    0 16px 48px rgba(0, 0, 0, 0.06);
-}
+  .noise-overlay {
+    position: relative;
+  }
+  .noise-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.035;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+    mix-blend-mode: overlay;
+  }
 
-/* Floating decorative shapes */
-.float-shape {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.15;
-  pointer-events: none;
-}
+  .mesh-gradient {
+    background:
+      radial-gradient(ellipse at 20% 50%, var(--color-accent, #3b82f6) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, var(--color-accent-light, #60a5fa) 0%, transparent 40%),
+      radial-gradient(ellipse at 40% 80%, var(--color-primary-light, #1e293b) 0%, transparent 50%),
+      var(--color-primary, #0f172a);
+  }
 
-/* Decorative accent line */
-.accent-line {
-  width: 3rem;
-  height: 3px;
-  background: var(--color-accent, #3b82f6);
-  border-radius: 2px;
-}
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-accent, #3b82f6), var(--color-accent-light, #60a5fa));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+  .glass-dark {
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
 
-/* Smooth section transitions */
-section + section {
-  position: relative;
-}
+  .shadow-depth-sm {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 2px 4px rgba(0, 0, 0, 0.04);
+  }
+  .shadow-depth {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.03),
+      0 4px 12px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(0, 0, 0, 0.04);
+  }
+  .shadow-depth-lg {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.02),
+      0 8px 24px rgba(0, 0, 0, 0.06),
+      0 16px 48px rgba(0, 0, 0, 0.06);
+  }
 
-/* Focus visible ring for accessibility */
-:focus-visible {
-  outline: 2px solid var(--color-accent, #3b82f6);
-  outline-offset: 2px;
+  .float-shape {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  .accent-line {
+    width: 3rem;
+    height: 3px;
+    background: var(--color-accent, #3b82f6);
+    border-radius: 2px;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--color-accent, #3b82f6), var(--color-accent-light, #60a5fa));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  section + section {
+    position: relative;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent, #3b82f6);
+    outline-offset: 2px;
+  }
+
+  /* Liquid-glass button refractive sweep (used by PremiumButton variant="liquid-glass") */
+  @keyframes liquid-glass-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -100% 0; }
+  }
 }

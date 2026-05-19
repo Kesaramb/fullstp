@@ -60,3 +60,38 @@ export const staggerItem: Variants = {
     transition: { duration: 0.5, ease },
   },
 }
+
+/**
+ * cinematicReveal — used by section-level reveals when a more orchestrated
+ * appearance is wanted (jeskojets-style filter-blur + slide + fade).
+ *
+ * Combines opacity + y-translate + filter-blur so elements feel like they're
+ * pulling into focus, not just sliding in. The blur is what makes premium
+ * sites feel premium.
+ */
+export const cinematicReveal = {
+  initial: { opacity: 0, y: 40, filter: 'blur(10px)' },
+  whileInView: { opacity: 1, y: 0, filter: 'blur(0px)' },
+  viewport: { once: true, margin: '-100px' },
+  transition: { duration: 0.9, ease },
+}
+
+export const cinematicStaggerContainer: Variants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.14,
+      delayChildren: 0.15,
+    },
+  },
+}
+
+export const cinematicStaggerItem: Variants = {
+  hidden: { opacity: 0, y: 32, filter: 'blur(8px)' },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: { duration: 0.8, ease },
+  },
+}
