@@ -32,10 +32,10 @@ import { getIndustryReferences } from './industry-references'
 
 // ── Block catalog — must match the dispatch in layout-composer.ts ──
 
-const BLOCK_CATALOG: { blockType: string; description: string; validIntents: SectionIntent[]; supportsVariantHint?: string[] }[] = [
+const BLOCK_CATALOG: { blockType: string; description: string; validIntents: SectionIntent[]; supportsVariantHint?: string[]; industryHints?: string[] }[] = [
   {
     blockType: 'hero',
-    description: 'The page-opening section. Required as the first section of every page. Variants are picked downstream (Dark Cinematic / Editorial Luxe / etc.) — do not specify variants here.',
+    description: 'The page-opening section. Required as the first section of every page. Variants are picked downstream (Dark Cinematic / Editorial Luxe / etc.) — do not specify variants here. NOTE: the `bookSearch` hero variant is auto-selected for publishing / library / discovery industries — you don\'t need to hint it.',
     validIntents: ['announce-the-brand-and-primary-cta', 'state-the-positioning-clearly', 'frame-the-page-topic', 'invite-conversation'],
   },
   {
@@ -99,6 +99,56 @@ const BLOCK_CATALOG: { blockType: string; description: string; validIntents: Sec
     blockType: 'pullQuote',
     description: 'Single large quote — founder voice, philosophy, manifesto. Use sparingly on about / story pages with editorial content depth.',
     validIntents: ['tell-the-founding-story', 'explain-the-philosophy'],
+  },
+  // ── PR-Industry-Blocks — pick these when the BMC industry matches ──
+  {
+    blockType: 'openingHoursWidget',
+    description: 'Day-by-day schedule with live "Open now / Closed" badge. Use on contact OR visit-driving pages when the business has physical hours customers care about.',
+    validIntents: ['show-hours-of-operation'],
+    supportsVariantHint: ['weekGrid', 'stackedList', 'inlineBanner'],
+    industryHints: ['cafe', 'restaurant', 'bakery', 'coffee', 'retail', 'boutique', 'salon', 'spa', 'gym', 'studio', 'gallery', 'clinic', 'local'],
+  },
+  {
+    blockType: 'eventCalendarTeaser',
+    description: 'Upcoming events list with date badges. Use for civic / nonprofit / community / membership businesses where the calendar IS the offer.',
+    validIntents: ['surface-upcoming-events'],
+    supportsVariantHint: ['list', 'badgesGrid', 'featuredPlus'],
+    industryHints: ['nonprofit', 'civic', 'rotary', 'community', 'club', 'church', 'foundation', 'venue', 'gallery', 'museum'],
+  },
+  {
+    blockType: 'menuPreview',
+    description: 'Sample menu items grouped by category. Use for restaurants / cafes / bars — pairs naturally with a "full menu" page link.',
+    validIntents: ['preview-the-menu', 'show-the-experience-sensorially'],
+    supportsVariantHint: ['twoColumn', 'categorizedCards', 'tastingMenu'],
+    industryHints: ['restaurant', 'bistro', 'cafe', 'bar', 'wine', 'whiskey', 'cocktail', 'bakery', 'patisserie', 'tasting', 'kitchen'],
+  },
+  {
+    blockType: 'reservationWidget',
+    description: 'Date / party-size form that submits to a booking engine. Use on hospitality + restaurant pages whose conversion goal is reservation.',
+    validIntents: ['capture-with-reservation', 'capture-with-availability-check'],
+    supportsVariantHint: ['inline', 'splitWithImage', 'fullBand'],
+    industryHints: ['restaurant', 'hotel', 'resort', 'villa', 'hospitality', 'tasting', 'fine dining', 'spa', 'salon', 'experience'],
+  },
+  {
+    blockType: 'locationMap',
+    description: 'Map embed + address card + directions CTA. Use for any business with physical locations — substitutes the generic contact page for local intent.',
+    validIntents: ['surface-location-and-directions'],
+    supportsVariantHint: ['splitCard', 'stackedCard', 'fullBanner'],
+    industryHints: ['local', 'retail', 'cafe', 'restaurant', 'gallery', 'clinic', 'spa', 'studio', 'gym', 'real estate', 'hotel', 'venue', 'office'],
+  },
+  {
+    blockType: 'serviceCalculator',
+    description: 'Interactive sliders / pickers that compute a price estimate. Use for consulting / freelance / agency pricing pages, or anywhere scope-based estimation reduces friction.',
+    validIntents: ['estimate-cost-or-scope'],
+    supportsVariantHint: ['sliderStack', 'questionSteps', 'cardPicker'],
+    industryHints: ['consulting', 'consultancy', 'freelance', 'agency', 'studio', 'developer', 'devtools', 'service', 'professional', 'advisory'],
+  },
+  {
+    blockType: 'brandTimeline',
+    description: 'Vertical / horizontal timeline of milestones from founding to today. Use on about / story pages for heritage brands or businesses 10+ years old.',
+    validIntents: ['show-evolution-or-craft', 'tell-the-founding-story'],
+    supportsVariantHint: ['verticalSpine', 'horizontalScroll', 'decadeBands'],
+    industryHints: ['heritage', 'legacy', 'family', 'estate', 'winery', 'whiskey', 'distillery', 'jeweler', 'jewelry', 'museum', 'institute', 'foundation', 'publisher'],
   },
 ]
 
@@ -203,6 +253,7 @@ Your output should:
 - Vary page count based on contentDepth (minimal = 3-4 pages, standard = 5-7, editorial = 7-12)
 - Re-order or omit pages based on what the brief actually justifies
 - Use page slugs that describe the function (not "menu" for a SaaS that has no menu; not "features" for a restaurant that has no features)
+- **Use industry-specific blocks** when the BMC industry matches. Each block in get_available_blocks may carry an \`industryHints\` array — substring-match it against the brief's industry. A cafe should use openingHoursWidget on its visit page; a Rotary club should use eventCalendarTeaser; a restaurant should use menuPreview and reservationWidget; a heritage brand should use brandTimeline on its about page. Do NOT use these niche blocks for unrelated industries — a SaaS does not get openingHoursWidget.
 
 # Output discipline
 

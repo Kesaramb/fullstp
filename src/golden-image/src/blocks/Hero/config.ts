@@ -20,6 +20,7 @@ export const Hero: Block = {
         { label: 'Spotlight Stage (cursor + glass card)', value: 'spotlightStage' },
         { label: 'Text Reveal Canvas (editorial split-text)', value: 'textRevealCanvas' },
         { label: 'Cinema Immersive (100vh full-bleed + Ken-Burns)', value: 'cinemaImmersive' },
+        { label: 'Book Search (publishing / library / discovery)', value: 'bookSearch' },
       ],
     },
     {

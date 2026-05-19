@@ -12,6 +12,7 @@ import { AgentInteractiveHero } from './AgentInteractive'
 import { SpotlightStageHero } from './SpotlightStage'
 import { TextRevealCanvasHero } from './TextRevealCanvas'
 import { CinemaImmersiveHero } from './CinemaImmersive'
+import { BookSearchHero } from './BookSearch'
 
 interface HeroBlockProps {
   block: {
@@ -44,6 +45,7 @@ const variants: Record<string, React.ComponentType<HeroBlockProps>> = {
   spotlightStage: SpotlightStageHero,
   textRevealCanvas: TextRevealCanvasHero,
   cinemaImmersive: CinemaImmersiveHero,
+  bookSearch: BookSearchHero,
 }
 
 export function HeroBlock({ block }: HeroBlockProps) {

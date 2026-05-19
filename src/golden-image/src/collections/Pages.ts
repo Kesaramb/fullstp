@@ -16,6 +16,14 @@ import { LogoCloud } from '../blocks/LogoCloud/config'
 import { Pricing } from '../blocks/Pricing/config'
 import { Process } from '../blocks/Process/config'
 import { PullQuote } from '../blocks/PullQuote/config'
+// PR-Industry-Blocks — vertical-specific blocks
+import { OpeningHoursWidget } from '../blocks/OpeningHoursWidget/config'
+import { EventCalendarTeaser } from '../blocks/EventCalendarTeaser/config'
+import { MenuPreview } from '../blocks/MenuPreview/config'
+import { ReservationWidget } from '../blocks/ReservationWidget/config'
+import { LocationMap } from '../blocks/LocationMap/config'
+import { ServiceCalculator } from '../blocks/ServiceCalculator/config'
+import { BrandTimeline } from '../blocks/BrandTimeline/config'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -63,6 +71,14 @@ export const Pages: CollectionConfig = {
         Pricing,
         Process,
         PullQuote,
+        // PR-Industry-Blocks
+        OpeningHoursWidget,
+        EventCalendarTeaser,
+        MenuPreview,
+        ReservationWidget,
+        LocationMap,
+        ServiceCalculator,
+        BrandTimeline,
       ],
       required: true,
     },

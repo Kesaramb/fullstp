@@ -62,6 +62,13 @@ export type SectionIntent =
   | 'closing-emotional-cta'
   | 'closing-direct-cta'
   | 'closing-with-faq'
+  // PR-Industry-Blocks intents — vertical-specific
+  | 'show-hours-of-operation'
+  | 'surface-upcoming-events'
+  | 'preview-the-menu'
+  | 'surface-location-and-directions'
+  | 'estimate-cost-or-scope'
+  | 'capture-with-availability-check'
 
 export interface SectionSpec {
   /** The block type that fulfills this intent. Layout Composer picks the variant. */

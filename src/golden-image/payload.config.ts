@@ -24,8 +24,14 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    components: {
+      graphics: {
+        Logo: '/src/components/admin/Logo#default',
+        Icon: '/src/components/admin/Icon#default',
+      },
+    },
     meta: {
-      titleSuffix: `— ${process.env.SITE_NAME || 'FullStop Site'}`,
+      titleSuffix: `— ${process.env.SITE_NAME || 'fullstp.com'}`,
     },
   },
 
