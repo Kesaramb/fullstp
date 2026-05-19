@@ -12,14 +12,22 @@ const SERVER_IP = process.env.DEPLOY_SERVER_IP || '167.86.81.161'
  *
  * "Paws & Claws" → "paws-and-claws"
  * "Bob's Pizza Place!" → "bobs-pizza-place"
+ * "Lab 24"       → "lab-24v"   (trailing letter — see below)
+ *
+ * nip.io's IP parser greedily consumes any trailing all-digit dash-segment
+ * as an IP octet (e.g. lab-24.167.86.81.161.nip.io resolves to 24.167.86.81,
+ * the wrong server). Append a non-digit when the slug ends in `<dash><digits>`
+ * or is purely numeric, so the numeric run is broken.
  */
 export function sanitizeSlug(name: string): string {
-  return name
+  let slug = name
     .toLowerCase()
     .replace(/&/g, 'and')
     .replace(/['']/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+  if (/(?:^|-)\d+$/.test(slug)) slug += 'v'
+  return slug
 }
 
 /**
