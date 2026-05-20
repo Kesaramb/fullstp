@@ -1554,7 +1554,7 @@ export class SwarmPipeline {
   // ── Persistence (shared between swarm and fallback paths) ──
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async persistBMC(payload: any, bmc: BMC, strategyHistory: any[], log: LogFn) {
+  private async persistBMC(payload: any, bmc: BMC, strategyHistory: any[], log: LogFn): Promise<{ id: number }> {
     log('Queen', `Strategy locked. BMC complete for ${bmc.businessName}.`, 'done')
     log('Queen', 'Saving BMC to database...', 'running')
 
@@ -1584,7 +1584,7 @@ export class SwarmPipeline {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async persistCustomer(payload: any, customer: { name?: string; email?: string }, bmcId: string, log: LogFn) {
+  private async persistCustomer(payload: any, customer: { name?: string; email?: string }, bmcId: number, log: LogFn): Promise<{ id: number } | null> {
     if (!customer.name || !customer.email) return null
 
     log('Factory', `Registering customer: ${customer.name}...`, 'running')
@@ -1628,9 +1628,9 @@ export class SwarmPipeline {
 
     if (!customerDoc) return null
 
-    const doc = customerDoc as { id: string }
+    const doc = customerDoc as { id: number }
     log('Factory', `Customer registered (ID: ${doc.id}).`, 'done')
-    return customerDoc
+    return doc
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1653,7 +1653,7 @@ export class SwarmPipeline {
       errorCode?: string
       errorDetail?: string
     },
-  ) {
+  ): Promise<{ id: number }> {
     // Strict seed gate: 'success' only when ALL pages and globals made it
     const expectedPages = contentPkg.pages.length
     const expectedGlobals = 3

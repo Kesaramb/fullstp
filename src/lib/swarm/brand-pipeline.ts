@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * BrandPipeline — orchestrates the brand identity generation process.
  *
@@ -6,6 +7,11 @@
  * the results to the BrandKits Payload collection.
  *
  * Emits `brand_complete` SSE event on success.
+ *
+ * Currently unimported (superseded by v3 agent-architect). Kept for future
+ * wire-up. Re-enable by removing @ts-nocheck and running
+ * `npm run generate:types` so the BrandKits collection appears in
+ * payload-types.ts.
  */
 
 import { getPayload } from 'payload'

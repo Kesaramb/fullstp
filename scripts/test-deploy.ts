@@ -40,12 +40,7 @@ async function main() {
     {
       domain,
       port,
-      adminEmail: 'admin@test-deploy-v2.co',
-      adminPassword: 'TestDeploy2024!',
-      siteName: 'Test Deploy V2',
-      dbName: 'admin_test_deploy_v2',
-      dbUser: 'admin_test_deploy_v2',
-      dbPassword: 'YxKmP9nQ3rLsWvT7',
+      payloadSecret: 'test-deploy-v2-secret-' + Date.now(),
       contentPackage,
     },
     (agent, text, status) => {
