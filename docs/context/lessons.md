@@ -75,3 +75,6 @@ Pre-seeded knowledge from architecture decisions and known gotchas. Updated as a
 - Always run `npm run verify` (generate:types → typecheck → lint → build → test) before committing any changes.
 - `@testing-library/react` v16 does not auto-cleanup in Vitest — add `afterEach(() => cleanup())` in `tests/setup.ts` explicitly.
 - For swarm-generated sites, prompt constraints alone are not enough for structural quality. Add deterministic post-generation guards for link targets and media field mapping so a bad LLM response cannot ship a broken CTA or silently drop images.
+- Git worktree hygiene: When working with multiple branches in worktrees, ensure all new files/directories (e.g. newly scaffolded blocks) are tracked (`git add`) and committed. Merging a branch without committing untracked files will merge their references (imports) while leaving the actual folders behind, causing fatal `module-not-found` build crashes on clean checkouts or remote deployments.
+- Stale Next.js build cache: Adding directories to the project structure can occasionally cause the Next.js/Webpack client compiler to fail with an obscure `TypeError: Cannot read properties of undefined (reading 'length')`. Deleting `.next/` and executing a clean build resolves this.
+

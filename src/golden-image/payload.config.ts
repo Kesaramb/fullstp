@@ -11,6 +11,8 @@ import sharp from 'sharp'
 import { Pages } from './src/collections/Pages'
 import { Media } from './src/collections/Media'
 import { Users } from './src/collections/Users'
+import { Posts } from './src/collections/Posts'
+import { Categories } from './src/collections/Categories'
 import { Header } from './src/globals/Header'
 import { Footer } from './src/globals/Footer'
 import { SiteSettings } from './src/globals/SiteSettings'
@@ -35,7 +37,7 @@ export default buildConfig({
     },
   },
 
-  collections: [Pages, Media, Users],
+  collections: [Pages, Media, Users, Posts, Categories],
 
   globals: [Header, Footer, SiteSettings],
 

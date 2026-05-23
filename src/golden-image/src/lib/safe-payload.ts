@@ -41,6 +41,25 @@ export async function safeFindPage(slug: string) {
 }
 
 /**
+ * Find a post by slug. Returns the post document or null on any failure.
+ */
+export async function safeFindPost(slug: string, options?: { draft?: boolean }) {
+  try {
+    const payload = await getSafePayload()
+    if (!payload) return null
+    const { docs } = await payload.find({
+      collection: 'posts',
+      where: { slug: { equals: slug } },
+      draft: options?.draft,
+      limit: 1,
+    })
+    return docs[0] || null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Read a global by slug. Returns the global document or null on any failure.
  */
 export async function safeFindGlobal(slug: string) {
