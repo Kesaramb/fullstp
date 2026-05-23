@@ -461,7 +461,7 @@ function ensureCompleteBrief(
     firstPrinciples: raw.firstPrinciples || fallbackFirstPrinciples(bmc),
     systemsMap: ensureSystemsMap(raw.systemsMap),
     pattern: ensurePattern(raw.pattern, archetype),
-    stressTest: raw.stressTest || fallbackStressTest(),
+    stressTest: ensureStressTest(raw.stressTest),
     alternativesConsidered: Array.isArray(raw.alternativesConsidered) ? raw.alternativesConsidered : [],
     recommendedExperiments: Array.isArray(raw.recommendedExperiments) ? raw.recommendedExperiments : [],
   }
@@ -514,6 +514,24 @@ function ensurePattern(raw: Partial<import('./strategy-v2').BusinessModelPattern
     rationale: raw.rationale || fallback.rationale,
     secondary: raw.secondary,
     implications: Array.isArray(raw.implications) ? raw.implications : fallback.implications,
+  }
+}
+
+function ensureStressDimension(raw: any): import('./strategy-v2').StressTestDimension {
+  return {
+    score: typeof raw?.score === 'number' ? raw.score : 3,
+    rationale: raw?.rationale || 'Insufficient data to assess',
+  }
+}
+
+function ensureStressTest(raw: Partial<StressTest> | undefined | null): StressTest {
+  if (!raw || typeof raw !== 'object') return fallbackStressTest()
+  return {
+    desirability: ensureStressDimension(raw.desirability),
+    feasibility: ensureStressDimension(raw.feasibility),
+    viability: ensureStressDimension(raw.viability),
+    defensibility: ensureStressDimension(raw.defensibility),
+    timing: ensureStressDimension(raw.timing),
   }
 }
 
