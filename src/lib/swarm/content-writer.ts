@@ -301,8 +301,19 @@ function parseJSON<T>(text: string): T {
   const jsonStr = cleaned.slice(start, end + 1)
   try {
     return JSON.parse(jsonStr) as T
-  } catch (err) {
-    const error = err as Error
+  } catch (firstErr) {
+    // The model occasionally emits unescaped double-quotes inside string
+    // values, e.g.  "body": "...ideal — "Service Above Self" — and..."
+    // This breaks JSON.parse. Attempt one structural repair pass before
+    // giving up: escape stray quotes that sit inside a string value.
+    try {
+      const repaired = repairUnescapedQuotes(jsonStr)
+      return JSON.parse(repaired) as T
+    } catch {
+      // Repair failed too — fall through to original error reporting.
+    }
+
+    const error = firstErr as Error
     const match = error.message.match(/position (\d+)/)
     let context = ''
     if (match) {
@@ -317,10 +328,82 @@ function parseJSON<T>(text: string): T {
       if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
       fs.writeFileSync(path.join(tmpDir, 'failed-json-writer.txt'), text)
       console.error(`[parseJSON Error] Wrote failed JSON to .tmp/failed-json-writer.txt`)
-    } catch (e) {
+    } catch {
       // ignore
     }
     throw error
   }
+}
+
+/**
+ * Escape double-quotes that appear *inside* JSON string values.
+ *
+ * Walks the text char-by-char tracking whether we're inside a string. A `"`
+ * that opens/closes a string is one whose surrounding non-space char is a
+ * JSON structural token (`:` `,` `{` `[` `}` `]`) — those are left alone.
+ * Any other `"` encountered while inside a string is a stray inner quote and
+ * gets escaped to `\"`.
+ *
+ * This is a best-effort repair for the common LLM mistake of embedding an
+ * unescaped quoted phrase in prose (e.g. — "Service Above Self" —). It is not
+ * a general JSON fixer; if it can't produce valid JSON the caller falls back.
+ */
+function repairUnescapedQuotes(jsonStr: string): string {
+  const out: string[] = []
+  let inString = false
+
+  const prevSignificant = (i: number): string => {
+    for (let j = i - 1; j >= 0; j--) {
+      if (jsonStr[j] !== ' ' && jsonStr[j] !== '\n' && jsonStr[j] !== '\r' && jsonStr[j] !== '\t') {
+        return jsonStr[j]
+      }
+    }
+    return ''
+  }
+  const nextSignificant = (i: number): string => {
+    for (let j = i + 1; j < jsonStr.length; j++) {
+      if (jsonStr[j] !== ' ' && jsonStr[j] !== '\n' && jsonStr[j] !== '\r' && jsonStr[j] !== '\t') {
+        return jsonStr[j]
+      }
+    }
+    return ''
+  }
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i]
+
+    if (ch === '\\' && inString) {
+      // Preserve existing escape sequences verbatim (e.g. \" \n \\).
+      out.push(ch, jsonStr[i + 1] ?? '')
+      i++
+      continue
+    }
+
+    if (ch === '"') {
+      if (!inString) {
+        inString = true
+        out.push(ch)
+      } else {
+        // Inside a string: is this the real closing quote or a stray inner one?
+        const next = nextSignificant(i)
+        const isStructuralBoundary =
+          next === ',' || next === '}' || next === ']' || next === ':' || next === ''
+        const prev = prevSignificant(i)
+        // A closing quote of a key is followed by ':'; of a value by ',' '}' ']'.
+        if (isStructuralBoundary && prev !== '\\') {
+          inString = false
+          out.push(ch)
+        } else {
+          // Stray quote inside a value — escape it.
+          out.push('\\"')
+        }
+      }
+      continue
+    }
+
+    out.push(ch)
+  }
+
+  return out.join('')
 }
 
