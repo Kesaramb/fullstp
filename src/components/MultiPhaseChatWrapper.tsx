@@ -4,16 +4,24 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import MultiPhaseChat from './MultiPhaseChat'
 
-function ChatWithParams() {
-  const params = useSearchParams()
-  const initial = params.get('initial') ?? undefined
-  return <MultiPhaseChat prefilledInitial={initial} />
+interface SignedInCustomer {
+  id: string | number
+  name: string
+  email: string
 }
 
-export default function MultiPhaseChatWrapper() {
+function ChatWithParams({ signedInCustomer }: { signedInCustomer: SignedInCustomer | null }) {
+  const params = useSearchParams()
+  const initial = params.get('initial') ?? undefined
+  return <MultiPhaseChat prefilledInitial={initial} signedInCustomer={signedInCustomer ?? undefined} />
+}
+
+export default function MultiPhaseChatWrapper({
+  signedInCustomer = null,
+}: { signedInCustomer?: SignedInCustomer | null } = {}) {
   return (
     <Suspense>
-      <ChatWithParams />
+      <ChatWithParams signedInCustomer={signedInCustomer} />
     </Suspense>
   )
 }

@@ -173,8 +173,10 @@ export function SiteShell({
   const pathname = usePathname()
   const rawNav = navLinks.length > 0 ? navLinks : defaultNav
   // Deduplicate: remove nav links whose label AND url match the CTA button
-  const nav = ctaButton?.label && ctaButton?.url
-    ? rawNav.filter(link => !(link.label === ctaButton.label && normalizePath(link.url) === normalizePath(ctaButton.url)))
+  const ctaUrl = ctaButton?.url
+  const ctaLabel = ctaButton?.label
+  const nav = ctaLabel && ctaUrl
+    ? rawNav.filter(link => !(link.label === ctaLabel && normalizePath(link.url) === normalizePath(ctaUrl)))
     : rawNav
   const displayName = brandLabel || siteName
   const currentPath = normalizePath(pathname || '/')
@@ -216,7 +218,7 @@ export function SiteShell({
       <StickyHeader
         displayName={displayName}
         nav={nav}
-        ctaButton={ctaButton}
+        ctaButton={ctaButton?.label && ctaButton?.url ? { label: ctaButton.label, url: ctaButton.url } : null}
         currentPath={currentPath}
         menuOpen={menuOpen}
         setMenuOpen={setMenuOpen}

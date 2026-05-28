@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles, Zap, TrendingUp } from 'lucide-react'
+import { Sparkles, Zap, TrendingUp, ArrowRight } from 'lucide-react'
 import { PremiumButton } from '../../components/ui/PremiumButton'
 import { fadeInUp, staggerContainer, staggerItem } from '../../lib/animations'
 

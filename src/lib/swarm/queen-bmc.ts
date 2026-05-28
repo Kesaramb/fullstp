@@ -78,6 +78,26 @@ Your role: take a sparse business brief and derive a strategically coherent BMC-
 - service-with-retainer: service business with recurring retainer (consultancy, agency)
 - beyond-profit: mission-driven, third-party funded, social enterprise
 
+## Business Archetypes (pick exactly one)
+- **saas**: software-as-a-service, platforms, devtools, APIs, B2B apps. Recurring software subscription is the revenue logic.
+- **service**: professional services, consulting, agencies (when not creative-craft-led), advisors, legal, accounting, B2B services. Bills for expertise or outcomes. NOT healthcare (use \`healthcare\`), NOT education (use \`education\`).
+- **product**: physical goods sold once or repeatedly — DTC brands, ecommerce, packaged consumer goods, beauty, apparel, jewelry, food products.
+- **experience**: HOSPITALITY ONLY. Restaurants, cafes, bars, hotels, resorts, spas, galleries — businesses you visit FOR the atmosphere/menu. NOT clinical, NOT professional services, NOT health. If the user can't book a "table" or "stay" or "tasting," this is the wrong archetype.
+- **creative**: agencies, studios, freelancers, portfolios, photographers, artists, designers. Sell craft + creative output.
+- **local**: small-footprint local businesses — bakery, florist, salon, gym, neighborhood retail. Tightly geographic, walk-in or short-radius customer base.
+- **healthcare**: hospitals, clinics, dental, veterinary, physiotherapy, mental health, wellness clinics, medical practices. Trust + clinical credibility lead the message; conversion is "book appointment" / "consultation." Use this INSTEAD OF \`service\` for any clinical or medical business.
+- **civic**: nonprofits, foundations, community organizations, clubs (Rotary, Lions), charities, religious orgs, member organizations. Mission-led; conversion is "donate / volunteer / attend / become a member." Calendar and events are usually central.
+- **education**: schools, training programs, courses, bootcamps, academies, universities, tutoring. Conversion is "apply / enrol / request info." Programs/faculty/outcomes structure the site.
+
+**Tiebreaker rules** (apply in order):
+1. Anything medical/clinical/health/dental/veterinary → \`healthcare\`. Always.
+2. Anything nonprofit/civic/community/charity/foundation/club → \`civic\`. Always.
+3. Anything school/course/training/academy/bootcamp → \`education\`. Always.
+4. If the business sells expertise that bills by hour/project/retainer → \`service\`.
+5. If the business is a place customers visit FOR a meal, drink, stay, or curated atmosphere → \`experience\`.
+6. If the business sells a physical thing customers take home → \`product\`.
+7. When unsure between \`service\` and \`experience\`: \`service\` is the safer default. Wrong-direction \`experience\` ships restaurant chrome (Menu nav, Reserve Now CTA) to non-hospitality tenants.
+
 ## Brand Persona Archetypes (Jungian — pick one)
 sage, hero, creator, caregiver, ruler, jester, lover, everyman, rebel, magician, innocent, explorer
 
@@ -149,7 +169,7 @@ Call the \`submit_strategy_brief\` tool exactly once with the full StrategyBrief
 // guarantee well-formed JSON. Enum constraints are listed for fields where
 // downstream code requires a specific value.
 
-const ARCHETYPE_ENUM = ['saas', 'service', 'product', 'experience', 'creative', 'local']
+const ARCHETYPE_ENUM = ['saas', 'service', 'product', 'experience', 'creative', 'local', 'healthcare', 'civic', 'education']
 const BRAND_PERSONA_ENUM = ['sage', 'hero', 'creator', 'caregiver', 'ruler', 'jester', 'lover', 'everyman', 'rebel', 'magician', 'innocent', 'explorer']
 const CONVERSION_GOAL_ENUM = ['free-trial', 'demo-booking', 'purchase', 'subscription', 'inquiry', 'reservation', 'application', 'donation', 'newsletter', 'visit']
 const OFFER_MATURITY_ENUM = ['pre-launch', 'early-stage', 'established', 'enterprise']
@@ -404,11 +424,17 @@ Run the BMC Thinking workflow and output a complete StrategyBriefV2 JSON. Be spe
 
 function inferArchetype(industry: string): StrategyBriefV2['archetype'] {
   const ind = (industry || '').toLowerCase()
-  if (/saas|software|platform|app|api/.test(ind)) return 'saas'
-  if (/restaurant|cafe|bar|spa|hotel|gallery/.test(ind)) return 'experience'
-  if (/agency|design|studio|portfolio|art|photo/.test(ind)) return 'creative'
-  if (/bakery|salon|gym|florist|local/.test(ind)) return 'local'
-  if (/candle|soap|skincare|clothing|jewelry|product/.test(ind)) return 'product'
+  // ── Order matters: most specific first. ──
+  // Healthcare / civic / education each have their own archetype now; they
+  // must match BEFORE generic patterns or they'll be miscategorised.
+  if (/hospital|clinic|medical|health|dental|dentist|doctor|surgeon|physio|chiropract|veterinar|vet\b|pharmac|mental health|wellness clinic|psycholog|psychiatr|optom/.test(ind)) return 'healthcare'
+  if (/nonprofit|non-profit|charity|foundation|civic|community organi[sz]ation|rotary|lions club|kiwanis|church|temple|mosque|synagogue|congregation|volunteer|grassroots/.test(ind)) return 'civic'
+  if (/school|college|university|academy|bootcamp|training program|course|tutoring|education|institute of/.test(ind)) return 'education'
+  if (/saas|software|platform|app|api|devtools|developer tools/.test(ind)) return 'saas'
+  if (/restaurant|cafe|bistro|bar|spa|hotel|resort|gallery|tasting|winery/.test(ind)) return 'experience'
+  if (/agency|design|studio|portfolio|art|photo|creative/.test(ind)) return 'creative'
+  if (/bakery|salon|gym|florist|local|neighborhood/.test(ind)) return 'local'
+  if (/candle|soap|skincare|clothing|jewelry|product|ecommerce|d2c|dtc/.test(ind)) return 'product'
   return 'service'
 }
 
@@ -461,7 +487,7 @@ function ensureCompleteBrief(
     firstPrinciples: raw.firstPrinciples || fallbackFirstPrinciples(bmc),
     systemsMap: ensureSystemsMap(raw.systemsMap),
     pattern: ensurePattern(raw.pattern, archetype),
-    stressTest: raw.stressTest || fallbackStressTest(),
+    stressTest: ensureStressTest(raw.stressTest),
     alternativesConsidered: Array.isArray(raw.alternativesConsidered) ? raw.alternativesConsidered : [],
     recommendedExperiments: Array.isArray(raw.recommendedExperiments) ? raw.recommendedExperiments : [],
   }
@@ -514,6 +540,24 @@ function ensurePattern(raw: Partial<import('./strategy-v2').BusinessModelPattern
     rationale: raw.rationale || fallback.rationale,
     secondary: raw.secondary,
     implications: Array.isArray(raw.implications) ? raw.implications : fallback.implications,
+  }
+}
+
+function ensureStressDimension(raw: any): import('./strategy-v2').StressTestDimension {
+  return {
+    score: typeof raw?.score === 'number' ? raw.score : 3,
+    rationale: raw?.rationale || 'Insufficient data to assess',
+  }
+}
+
+function ensureStressTest(raw: Partial<StressTest> | undefined | null): StressTest {
+  if (!raw || typeof raw !== 'object') return fallbackStressTest()
+  return {
+    desirability: ensureStressDimension(raw.desirability),
+    feasibility: ensureStressDimension(raw.feasibility),
+    viability: ensureStressDimension(raw.viability),
+    defensibility: ensureStressDimension(raw.defensibility),
+    timing: ensureStressDimension(raw.timing),
   }
 }
 
@@ -582,6 +626,9 @@ function fallbackPattern(archetype: StrategyBriefV2['archetype']): BusinessModel
     experience: 'transactional',
     creative:   'service-with-retainer',
     local:      'transactional',
+    healthcare: 'service-with-retainer',  // recurring patient relationship
+    civic:      'beyond-profit',          // mission-driven, third-party funded
+    education:  'transactional',          // tuition per program (subscription for ongoing courses, but transactional is closer for the average case)
   }
   return {
     primary: map[archetype],

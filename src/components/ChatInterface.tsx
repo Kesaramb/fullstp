@@ -132,6 +132,7 @@ async function streamOperations(
   const response = await fetch('/api/swarm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ mode: 'operations', messages, deploymentId }),
   })
 

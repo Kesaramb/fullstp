@@ -1,11 +1,14 @@
 /**
  * Domain name sanitization and generation for tenant provisioning.
  *
- * Since fullstp.com DNS is not yet configured, we use the server's IP
- * with nip.io for automatic wildcard DNS resolution.
+ * Tenants live as subdomains of fullstp.com (wildcard *.fullstp.com → server,
+ * proxied through Cloudflare, which provides edge SSL for one level of
+ * wildcard automatically — no per-tenant DNS calls needed). Override via
+ * TENANT_BASE_DOMAIN to fall back to nip.io (e.g. for local/e2e testing).
  */
 
-const SERVER_IP = process.env.DEPLOY_SERVER_IP || '167.86.81.161'
+const TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN || 'fullstp.com'
+const IS_NIP_IO = TENANT_BASE_DOMAIN.includes('nip.io')
 
 /**
  * Sanitize a business name into a valid domain-safe slug.
@@ -26,17 +29,19 @@ export function sanitizeSlug(name: string): string {
     .replace(/['']/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-  if (/(?:^|-)\d+$/.test(slug)) slug += 'v'
+  // nip.io's IP parser greedily consumes a trailing all-digit dash-segment as
+  // an IP octet; break it with a letter. Real domains (fullstp.com) don't need this.
+  if (IS_NIP_IO && /(?:^|-)\d+$/.test(slug)) slug += 'v'
   return slug
 }
 
 /**
- * Generate the tenant domain using nip.io for automatic DNS resolution.
- * e.g., "paws-and-claws.167.86.81.161.nip.io"
+ * Generate the tenant domain.
+ * e.g., "paws-and-claws.fullstp.com" (or "<slug>.<ip>.nip.io" when overridden).
  */
 export function generateDomain(businessName: string): string {
   const slug = sanitizeSlug(businessName)
-  return `${slug}.${SERVER_IP}.nip.io`
+  return `${slug}.${TENANT_BASE_DOMAIN}`
 }
 
 /**
@@ -53,13 +58,16 @@ export function generateDomain(businessName: string): string {
 export function generateUniqueDomain(businessName: string, usedDomains: string[]): string {
   const used = new Set(usedDomains)
   const baseSlug = sanitizeSlug(businessName)
-  const base = `${baseSlug}.${SERVER_IP}.nip.io`
+  const base = `${baseSlug}.${TENANT_BASE_DOMAIN}`
   if (!used.has(base)) return base
+  // nip.io needs a `v`-prefixed numeric suffix (its IP parser treats a bare
+  // digit-after-dash as an octet); real domains can use a plain numeric suffix.
+  const sep = IS_NIP_IO ? '-v' : '-'
   for (let n = 2; n <= 99; n++) {
-    const candidate = `${baseSlug}-v${n}.${SERVER_IP}.nip.io`
+    const candidate = `${baseSlug}${sep}${n}.${TENANT_BASE_DOMAIN}`
     if (!used.has(candidate)) return candidate
   }
-  throw new Error(`No available domain slug for "${businessName}" (tried base + -v2..-v99)`)
+  throw new Error(`No available domain slug for "${businessName}" (tried base + 2..99)`)
 }
 
 /**

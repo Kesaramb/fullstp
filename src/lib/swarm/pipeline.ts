@@ -38,6 +38,7 @@ import type { StrategyBriefV2 } from './strategy-v2'
 import { planPages, type PageSpec } from './information-architect'
 import { AgentArchitect } from './agent-architect'
 import { composeAllPages } from './layout-composer'
+import { annotatePagesWithComponents } from './component-curator'
 import { MOODS } from './moods'
 import { generateDomain, generateUniqueDomain } from '@/lib/deploy/domain'
 import { deployTenantViaBridge, getUsedDomains, getUsedPorts, isDeploymentConfigured } from '@/lib/deploy/bridge'
@@ -56,8 +57,10 @@ export class SwarmPipeline {
   private uiArchitect: UIArchitectWorker
   private payloadExpert: PayloadExpertWorker
   private memory: SharedMemory
+  private apiKey: string  // Component-Registry — needed by curator's batched tie-break call
 
   constructor(apiKey: string) {
+    this.apiKey = apiKey
     this.queen = new QueenAgent(apiKey)
     this.bmcQueen = new BMCQueenAgent(apiKey)
     this.agentArchitect = new AgentArchitect(apiKey)
@@ -70,7 +73,7 @@ export class SwarmPipeline {
 
   async run(
     bmc: BMC,
-    customer: { name?: string; email?: string },
+    customer: { id?: string | number; name?: string; email?: string },
     strategyHistory: { role: string; content: string }[],
     log: LogFn,
     emit: (event: string, data: Record<string, unknown>) => void
@@ -96,7 +99,7 @@ export class SwarmPipeline {
     const payload = await getPayload({ config })
 
     // ── Stage 1: Persist BMC + Customer ──
-    const bmcDoc = await this.persistBMC(payload, bmc, strategyHistory, trackedLog)
+    const bmcDoc = await this.persistBMC(payload, bmc, strategyHistory, trackedLog, customer.id)
     const customerDoc = await this.persistCustomer(payload, customer, bmcDoc.id, trackedLog)
 
     // ── Generate content: Swarm (primary) or Fallback (safety net) ──
@@ -261,9 +264,28 @@ export class SwarmPipeline {
       const customerData = (sshConfigured && allSeeded)
         ? { phase: 'operational' as const, deployment: deploymentDoc.id }
         : { deployment: deploymentDoc.id } // partial/failed seed or simulated: stay at 'building'
-      await payload.update({ collection: 'customers', id: customerDoc.id, data: customerData })
+      await payload.update({ collection: 'customers', id: customerDoc.id, data: customerData, overrideAccess: true })
       if (sshConfigured && !allSeeded) {
         trackedLog('Factory', `Partial seed (${pSeeded} pages, ${gSeeded} globals) — customer stays in building phase.`, 'error')
+      }
+    }
+
+    // ── Logo: push the customer's uploaded logo to the tenant's Media
+    // collection and wire the Header.logo global. Non-blocking. ──
+    if (bmc.logoUrl && deployResult?.adminEmail && deployResult?.adminPassword) {
+      try {
+        trackedLog('Factory', 'Uploading logo to your site...', 'running')
+        const ok = await uploadLogoToTenant({
+          tenantDomain: domain,
+          adminEmail: deployResult.adminEmail,
+          adminPassword: deployResult.adminPassword,
+          logoUrl: bmc.logoUrl,
+          businessName: bmc.businessName,
+        })
+        trackedLog('Factory', ok ? 'Logo wired to site header.' : 'Logo upload skipped (non-fatal).', ok ? 'done' : 'error')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        trackedLog('Factory', `Logo upload failed: ${msg}`, 'error')
       }
     }
 
@@ -487,13 +509,8 @@ export class SwarmPipeline {
       palette: designBrief.palette,
       fontPairing: designBrief.fontPairing,
       borderRadius: designBrief.borderRadius,
-      // Archetype-aware nav labels
-      nav_2_label: archetypeConfig.navLinks[1]?.label || 'Services',
-      nav_2_url: archetypeConfig.navLinks[1]?.url || '/services',
-      nav_3_label: archetypeConfig.navLinks[2]?.label || 'About',
-      nav_3_url: archetypeConfig.navLinks[2]?.url || '/about',
-      nav_4_label: archetypeConfig.navLinks[3]?.label || 'Contact',
-      nav_4_url: archetypeConfig.navLinks[3]?.url || '/contact',
+      // Nav from the actual pages this tenant built (not archetype defaults)
+      ...buildNavFromPages(Object.keys(presetMap), archetypeConfig),
       cta_label: archetypeConfig.headerCta.label,
       cta_url: archetypeConfig.headerCta.url,
       footer_description: bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
@@ -552,6 +569,19 @@ export class SwarmPipeline {
     if (!designBrief.mood) {
       throw new Error('DesignDirector returned no mood — falling back')
     }
+
+    // 3b. Component Curator — annotate sections with confident componentIds
+    //     from the registry. Tie-breaks resolve in ONE batched Claude call.
+    //     Fallbacks (no manifest match or sub-floor score) leave componentId
+    //     undefined and the legacy pickXVariant path drives — pre-registry
+    //     behavior is preserved end-to-end. Catches its own errors.
+    await annotatePagesWithComponents({
+      pages,
+      bmc,
+      mood: designBrief.mood,
+      apiKey: this.apiKey,
+      log,
+    })
 
     // 4. Layout Composer — turn PageSpec[] + mood into fillable PagePresets
     const composed = composeAllPages({ pages, moodSlug: designBrief.mood })
@@ -673,12 +703,8 @@ export class SwarmPipeline {
       palette: designBrief.palette,
       fontPairing: designBrief.fontPairing,
       borderRadius: designBrief.borderRadius,
-      nav_2_label: archetypeConfig.navLinks[1]?.label || 'Services',
-      nav_2_url: archetypeConfig.navLinks[1]?.url || '/services',
-      nav_3_label: archetypeConfig.navLinks[2]?.label || 'About',
-      nav_3_url: archetypeConfig.navLinks[2]?.url || '/about',
-      nav_4_label: archetypeConfig.navLinks[3]?.label || 'Contact',
-      nav_4_url: archetypeConfig.navLinks[3]?.url || '/contact',
+      // Nav from the actual pages this tenant built (not archetype defaults)
+      ...buildNavFromPages(pages.map(p => p.slug), archetypeConfig),
       cta_label: briefV2.primaryCtaCopy || archetypeConfig.headerCta.label,
       cta_url: archetypeConfig.headerCta.url,
       footer_description: briefV2.uniqueSellingPoint || bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
@@ -810,12 +836,8 @@ export class SwarmPipeline {
       palette: designBrief.palette,
       fontPairing: designBrief.fontPairing,
       borderRadius: designBrief.borderRadius,
-      nav_2_label: archetypeConfig.navLinks[1]?.label || 'Services',
-      nav_2_url: archetypeConfig.navLinks[1]?.url || '/services',
-      nav_3_label: archetypeConfig.navLinks[2]?.label || 'About',
-      nav_3_url: archetypeConfig.navLinks[2]?.url || '/about',
-      nav_4_label: archetypeConfig.navLinks[3]?.label || 'Contact',
-      nav_4_url: archetypeConfig.navLinks[3]?.url || '/contact',
+      // Nav from the actual pages this tenant built (not archetype defaults)
+      ...buildNavFromPages(Object.keys(pageValues), archetypeConfig),
       cta_label: archetypeConfig.headerCta.label,
       cta_url: archetypeConfig.headerCta.url,
       footer_description: bmc.valueProposition || `${bmc.businessName} — ${bmc.industry}`,
@@ -859,6 +881,19 @@ export class SwarmPipeline {
       brandPersona,
       isDarkMood,
     })
+
+    // ── Logo-derived palette override ──
+    // When the customer uploaded a logo, our vision-extracted brand colors
+    // override the mood-derived primary/accent. Backgrounds + text stay
+    // mood-driven so light/dark variants still work coherently.
+    if (bmc.logoColors?.primary) {
+      palette['--color-primary'] = bmc.logoColors.primary
+      palette['--color-primary-light'] = lightenHex(bmc.logoColors.primary, 0.18)
+    }
+    if (bmc.logoColors?.accent) {
+      palette['--color-accent'] = bmc.logoColors.accent
+      palette['--color-accent-light'] = lightenHex(bmc.logoColors.accent, 0.18)
+    }
     const fonts = computeFonts({
       businessName: bmc.businessName,
       brandPersona,
@@ -981,6 +1016,59 @@ export class SwarmPipeline {
         break
       case 'pullQuote':
         setIfEmpty('pullquote_quote', `${name} — built with care.`)
+        break
+      case 'serviceCalculator': {
+        setIfEmpty('calc_heading', 'Estimate your project')
+        setIfEmpty('calc_subheading', `Adjust the sliders for a rough ${name} estimate.`)
+        setIfEmpty('calc_eyebrow', 'Calculator')
+        const labelDefaults = ['Quantity', 'Hours', 'Distance']
+        const unitDefaults = ['units', 'hrs', 'km']
+        for (let i = 1; i <= 3; i++) {
+          setIfEmpty(`calc_input_${i}_label`, labelDefaults[i - 1] || `Input ${i}`)
+          setIfEmpty(`calc_input_${i}_unit`, unitDefaults[i - 1] || '')
+        }
+        setIfEmpty('calc_disclaimer', 'Estimate only. Final quote may vary.')
+        setIfEmpty('calc_cta_label', 'Get an exact quote')
+        setIfEmpty('calc_cta_link', '/contact')
+        break
+      }
+      case 'banner':
+        setIfEmpty('banner_content', `Welcome to ${name}.`)
+        break
+      case 'brandTimeline':
+        setIfEmpty('timeline_heading', `${name} Through the Years`)
+        for (let i = 1; i <= 4; i++) {
+          setIfEmpty(`timeline_event_${i}_year`, String(new Date().getFullYear() - (4 - i)))
+          setIfEmpty(`timeline_event_${i}_title`, `Milestone ${i}`)
+        }
+        break
+      case 'eventCalendarTeaser':
+        setIfEmpty('events_heading', `What's on at ${name}`)
+        for (let i = 1; i <= 3; i++) {
+          setIfEmpty(`event_${i}_title`, `Event ${i}`)
+          setIfEmpty(`event_${i}_start_date`, new Date().toISOString().slice(0, 10))
+        }
+        break
+      case 'locationMap':
+        for (let i = 1; i <= 2; i++) {
+          setIfEmpty(`location_${i}_name`, i === 1 ? name : `Location ${i}`)
+          setIfEmpty(`location_${i}_address_line_1`, 'Address coming soon')
+        }
+        break
+      case 'menuPreview':
+        for (let i = 1; i <= 3; i++) {
+          setIfEmpty(`menu_section_${i}_name`, `Section ${i}`)
+        }
+        break
+      case 'openingHoursWidget': {
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        for (let i = 1; i <= 7; i++) {
+          setIfEmpty(`hours_day_${i}`, days[i - 1])
+        }
+        break
+      }
+      case 'reservationWidget':
+        setIfEmpty('reservation_heading', `Reserve a spot at ${name}`)
         break
     }
   }
@@ -1554,11 +1642,11 @@ export class SwarmPipeline {
   // ── Persistence (shared between swarm and fallback paths) ──
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async persistBMC(payload: any, bmc: BMC, strategyHistory: any[], log: LogFn): Promise<{ id: number }> {
+  private async persistBMC(payload: any, bmc: BMC, strategyHistory: any[], log: LogFn, ownerId?: string | number): Promise<{ id: number }> {
     log('Queen', `Strategy locked. BMC complete for ${bmc.businessName}.`, 'done')
     log('Queen', 'Saving BMC to database...', 'running')
 
-    const bmcData = {
+    const bmcData: Record<string, unknown> = {
       businessName: bmc.businessName,
       industry: bmc.industry,
       tagline: bmc.tagline || '',
@@ -1568,23 +1656,47 @@ export class SwarmPipeline {
       brandMood: bmc.brandMood || '',
       rawStrategyConversation: strategyHistory,
     }
+    if (ownerId) bmcData.owner = ownerId
+    if (bmc.logoUrl) bmcData.logoUrl = bmc.logoUrl
+    if (bmc.logoColors) bmcData.logoColors = bmc.logoColors
+
+    const ownerScopedWhere = ownerId
+      ? { and: [{ owner: { equals: ownerId } }, { businessName: { equals: bmc.businessName } }, { industry: { equals: bmc.industry } }] }
+      : { and: [{ businessName: { equals: bmc.businessName } }, { industry: { equals: bmc.industry } }] }
 
     const { docs: existing } = await payload.find({
       collection: 'bmcs',
-      where: { and: [{ businessName: { equals: bmc.businessName } }, { industry: { equals: bmc.industry } }] },
+      where: ownerScopedWhere,
+      overrideAccess: true,
       limit: 1, sort: '-createdAt',
     })
 
     const bmcDoc = existing[0]
-      ? await payload.update({ collection: 'bmcs', id: existing[0].id, data: bmcData })
-      : await payload.create({ collection: 'bmcs', data: bmcData })
+      ? await payload.update({ collection: 'bmcs', id: existing[0].id, data: bmcData, overrideAccess: true })
+      : await payload.create({ collection: 'bmcs', data: bmcData, overrideAccess: true })
 
     log('Queen', `BMC saved (ID: ${bmcDoc.id}).`, 'done')
     return bmcDoc
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async persistCustomer(payload: any, customer: { name?: string; email?: string }, bmcId: number, log: LogFn): Promise<{ id: number } | null> {
+  private async persistCustomer(payload: any, customer: { id?: string | number; name?: string; email?: string }, bmcId: number, log: LogFn): Promise<{ id: number } | null> {
+    // Fast path: customer already exists from auth signup. Just link the BMC and bump phase.
+    if (customer.id) {
+      try {
+        const updated = await payload.update({
+          collection: 'customers',
+          id: customer.id,
+          overrideAccess: true,
+          data: { phase: 'building', bmc: bmcId },
+        })
+        log('Factory', `Customer linked (ID: ${updated.id}).`, 'done')
+        return updated
+      } catch (err) {
+        log('Factory', `Customer update failed: ${(err as Error).message.slice(0, 150)}.`, 'error')
+        return null
+      }
+    }
     if (!customer.name || !customer.email) return null
 
     log('Factory', `Registering customer: ${customer.name}...`, 'running')
@@ -1607,7 +1719,7 @@ export class SwarmPipeline {
 
     const findResult = await withTimeout(
       'Customer lookup',
-      payload.find({ collection: 'customers', where: { email: { equals: customer.email } }, limit: 1 }),
+      payload.find({ collection: 'customers', where: { email: { equals: customer.email } }, limit: 1, overrideAccess: true }),
       8000,
     )
     if (!findResult) return null
@@ -1617,12 +1729,12 @@ export class SwarmPipeline {
     const customerDoc = existing[0]
       ? await withTimeout(
           'Customer update',
-          payload.update({ collection: 'customers', id: existing[0].id, data: { phase: 'building', bmc: bmcId } }),
+          payload.update({ collection: 'customers', id: existing[0].id, data: { phase: 'building', bmc: bmcId }, overrideAccess: true }),
           8000,
         )
       : await withTimeout(
           'Customer create',
-          payload.create({ collection: 'customers', data: { name: customer.name, email: customer.email, phase: 'building', bmc: bmcId } }),
+          payload.create({ collection: 'customers', data: { name: customer.name, email: customer.email, phase: 'building', bmc: bmcId }, overrideAccess: true }),
           8000,
         )
 
@@ -1664,7 +1776,7 @@ export class SwarmPipeline {
       : (status === 'simulated' ? 'skipped' : 'pending')
     const protocol = bridgeMeta?.sslEnabled ? 'https' : 'http'
     const data: Record<string, unknown> = {
-      domain, port, status, customer: customerId || undefined, bmc: bmcId,
+      domain, port, status, customer: customerId || undefined, owner: customerId || undefined, bmc: bmcId,
       siteUrl: `${protocol}://${domain}`, adminUrl: `${protocol}://${domain}/admin`,
       pagesCreated: contentPkg.pages.map(p => ({ slug: p.slug, title: p.title })),
       buildLogs, seedStatus, ...(pagesSeeded !== undefined && { pagesSeeded }),
@@ -1682,17 +1794,183 @@ export class SwarmPipeline {
     }
 
     const { docs: existing } = await payload.find({
-      collection: 'deployments', where: { domain: { equals: domain } }, limit: 1,
+      collection: 'deployments', where: { domain: { equals: domain } }, limit: 1, overrideAccess: true,
     })
 
     return existing[0]
-      ? await payload.update({ collection: 'deployments', id: existing[0].id, data })
-      : await payload.create({ collection: 'deployments', data })
+      ? await payload.update({ collection: 'deployments', id: existing[0].id, data, overrideAccess: true })
+      : await payload.create({ collection: 'deployments', data, overrideAccess: true })
   }
 }
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * Title-case a page slug for use as a nav label.
+ * "about" → "About", "our-story" → "Our Story", "case-studies" → "Case Studies"
+ */
+function navLabelFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map(w => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ')
+}
+
+/**
+ * Build the nav_{2,3,4}_{label,url} map from the actual pages the architect
+ * built for this tenant — NOT from the archetype's hardcoded default nav. This
+ * fixes the long-standing bug where e.g. a hospital classified as `experience`
+ * archetype would ship with "Menu" in its nav even though no menu page exists.
+ *
+ * The home page is excluded (it's always nav_1, hardcoded as "Home" → "/").
+ * If the architect built fewer than 3 non-home pages, the remaining nav slots
+ * fall back to the archetype default — but in practice every archetype produces
+ * at least 4 pages so this is rare.
+ *
+ * Source of truth: pageSlugs come from the same list that drives page seeding,
+ * so the nav can never point to a slug that wasn't built.
+ */
+function buildNavFromPages(
+  pageSlugs: string[],
+  archetypeFallback: { navLinks: { label: string; url: string }[] },
+): Record<string, string> {
+  // Skip home / root; take the first 3 in declaration order
+  const nonHome = pageSlugs.filter(s => s !== 'home' && s !== '' && s !== '/').slice(0, 3)
+  const out: Record<string, string> = {}
+  for (let i = 0; i < 3; i++) {
+    const slot = i + 2 // nav_2, nav_3, nav_4
+    const slug = nonHome[i]
+    if (slug) {
+      out[`nav_${slot}_label`] = navLabelFromSlug(slug)
+      out[`nav_${slot}_url`] = `/${slug}`
+    } else {
+      out[`nav_${slot}_label`] = archetypeFallback.navLinks[slot - 1]?.label || 'Contact'
+      out[`nav_${slot}_url`] = archetypeFallback.navLinks[slot - 1]?.url || '/contact'
+    }
+  }
+  return out
+}
+
+/**
+ * Upload a logo file from FullStop's public/uploads to the tenant's Media
+ * collection, then PATCH the tenant's Header global with the new media ID.
+ *
+ * Runs from FullStop dev → tenant public URL. Best-effort, non-blocking:
+ * any failure returns false but doesn't throw.
+ */
+async function uploadLogoToTenant(opts: {
+  tenantDomain: string
+  adminEmail: string
+  adminPassword: string
+  logoUrl: string
+  businessName: string
+}): Promise<boolean> {
+  const { tenantDomain, adminEmail, adminPassword, logoUrl, businessName } = opts
+  if (!logoUrl) return false
+
+  // Resolve the local file path: logoUrl is "/uploads/logos/foo.png"
+  const fs = await import('node:fs/promises')
+  const path = await import('node:path')
+  const localPath = path.join(process.cwd(), 'public', logoUrl.replace(/^\//, ''))
+  let fileBytes: Buffer
+  try {
+    fileBytes = await fs.readFile(localPath)
+  } catch {
+    return false // file missing — skip silently
+  }
+
+  const filename = path.basename(localPath)
+  const ext = path.extname(filename).toLowerCase().slice(1)
+  const mimeType =
+    ext === 'svg' ? 'image/svg+xml'
+    : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+    : ext === 'webp' ? 'image/webp'
+    : 'image/png'
+
+  // Pick base URL — prefer HTTPS, fall back to HTTP
+  const candidates = [`https://${tenantDomain}`, `http://${tenantDomain}`]
+  let baseUrl: string | null = null
+  let token: string | null = null
+  for (const base of candidates) {
+    try {
+      const res = await fetch(`${base}/api/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+        redirect: 'manual',
+        signal: AbortSignal.timeout(10000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        token = data.token
+        baseUrl = base
+        break
+      }
+      if ([301, 302, 307, 308].includes(res.status)) {
+        const loc = res.headers.get('location')
+        if (loc) {
+          const retry = await fetch(loc, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+            signal: AbortSignal.timeout(10000),
+          })
+          if (retry.ok) {
+            const data = await retry.json()
+            token = data.token
+            baseUrl = loc.replace(/\/api\/users\/login.*$/, '')
+            break
+          }
+        }
+      }
+    } catch { /* try next */ }
+  }
+  if (!token || !baseUrl) return false
+
+  // Upload the logo to /api/media as multipart
+  const form = new FormData()
+  form.set('file', new Blob([new Uint8Array(fileBytes)], { type: mimeType }), filename)
+  form.set('_payload', JSON.stringify({ alt: `${businessName} logo` }))
+  const uploadRes = await fetch(`${baseUrl}/api/media`, {
+    method: 'POST',
+    headers: { Authorization: `JWT ${token}` },
+    body: form,
+    signal: AbortSignal.timeout(20000),
+  })
+  if (!uploadRes.ok) return false
+  const uploaded = await uploadRes.json() as { doc?: { id?: string | number } }
+  const mediaId = uploaded.doc?.id
+  if (!mediaId) return false
+
+  // Patch the Header global with the new logo
+  const patchRes = await fetch(`${baseUrl}/api/globals/header`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `JWT ${token}`,
+    },
+    body: JSON.stringify({ logo: mediaId }),
+    signal: AbortSignal.timeout(10000),
+  })
+  return patchRes.ok
+}
+
+/**
+ * Lighten a #RRGGBB hex color by `amount` (0..1). 0.2 = 20% lighter.
+ * Pure RGB lift toward 255. Good enough for accent-light fills.
+ */
+function lightenHex(hex: string, amount: number): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex)
+  if (!m) return hex
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 0xff
+  const g = (n >> 8) & 0xff
+  const b = n & 0xff
+  const lift = (c: number) => Math.round(c + (255 - c) * amount)
+  const out = (lift(r) << 16) | (lift(g) << 8) | lift(b)
+  return '#' + out.toString(16).padStart(6, '0').toUpperCase()
 }
 
 /**

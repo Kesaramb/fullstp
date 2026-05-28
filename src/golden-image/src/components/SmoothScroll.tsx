@@ -25,7 +25,7 @@ export function SmoothScroll() {
 
     const lenis = new Lenis({
       duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // smooth ease-out
+      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // smooth ease-out
       touchMultiplier: 2,
       smoothWheel: true,
     })

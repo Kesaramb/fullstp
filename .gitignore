@@ -45,3 +45,6 @@ temp/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Claude worktrees and cache
+.claude/

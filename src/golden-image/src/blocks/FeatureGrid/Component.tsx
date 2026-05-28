@@ -5,6 +5,7 @@ import { DefaultFeatureGrid } from './Default'
 import { BentoAsymmetricFeatureGrid } from './BentoAsymmetric'
 import { NumberedRailFeatureGrid } from './NumberedRail'
 import { GlassmorphicCardsFeatureGrid } from './GlassmorphicCards'
+import { OutcomeCardsFeatureGrid } from './OutcomeCards'
 
 interface FeatureGridProps {
   block: {
@@ -21,6 +22,7 @@ const variants: Record<string, React.ComponentType<FeatureGridProps>> = {
   bentoAsymmetric: BentoAsymmetricFeatureGrid,
   numberedRail: NumberedRailFeatureGrid,
   glassmorphicCards: GlassmorphicCardsFeatureGrid,
+  outcomeCards: OutcomeCardsFeatureGrid,
 }
 
 export function FeatureGridBlock({ block }: FeatureGridProps) {

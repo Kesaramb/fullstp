@@ -71,10 +71,13 @@ export interface Config {
     pages: Page;
     media: Media;
     users: User;
+    posts: Post;
+    categories: Category;
     forms: Form;
     'form-submissions': FormSubmission;
     'payload-mcp-api-keys': PayloadMcpApiKey;
     'payload-kv': PayloadKv;
+    'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -84,10 +87,13 @@ export interface Config {
     pages: PagesSelect<false> | PagesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
+    categories: CategoriesSelect<false> | CategoriesSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -112,7 +118,13 @@ export interface Config {
   };
   user: User | PayloadMcpApiKey;
   jobs: {
-    tasks: unknown;
+    tasks: {
+      schedulePublish: TaskSchedulePublish;
+      inline: {
+        input: unknown;
+        output: unknown;
+      };
+    };
     workflows: unknown;
   };
 }
@@ -162,7 +174,22 @@ export interface Page {
   slug: string;
   layout: (
     | {
-        variant?: ('highImpact' | 'mediumImpact' | 'lowImpact') | null;
+        variant?:
+          | (
+              | 'highImpact'
+              | 'mediumImpact'
+              | 'lowImpact'
+              | 'editorialAsymmetric'
+              | 'bentoSplit'
+              | 'gradientMeshSpotlight'
+              | 'bentoCanvas'
+              | 'agentInteractive'
+              | 'spotlightStage'
+              | 'textRevealCanvas'
+              | 'cinemaImmersive'
+              | 'bookSearch'
+            )
+          | null;
         /**
          * Small label above the heading (optional)
          */
@@ -170,14 +197,52 @@ export interface Page {
         heading: string;
         subheading?: string | null;
         backgroundImage?: (number | null) | Media;
+        /**
+         * Direct MP4 URL (e.g. from Pexels Videos). Takes priority over backgroundImage on cinemaImmersive.
+         */
+        backgroundVideoUrl?: string | null;
+        /**
+         * Optional poster image URL shown while video loads
+         */
+        backgroundVideoPosterUrl?: string | null;
         ctaLabel?: string | null;
         ctaLink?: string | null;
+        /**
+         * Optional second CTA, e.g. "Book a Demo" alongside "Start Free"
+         */
+        secondaryCtaLabel?: string | null;
+        secondaryCtaLink?: string | null;
+        /**
+         * Quantified trust signals shown inline (e.g. "10K+ teams", "Series B")
+         */
+        trustPills?:
+          | {
+              /**
+               * e.g. "10K+", "$30M", "SOC 2"
+               */
+              value?: string | null;
+              /**
+               * e.g. "teams", "ARR", "compliant"
+               */
+              label?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Customer/partner names for marquee under hero (e.g. "Linear", "Vercel")
+         */
+        proofLogoNames?:
+          | {
+              name?: string | null;
+              id?: string | null;
+            }[]
+          | null;
         /**
          * Small chips/tags shown below the CTA
          */
         highlights?:
           | {
-              text: string;
+              text?: string | null;
               id?: string | null;
             }[]
           | null;
@@ -243,6 +308,7 @@ export interface Page {
         blockType: 'brandNarrative';
       }
     | {
+        variant?: ('default' | 'bentoAsymmetric' | 'numberedRail' | 'glassmorphicCards') | null;
         heading: string;
         subheading?: string | null;
         columns?: ('3' | '4') | null;
@@ -261,6 +327,7 @@ export interface Page {
         blockType: 'featureGrid';
       }
     | {
+        variant?: ('carousel' | 'marqueeWall') | null;
         heading: string;
         testimonials?:
           | {
@@ -307,6 +374,506 @@ export interface Page {
         id?: string | null;
         blockName?: string | null;
         blockType: 'formBlock';
+      }
+    | {
+        variant?: ('rowOfNumbers' | 'tiledCards' | 'accentBand' | 'animatedCounter') | null;
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        stats?:
+          | {
+              /**
+               * The number itself, e.g. 10,000 or 99.9
+               */
+              value: string;
+              /**
+               * Optional, e.g. $
+               */
+              prefix?: string | null;
+              /**
+               * Optional, e.g. + or % or K
+               */
+              suffix?: string | null;
+              /**
+               * What the number describes
+               */
+              label: string;
+              /**
+               * Optional citation
+               */
+              source?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'stats';
+      }
+    | {
+        variant?: ('accordion' | 'twoColumn' | 'editorial') | null;
+        eyebrow?: string | null;
+        heading: string;
+        subheading?: string | null;
+        questions?:
+          | {
+              question: string;
+              answer: {
+                root: {
+                  type: string;
+                  children: {
+                    type: any;
+                    version: number;
+                    [k: string]: unknown;
+                  }[];
+                  direction: ('ltr' | 'rtl') | null;
+                  format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+                  indent: number;
+                  version: number;
+                };
+                [k: string]: unknown;
+              };
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'faq';
+      }
+    | {
+        variant?: ('row' | 'grid' | 'marquee') | null;
+        /**
+         * e.g. "Trusted by leading teams"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        logos?:
+          | {
+              /**
+               * Customer / brand name
+               */
+              name: string;
+              logo?: (number | null) | Media;
+              /**
+               * Optional link
+               */
+              url?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'logoCloud';
+      }
+    | {
+        variant?: ('threeTier' | 'twoTier' | 'singleCard') | null;
+        eyebrow?: string | null;
+        heading: string;
+        subheading?: string | null;
+        tiers?:
+          | {
+              /**
+               * e.g. Starter, Pro, Enterprise
+               */
+              name: string;
+              /**
+               * Display string, e.g. "$29" or "Free" or "Custom"
+               */
+              priceLabel: string;
+              /**
+               * e.g. /month, /seat, billed annually
+               */
+              billingCycle?: string | null;
+              /**
+               * One-line description of who it's for
+               */
+              description?: string | null;
+              features?:
+                | {
+                    text: string;
+                    id?: string | null;
+                  }[]
+                | null;
+              ctaLabel: string;
+              ctaLink: string;
+              /**
+               * Visually emphasize as recommended
+               */
+              highlighted?: boolean | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'pricing';
+      }
+    | {
+        variant?: ('numberedRow' | 'verticalTimeline' | 'iconRow') | null;
+        eyebrow?: string | null;
+        heading: string;
+        subheading?: string | null;
+        steps?:
+          | {
+              title: string;
+              description: string;
+              icon?:
+                | ('sparkles' | 'compass' | 'settings' | 'rocket' | 'check' | 'target' | 'lightbulb' | 'handshake')
+                | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'process';
+      }
+    | {
+        variant?: ('editorial' | 'brandStatement' | 'spotlight') | null;
+        /**
+         * The pull-out statement (no need for surrounding quotes)
+         */
+        quote: string;
+        /**
+         * Person's name (optional)
+         */
+        attribution?: string | null;
+        /**
+         * Role / company (optional)
+         */
+        attributionRole?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'pullQuote';
+      }
+    | {
+        variant?: ('weekGrid' | 'stackedList' | 'inlineBanner') | null;
+        /**
+         * e.g. "Visit us"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * Exactly 7 entries — one per day, Monday first.
+         */
+        days?:
+          | {
+              day: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+              /**
+               * e.g. "07:00" — leave blank if closed
+               */
+              openTime?: string | null;
+              /**
+               * e.g. "21:00" — leave blank if closed
+               */
+              closeTime?: string | null;
+              /**
+               * Optional, e.g. "Kitchen closes at 21:30"
+               */
+              note?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * e.g. "America/New_York" — used to compute Open Now badge.
+         */
+        timezone?: string | null;
+        /**
+         * Optional CTA below the schedule, e.g. "Reserve a table"
+         */
+        ctaLabel?: string | null;
+        ctaLink?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'openingHoursWidget';
+      }
+    | {
+        variant?: ('list' | 'badgesGrid' | 'featuredPlus') | null;
+        /**
+         * e.g. "Upcoming"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        events?:
+          | {
+              title: string;
+              /**
+               * ISO-8601 date or human, e.g. "2026-06-15"
+               */
+              startDate: string;
+              /**
+               * Optional end date for multi-day events.
+               */
+              endDate?: string | null;
+              /**
+               * e.g. "7:00 PM"
+               */
+              time?: string | null;
+              /**
+               * Venue or "Online"
+               */
+              location?: string | null;
+              description?: string | null;
+              /**
+               * CTA label, e.g. "RSVP" or "Learn more"
+               */
+              rsvpLabel?: string | null;
+              rsvpLink?: string | null;
+              image?: (number | null) | Media;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Link below the list, e.g. "See full calendar"
+         */
+        allEventsLabel?: string | null;
+        allEventsLink?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'eventCalendarTeaser';
+      }
+    | {
+        variant?: ('twoColumn' | 'categorizedCards' | 'tastingMenu') | null;
+        eyebrow?: string | null;
+        heading?: string | null;
+        /**
+         * Sets the tone — e.g. "A sample from this season"
+         */
+        subheading?: string | null;
+        /**
+         * Group items by section (e.g. Starters, Mains, Wine).
+         */
+        categories?:
+          | {
+              /**
+               * Section name, e.g. "Starters"
+               */
+              name: string;
+              items?:
+                | {
+                    name: string;
+                    description?: string | null;
+                    /**
+                     * Display price, e.g. "$24" or "$$"
+                     */
+                    price?: string | null;
+                    /**
+                     * Comma-sep, e.g. "v, gf, contains nuts"
+                     */
+                    tags?: string | null;
+                    id?: string | null;
+                  }[]
+                | null;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * CTA below preview, e.g. "See full menu"
+         */
+        fullMenuLabel?: string | null;
+        fullMenuLink?: string | null;
+        /**
+         * Optional direct link to a PDF.
+         */
+        menuPdfUrl?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'menuPreview';
+      }
+    | {
+        variant?: ('inline' | 'splitWithImage' | 'fullBand') | null;
+        /**
+         * e.g. "Book your stay"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * Acceptable party sizes (e.g. 2-12).
+         */
+        partySizeOptions?:
+          | {
+              value: number;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Hospitality only — minimum nights per booking.
+         */
+        minNights?: number | null;
+        /**
+         * Hospitality only — maximum nights.
+         */
+        maxNights?: number | null;
+        /**
+         * Capture email at submission time (recommended).
+         */
+        requireGuestEmail?: boolean | null;
+        ctaLabel?: string | null;
+        /**
+         * Where to send the user on submit — own booking engine, OpenTable, Resy, Tock, etc.
+         */
+        destinationUrl?: string | null;
+        /**
+         * Used by the splitWithImage variant.
+         */
+        sideImage?: (number | null) | Media;
+        /**
+         * Optional small print, e.g. "Reservations open 90 days out."
+         */
+        disclaimer?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'reservationWidget';
+      }
+    | {
+        variant?: ('splitCard' | 'stackedCard' | 'fullBanner') | null;
+        /**
+         * e.g. "Find us"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * One entry per physical location.
+         */
+        locations?:
+          | {
+              /**
+               * e.g. "Main Showroom" or city name
+               */
+              name: string;
+              addressLine1: string;
+              addressLine2?: string | null;
+              city?: string | null;
+              /**
+               * State / province
+               */
+              region?: string | null;
+              postcode?: string | null;
+              country?: string | null;
+              phone?: string | null;
+              email?: string | null;
+              /**
+               * Google Maps / Mapbox iframe src URL. Leave blank for a placeholder.
+               */
+              mapEmbedUrl?: string | null;
+              /**
+               * Deep link to maps app for directions.
+               */
+              directionsUrl?: string | null;
+              /**
+               * e.g. "5 min walk from Union Square station"
+               */
+              transitNote?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'locationMap';
+      }
+    | {
+        variant?: ('sliderStack' | 'questionSteps' | 'cardPicker') | null;
+        /**
+         * e.g. "Pricing estimate"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * Variables the user adjusts.
+         */
+        inputs?:
+          | {
+              type: 'slider' | 'select' | 'toggle';
+              label: string;
+              /**
+               * e.g. "hours", "team members", "%"
+               */
+              unit?: string | null;
+              min?: number | null;
+              max?: number | null;
+              step?: number | null;
+              default?: number | null;
+              /**
+               * For select / toggle inputs.
+               */
+              options?:
+                | {
+                    label: string;
+                    /**
+                     * Multiplier applied to the base rate when this option is picked.
+                     */
+                    multiplier?: number | null;
+                    id?: string | null;
+                  }[]
+                | null;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Base dollar amount to anchor the estimate.
+         */
+        baseRate?: number | null;
+        /**
+         * e.g. "$", "£"
+         */
+        currencyPrefix?: string | null;
+        /**
+         * e.g. "/mo", " USD"
+         */
+        currencySuffix?: string | null;
+        /**
+         * Round estimate to nearest N (e.g. 100 => $1,200 not $1,247).
+         */
+        roundTo?: number | null;
+        /**
+         * e.g. "This is an estimate. Final scope confirmed after a 30-min call."
+         */
+        disclaimer?: string | null;
+        ctaLabel?: string | null;
+        ctaLink?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'serviceCalculator';
+      }
+    | {
+        variant?: ('verticalSpine' | 'horizontalScroll' | 'decadeBands') | null;
+        /**
+         * e.g. "Since 1962"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * Chronological — earliest first. Layout sorts client-side as a fallback.
+         */
+        milestones?:
+          | {
+              /**
+               * e.g. "1962" or "Spring 2020"
+               */
+              year: string;
+              title: string;
+              description?: string | null;
+              /**
+               * Optional — archival photo, product shot, etc.
+               */
+              image?: (number | null) | Media;
+              /**
+               * Visually emphasize this milestone.
+               */
+              highlight?: boolean | null;
+              id?: string | null;
+            }[]
+          | null;
+        /**
+         * Optional closing statement, e.g. "And we are just getting started."
+         */
+        closingLine?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'brandTimeline';
       }
   )[];
   meta?: {
@@ -569,6 +1136,70 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  heroImage?: (number | null) | Media;
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  categories?: (number | Category)[] | null;
+  meta?: {
+    title?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (number | null) | Media;
+    description?: string | null;
+  };
+  publishedAt?: string | null;
+  authors?: (number | User)[] | null;
+  populatedAuthors?:
+    | {
+        id?: string | null;
+        name?: string | null;
+      }[]
+    | null;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "form-submissions".
  */
 export interface FormSubmission {
@@ -696,6 +1327,98 @@ export interface PayloadKv {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+  id: number;
+  /**
+   * Input data provided to the job
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  taskStatus?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
+  /**
+   * If hasError is true this job will not be retried
+   */
+  hasError?: boolean | null;
+  /**
+   * If hasError is true, this is the error that caused it
+   */
+  error?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Task execution log
+   */
+  log?:
+    | {
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'schedulePublish';
+        taskID: string;
+        input?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        output?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        state: 'failed' | 'succeeded';
+        error?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  taskSlug?: ('inline' | 'schedulePublish') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -712,6 +1435,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'categories';
+        value: number | Category;
       } | null)
     | ({
         relationTo: 'forms';
@@ -795,8 +1526,25 @@ export interface PagesSelect<T extends boolean = true> {
               heading?: T;
               subheading?: T;
               backgroundImage?: T;
+              backgroundVideoUrl?: T;
+              backgroundVideoPosterUrl?: T;
               ctaLabel?: T;
               ctaLink?: T;
+              secondaryCtaLabel?: T;
+              secondaryCtaLink?: T;
+              trustPills?:
+                | T
+                | {
+                    value?: T;
+                    label?: T;
+                    id?: T;
+                  };
+              proofLogoNames?:
+                | T
+                | {
+                    name?: T;
+                    id?: T;
+                  };
               highlights?:
                 | T
                 | {
@@ -838,6 +1586,7 @@ export interface PagesSelect<T extends boolean = true> {
         featureGrid?:
           | T
           | {
+              variant?: T;
               heading?: T;
               subheading?: T;
               columns?: T;
@@ -855,6 +1604,7 @@ export interface PagesSelect<T extends boolean = true> {
         testimonials?:
           | T
           | {
+              variant?: T;
               heading?: T;
               testimonials?:
                 | T
@@ -902,6 +1652,299 @@ export interface PagesSelect<T extends boolean = true> {
               form?: T;
               heading?: T;
               subheading?: T;
+              id?: T;
+              blockName?: T;
+            };
+        stats?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              stats?:
+                | T
+                | {
+                    value?: T;
+                    prefix?: T;
+                    suffix?: T;
+                    label?: T;
+                    source?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        faq?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              questions?:
+                | T
+                | {
+                    question?: T;
+                    answer?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        logoCloud?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              logos?:
+                | T
+                | {
+                    name?: T;
+                    logo?: T;
+                    url?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        pricing?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              tiers?:
+                | T
+                | {
+                    name?: T;
+                    priceLabel?: T;
+                    billingCycle?: T;
+                    description?: T;
+                    features?:
+                      | T
+                      | {
+                          text?: T;
+                          id?: T;
+                        };
+                    ctaLabel?: T;
+                    ctaLink?: T;
+                    highlighted?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        process?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              steps?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    icon?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        pullQuote?:
+          | T
+          | {
+              variant?: T;
+              quote?: T;
+              attribution?: T;
+              attributionRole?: T;
+              id?: T;
+              blockName?: T;
+            };
+        openingHoursWidget?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              days?:
+                | T
+                | {
+                    day?: T;
+                    openTime?: T;
+                    closeTime?: T;
+                    note?: T;
+                    id?: T;
+                  };
+              timezone?: T;
+              ctaLabel?: T;
+              ctaLink?: T;
+              id?: T;
+              blockName?: T;
+            };
+        eventCalendarTeaser?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              events?:
+                | T
+                | {
+                    title?: T;
+                    startDate?: T;
+                    endDate?: T;
+                    time?: T;
+                    location?: T;
+                    description?: T;
+                    rsvpLabel?: T;
+                    rsvpLink?: T;
+                    image?: T;
+                    id?: T;
+                  };
+              allEventsLabel?: T;
+              allEventsLink?: T;
+              id?: T;
+              blockName?: T;
+            };
+        menuPreview?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              categories?:
+                | T
+                | {
+                    name?: T;
+                    items?:
+                      | T
+                      | {
+                          name?: T;
+                          description?: T;
+                          price?: T;
+                          tags?: T;
+                          id?: T;
+                        };
+                    id?: T;
+                  };
+              fullMenuLabel?: T;
+              fullMenuLink?: T;
+              menuPdfUrl?: T;
+              id?: T;
+              blockName?: T;
+            };
+        reservationWidget?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              partySizeOptions?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              minNights?: T;
+              maxNights?: T;
+              requireGuestEmail?: T;
+              ctaLabel?: T;
+              destinationUrl?: T;
+              sideImage?: T;
+              disclaimer?: T;
+              id?: T;
+              blockName?: T;
+            };
+        locationMap?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              locations?:
+                | T
+                | {
+                    name?: T;
+                    addressLine1?: T;
+                    addressLine2?: T;
+                    city?: T;
+                    region?: T;
+                    postcode?: T;
+                    country?: T;
+                    phone?: T;
+                    email?: T;
+                    mapEmbedUrl?: T;
+                    directionsUrl?: T;
+                    transitNote?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        serviceCalculator?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              inputs?:
+                | T
+                | {
+                    type?: T;
+                    label?: T;
+                    unit?: T;
+                    min?: T;
+                    max?: T;
+                    step?: T;
+                    default?: T;
+                    options?:
+                      | T
+                      | {
+                          label?: T;
+                          multiplier?: T;
+                          id?: T;
+                        };
+                    id?: T;
+                  };
+              baseRate?: T;
+              currencyPrefix?: T;
+              currencySuffix?: T;
+              roundTo?: T;
+              disclaimer?: T;
+              ctaLabel?: T;
+              ctaLink?: T;
+              id?: T;
+              blockName?: T;
+            };
+        brandTimeline?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              milestones?:
+                | T
+                | {
+                    year?: T;
+                    title?: T;
+                    description?: T;
+                    image?: T;
+                    highlight?: T;
+                    id?: T;
+                  };
+              closingLine?: T;
               id?: T;
               blockName?: T;
             };
@@ -992,6 +2035,47 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  heroImage?: T;
+  content?: T;
+  categories?: T;
+  meta?:
+    | T
+    | {
+        title?: T;
+        image?: T;
+        description?: T;
+      };
+  publishedAt?: T;
+  authors?: T;
+  populatedAuthors?:
+    | T
+    | {
+        id?: T;
+        name?: T;
+      };
+  generateSlug?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories_select".
+ */
+export interface CategoriesSelect<T extends boolean = true> {
+  title?: T;
+  generateSlug?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1200,6 +2284,37 @@ export interface PayloadKvSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
+  log?:
+    | T
+    | {
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -1322,11 +2437,62 @@ export interface SiteSetting {
    */
   ogImage?: (number | null) | Media;
   theme?: {
-    palette?: ('midnight' | 'ocean' | 'forest' | 'sunset' | 'lavender' | 'ember') | null;
+    palette?:
+      | (
+          | 'midnight'
+          | 'ocean'
+          | 'forest'
+          | 'sunset'
+          | 'lavender'
+          | 'ember'
+          | 'charcoal'
+          | 'cream'
+          | 'sage'
+          | 'cobalt'
+          | 'terracotta'
+          | 'slate'
+          | 'noir'
+          | 'bloom'
+        )
+      | null;
     fontPairing?:
-      | ('geist-inter' | 'playfair-inter' | 'playfair-sourcesans' | 'dmsans-dmserif' | 'spacegrotesk-inter')
+      | (
+          | 'geist-inter'
+          | 'playfair-inter'
+          | 'playfair-sourcesans'
+          | 'dmsans-dmserif'
+          | 'spacegrotesk-inter'
+          | 'fraunces-inter'
+          | 'instrumentserif-inter'
+          | 'archivo-archivo'
+          | 'cormorant-jost'
+        )
       | null;
     borderRadius?: ('none' | 'sm' | 'md' | 'lg') | null;
+    /**
+     * Per-tenant synthesized palette (10 hex codes). When present, overrides the palette slug.
+     */
+    customColors?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    /**
+     * Per-tenant synthesized heading font (Google Fonts family name, e.g. "Cormorant Garamond")
+     */
+    customFontHeading?: string | null;
+    /**
+     * Per-tenant synthesized body font (Google Fonts family name)
+     */
+    customFontBody?: string | null;
+    /**
+     * Pre-built Google Fonts URL for the custom heading + body pair
+     */
+    customGoogleFontsUrl?: string | null;
   };
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -1402,6 +2568,10 @@ export interface SiteSettingsSelect<T extends boolean = true> {
         palette?: T;
         fontPairing?: T;
         borderRadius?: T;
+        customColors?: T;
+        customFontHeading?: T;
+        customFontBody?: T;
+        customGoogleFontsUrl?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1416,6 +2586,23 @@ export interface CollectionsWidget {
     [k: string]: unknown;
   };
   width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSchedulePublish".
+ */
+export interface TaskSchedulePublish {
+  input: {
+    type?: ('publish' | 'unpublish') | null;
+    locale?: string | null;
+    doc?: {
+      relationTo: 'posts';
+      value: number | Post;
+    } | null;
+    global?: string | null;
+    user?: (number | null) | User;
+  };
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

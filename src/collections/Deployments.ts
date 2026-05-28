@@ -1,11 +1,21 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
 
+const isAdminUser = (req: PayloadRequest) =>
+  Boolean(req.user) && req.user?.collection === 'users'
+
 /**
- * Admin-only access: only authenticated Payload users (admin panel).
- * The SwarmPipeline uses payload.create/update (Local API), which
- * bypasses collection access control, so the pipeline still works.
+ * Access: customers see only their own deployments (by owner). Payload
+ * admins see all. SwarmPipeline uses payload.create/update with
+ * overrideAccess: true, so the pipeline is unaffected.
  */
-const isAdmin = ({ req }: { req: PayloadRequest }) => Boolean(req.user)
+const ownerScopedRead = ({ req }: { req: PayloadRequest }) => {
+  if (!req.user) return false
+  if (isAdminUser(req)) return true
+  if (req.user.collection === 'customers') {
+    return { owner: { equals: req.user.id } }
+  }
+  return false
+}
 
 export const Deployments: CollectionConfig = {
   slug: 'deployments',
@@ -14,12 +24,35 @@ export const Deployments: CollectionConfig = {
     defaultColumns: ['domain', 'port', 'status', 'createdAt'],
   },
   access: {
-    read: isAdmin,
-    create: isAdmin,
-    update: isAdmin,
-    delete: isAdmin,
+    read: ownerScopedRead,
+    create: ({ req }) => isAdminUser(req), // create via pipeline (overrideAccess) only
+    update: ownerScopedRead,
+    delete: ({ req }) => isAdminUser(req),
   },
   fields: [
+    {
+      name: 'owner',
+      type: 'relationship',
+      relationTo: 'customers',
+      hasMany: false,
+      admin: {
+        position: 'sidebar',
+        description: 'The customer who owns this deployment. Auto-populated from session.',
+      },
+    },
+    {
+      name: 'connectionType',
+      type: 'select',
+      defaultValue: 'managed',
+      options: [
+        { label: 'Managed (built by FullStop)', value: 'managed' },
+        { label: 'External (connected via MCP)', value: 'external' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'Managed = built and seeded by us. External = customer-owned Payload site connected via admin creds / MCP.',
+      },
+    },
     {
       name: 'domain',
       type: 'text',
@@ -30,6 +63,7 @@ export const Deployments: CollectionConfig = {
       name: 'port',
       type: 'number',
       required: true,
+      admin: { description: 'Server port for managed deployments. Use 0 for external sites.' },
     },
     {
       name: 'status',

@@ -19,6 +19,21 @@ import type { Mood } from './moods'
 import { MOODS } from './moods'
 import type { PagePreset } from './preset-loader'
 import type { PageSpec, SectionSpec } from './information-architect'
+import { getManifestById } from '../registry'
+
+/**
+ * Resolve a SectionSpec's componentId to its variant string via the registry.
+ * Returns undefined when there's no componentId or the manifest is missing —
+ * caller falls back to the legacy mood-based picker, preserving pre-registry
+ * behavior. NEVER throws.
+ */
+function resolveComponentVariant(section: SectionSpec, blockType: string): string | undefined {
+  if (!section.componentId) return undefined
+  const manifest = getManifestById(section.componentId)
+  if (!manifest) return undefined
+  if (manifest.blockType !== blockType) return undefined  // defensive: id mismatch
+  return manifest.variant
+}
 
 // ── Lexical helper (mirrors preset-compiler) ──
 
@@ -39,63 +54,107 @@ function lexicalParagraphs(texts: string[]): Record<string, unknown> {
 
 type HeroVariantOnPage = 'home' | 'secondary' | 'quiet'
 
+// Valid variant whitelist per block — mirrors src/golden-image/src/blocks/{X}/config.ts.
+// All hint-passthroughs clamp against these so Payload never sees a stray value.
+const VALID_VARIANTS: Record<string, string[]> = {
+  hero: [
+    'highImpact', 'mediumImpact', 'lowImpact', 'editorialAsymmetric', 'bentoSplit',
+    'gradientMeshSpotlight', 'bentoCanvas', 'agentInteractive', 'spotlightStage',
+    'textRevealCanvas', 'cinemaImmersive', 'bookSearch',
+    'authorityPortrait', 'statsLed',
+    'founderLetter', 'emailCapture', 'codePreview', 'productShowcase', 'featuredQuote',
+  ],
+  featureGrid: ['default', 'bentoAsymmetric', 'numberedRail', 'glassmorphicCards', 'outcomeCards'],
+  stats: ['rowOfNumbers', 'tiledCards', 'accentBand', 'animatedCounter'],
+  testimonials: ['carousel', 'marqueeWall'],
+  faq: ['accordion', 'twoColumn', 'editorial'],
+  logoCloud: ['row', 'grid', 'marquee'],
+  pricing: ['threeTier', 'twoTier', 'singleCard'],
+  process: ['numberedRow', 'verticalTimeline', 'iconRow'],
+  pullQuote: ['editorial', 'brandStatement', 'spotlight'],
+  serviceCalculator: ['sliderStack', 'questionSteps', 'cardPicker'],
+  brandTimeline: ['verticalSpine', 'horizontalScroll', 'decadeBands'],
+  callToAction: ['primary', 'secondary', 'outline'],
+  eventCalendarTeaser: ['list', 'badgesGrid', 'featuredPlus'],
+  locationMap: ['splitCard', 'stackedCard', 'fullBanner'],
+  menuPreview: ['twoColumn', 'categorizedCards', 'tastingMenu'],
+  openingHoursWidget: ['weekGrid', 'stackedList', 'inlineBanner'],
+  reservationWidget: ['inline', 'splitWithImage', 'fullBand'],
+  postsList: ['grid', 'list', 'featured'],
+}
+
+function clampVariant(blockType: string, candidate: string | undefined, fallback: string): string {
+  const valid = VALID_VARIANTS[blockType]
+  if (!candidate) return fallback
+  if (!valid) return candidate // unknown block type — let Payload validate
+  return valid.includes(candidate) ? candidate : fallback
+}
+
 function pickHeroVariant(mood: Mood, pageSlug: string, intent: SectionSpec['intent'], hint?: string): string {
-  if (hint) return hint
-  // Page-driven default: contact/about → quiet; home → primary; everything else → secondary
-  if (pageSlug === 'contact' || intent === 'invite-conversation') return mood.blockVariants.heroQuiet
-  if (pageSlug === 'home' || intent === 'announce-the-brand-and-primary-cta') return mood.blockVariants.hero
-  if (intent === 'frame-the-page-topic') return mood.blockVariants.heroQuiet
-  return mood.blockVariants.heroSecondary
+  let candidate: string
+  if (hint) candidate = hint
+  else if (pageSlug === 'contact' || intent === 'invite-conversation') candidate = mood.blockVariants.heroQuiet
+  else if (pageSlug === 'home' || intent === 'announce-the-brand-and-primary-cta') candidate = mood.blockVariants.hero
+  else if (intent === 'frame-the-page-topic') candidate = mood.blockVariants.heroQuiet
+  else candidate = mood.blockVariants.heroSecondary
+  return clampVariant('hero', candidate, 'mediumImpact')
 }
 
 function pickFeatureGridVariant(mood: Mood, _intent: SectionSpec['intent'], hint?: string): string {
-  return hint || mood.blockVariants.featureGrid
+  return clampVariant('featureGrid', hint || mood.blockVariants.featureGrid, 'default')
 }
 
 function pickStatsVariant(_intent: SectionSpec['intent'], hint?: string, mood?: Mood): string {
-  if (hint) return hint
-  // Premium moods get the animated counter — feels like Linear / Stripe
-  const premiumMoods = ['bento-modular', 'glass-spatial', 'motion-narrative']
-  if (mood && premiumMoods.includes(mood.slug)) return 'animatedCounter'
-  return 'rowOfNumbers'
+  let candidate: string
+  if (hint) candidate = hint
+  else {
+    const premiumMoods = ['bento-modular', 'glass-spatial', 'motion-narrative']
+    candidate = mood && premiumMoods.includes(mood.slug) ? 'animatedCounter' : 'rowOfNumbers'
+  }
+  return clampVariant('stats', candidate, 'rowOfNumbers')
 }
 
 function pickTestimonialsVariant(mood?: Mood, hint?: string): string {
-  if (hint) return hint
-  // Premium tech moods get the infinite marquee wall
-  const marqueeMoods = ['bento-modular', 'glass-spatial', 'motion-narrative', 'brutalist-bold']
-  if (mood && marqueeMoods.includes(mood.slug)) return 'marqueeWall'
-  return 'carousel'
+  let candidate: string
+  if (hint) candidate = hint
+  else {
+    const marqueeMoods = ['bento-modular', 'glass-spatial', 'motion-narrative', 'brutalist-bold']
+    candidate = mood && marqueeMoods.includes(mood.slug) ? 'marqueeWall' : 'carousel'
+  }
+  return clampVariant('testimonials', candidate, 'carousel')
 }
 
 function pickFaqVariant(intent: SectionSpec['intent'], hint?: string): string {
-  if (hint) return hint
-  // Editorial variant for "address-top-objections" on long-form pages
-  return intent === 'address-top-objections' ? 'editorial' : 'accordion'
+  const candidate = hint || (intent === 'address-top-objections' ? 'editorial' : 'accordion')
+  return clampVariant('faq', candidate, 'accordion')
 }
 
 function pickLogoCloudVariant(intent: SectionSpec['intent'], hint?: string): string {
-  if (hint) return hint
-  return intent === 'social-proof-with-logos' ? 'row' : 'grid'
+  const candidate = hint || (intent === 'social-proof-with-logos' ? 'row' : 'grid')
+  return clampVariant('logoCloud', candidate, 'row')
 }
 
 function pickPricingVariant(_intent: SectionSpec['intent'], hint?: string): string {
-  return hint || 'threeTier'
+  return clampVariant('pricing', hint, 'threeTier')
 }
 
 function pickProcessVariant(_intent: SectionSpec['intent'], hint?: string): string {
-  return hint || 'numberedRow'
+  return clampVariant('process', hint, 'numberedRow')
 }
 
 function pickPullQuoteVariant(intent: SectionSpec['intent'], hint?: string): string {
-  if (hint) return hint
-  return intent === 'tell-the-founding-story' ? 'editorial' : 'brandStatement'
+  const candidate = hint || (intent === 'tell-the-founding-story' ? 'editorial' : 'brandStatement')
+  return clampVariant('pullQuote', candidate, 'editorial')
 }
 
 // ── Block builders — emit fillTemplate-compatible JSON skeletons ──
 
 function buildHero(mood: Mood, pageSlug: string, section: SectionSpec): Record<string, unknown> {
-  const variant = pickHeroVariant(mood, pageSlug, section.intent, section.variantHint)
+  // Registry-first: if ComponentCuratorWorker annotated this section with a
+  // confident componentId, use the manifest's variant. Otherwise the legacy
+  // mood-based picker drives, preserving pre-registry behavior end-to-end.
+  const variant = resolveComponentVariant(section, 'hero')
+    ?? pickHeroVariant(mood, pageSlug, section.intent, section.variantHint)
   const isPrimary = pageSlug === 'home' || section.intent === 'announce-the-brand-and-primary-cta'
   const isCatalog = ['products', 'services', 'features', 'menu', 'work', 'offerings'].includes(pageSlug)
 
@@ -150,7 +209,10 @@ function buildBrandNarrative(): Record<string, unknown> {
 }
 
 function buildFeatureGrid(mood: Mood, section: SectionSpec): Record<string, unknown> {
-  const variant = pickFeatureGridVariant(mood, section.intent, section.variantHint)
+  // Registry-first: ComponentCuratorWorker's annotated componentId wins.
+  // Falls back to mood-based picker if no manifest matched.
+  const variant = resolveComponentVariant(section, 'featureGrid')
+    ?? pickFeatureGridVariant(mood, section.intent, section.variantHint)
   const base: Record<string, unknown> = {
     blockType: 'featureGrid',
     variant,
@@ -168,9 +230,11 @@ function buildFeatureGrid(mood: Mood, section: SectionSpec): Record<string, unkn
 }
 
 function buildTestimonials(mood?: Mood, section?: SectionSpec): Record<string, unknown> {
+  // Registry-first when section is known; fall back to mood picker otherwise.
+  const manifestVariant = section ? resolveComponentVariant(section, 'testimonials') : undefined
   return {
     blockType: 'testimonials',
-    variant: pickTestimonialsVariant(mood, section?.variantHint),
+    variant: manifestVariant ?? pickTestimonialsVariant(mood, section?.variantHint),
     heading: '{{testimonials_heading}}',
     testimonials: [
       { quote: '{{testimonial_1_quote}}', author: '{{testimonial_1_author}}', role: '{{testimonial_1_role}}' },
@@ -203,9 +267,11 @@ function buildFormBlock(): Record<string, unknown> {
 }
 
 function buildStats(section: SectionSpec, mood?: Mood): Record<string, unknown> {
+  const variant = resolveComponentVariant(section, 'stats')
+    ?? pickStatsVariant(section.intent, section.variantHint, mood)
   return {
     blockType: 'stats',
-    variant: pickStatsVariant(section.intent, section.variantHint, mood),
+    variant,
     eyebrow: '{{stats_eyebrow}}',
     heading: '{{stats_heading}}',
     subheading: '{{stats_subheading}}',
@@ -218,9 +284,11 @@ function buildStats(section: SectionSpec, mood?: Mood): Record<string, unknown> 
 }
 
 function buildFaq(section: SectionSpec): Record<string, unknown> {
+  const variant = resolveComponentVariant(section, 'faq')
+    ?? pickFaqVariant(section.intent, section.variantHint)
   return {
     blockType: 'faq',
-    variant: pickFaqVariant(section.intent, section.variantHint),
+    variant,
     eyebrow: '{{faq_eyebrow}}',
     heading: '{{faq_heading}}',
     subheading: '{{faq_subheading}}',
@@ -232,9 +300,11 @@ function buildFaq(section: SectionSpec): Record<string, unknown> {
 }
 
 function buildLogoCloud(section: SectionSpec): Record<string, unknown> {
+  const variant = resolveComponentVariant(section, 'logoCloud')
+    ?? pickLogoCloudVariant(section.intent, section.variantHint)
   return {
     blockType: 'logoCloud',
-    variant: pickLogoCloudVariant(section.intent, section.variantHint),
+    variant,
     eyebrow: '{{logo_cloud_eyebrow}}',
     heading: '{{logo_cloud_heading}}',
     logos: [1, 2, 3, 4, 5, 6].map(i => ({ name: `{{logo_${i}_name}}` })),
@@ -242,7 +312,8 @@ function buildLogoCloud(section: SectionSpec): Record<string, unknown> {
 }
 
 function buildPricing(section: SectionSpec): Record<string, unknown> {
-  const variant = pickPricingVariant(section.intent, section.variantHint)
+  const variant = resolveComponentVariant(section, 'pricing')
+    ?? pickPricingVariant(section.intent, section.variantHint)
   const tierCount = variant === 'singleCard' ? 1 : variant === 'twoTier' ? 2 : 3
   const tiers = Array.from({ length: tierCount }, (_, i) => ({
     name: `{{tier_${i + 1}_name}}`,
@@ -265,9 +336,11 @@ function buildPricing(section: SectionSpec): Record<string, unknown> {
 }
 
 function buildProcess(section: SectionSpec): Record<string, unknown> {
+  const variant = resolveComponentVariant(section, 'process')
+    ?? pickProcessVariant(section.intent, section.variantHint)
   return {
     blockType: 'process',
-    variant: pickProcessVariant(section.intent, section.variantHint),
+    variant,
     eyebrow: '{{process_eyebrow}}',
     heading: '{{process_heading}}',
     subheading: '{{process_subheading}}',
@@ -280,9 +353,11 @@ function buildProcess(section: SectionSpec): Record<string, unknown> {
 }
 
 function buildPullQuote(section: SectionSpec): Record<string, unknown> {
+  const variant = resolveComponentVariant(section, 'pullQuote')
+    ?? pickPullQuoteVariant(section.intent, section.variantHint)
   return {
     blockType: 'pullQuote',
-    variant: pickPullQuoteVariant(section.intent, section.variantHint),
+    variant,
     quote: '{{pullquote_quote}}',
     attribution: '{{pullquote_attribution}}',
     attributionRole: '{{pullquote_role}}',
@@ -294,7 +369,7 @@ function buildPullQuote(section: SectionSpec): Record<string, unknown> {
 function buildOpeningHoursWidget(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'openingHoursWidget',
-    variant: section.variantHint || 'weekGrid',
+    variant: clampVariant('openingHoursWidget', section.variantHint, 'weekGrid'),
     eyebrow: '{{hours_eyebrow}}',
     heading: '{{hours_heading}}',
     subheading: '{{hours_subheading}}',
@@ -313,7 +388,7 @@ function buildOpeningHoursWidget(section: SectionSpec): Record<string, unknown> 
 function buildEventCalendarTeaser(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'eventCalendarTeaser',
-    variant: section.variantHint || 'list',
+    variant: clampVariant('eventCalendarTeaser', section.variantHint, 'list'),
     eyebrow: '{{events_eyebrow}}',
     heading: '{{events_heading}}',
     subheading: '{{events_subheading}}',
@@ -334,7 +409,7 @@ function buildEventCalendarTeaser(section: SectionSpec): Record<string, unknown>
 function buildMenuPreview(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'menuPreview',
-    variant: section.variantHint || 'twoColumn',
+    variant: clampVariant('menuPreview', section.variantHint, 'twoColumn'),
     eyebrow: '{{menu_eyebrow}}',
     heading: '{{menu_heading}}',
     subheading: '{{menu_subheading}}',
@@ -355,7 +430,7 @@ function buildMenuPreview(section: SectionSpec): Record<string, unknown> {
 function buildReservationWidget(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'reservationWidget',
-    variant: section.variantHint || 'inline',
+    variant: clampVariant('reservationWidget', section.variantHint, 'inline'),
     eyebrow: '{{reservation_eyebrow}}',
     heading: '{{reservation_heading}}',
     subheading: '{{reservation_subheading}}',
@@ -370,7 +445,7 @@ function buildReservationWidget(section: SectionSpec): Record<string, unknown> {
 function buildLocationMap(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'locationMap',
-    variant: section.variantHint || 'splitCard',
+    variant: clampVariant('locationMap', section.variantHint, 'splitCard'),
     eyebrow: '{{location_eyebrow}}',
     heading: '{{location_heading}}',
     subheading: '{{location_subheading}}',
@@ -394,7 +469,7 @@ function buildLocationMap(section: SectionSpec): Record<string, unknown> {
 function buildServiceCalculator(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'serviceCalculator',
-    variant: section.variantHint || 'sliderStack',
+    variant: clampVariant('serviceCalculator', section.variantHint, 'sliderStack'),
     eyebrow: '{{calc_eyebrow}}',
     heading: '{{calc_heading}}',
     subheading: '{{calc_subheading}}',
@@ -420,7 +495,7 @@ function buildServiceCalculator(section: SectionSpec): Record<string, unknown> {
 function buildBrandTimeline(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'brandTimeline',
-    variant: section.variantHint || 'verticalSpine',
+    variant: clampVariant('brandTimeline', section.variantHint, 'verticalSpine'),
     eyebrow: '{{timeline_eyebrow}}',
     heading: '{{timeline_heading}}',
     subheading: '{{timeline_subheading}}',

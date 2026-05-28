@@ -44,6 +44,11 @@ export default buildConfig({
     client: {
       url: process.env.DATABASE_URI || 'file:./data/database.db',
     },
+    // Single-instance control plane: auto-sync schema on boot so a fresh
+    // SQLite file (e.g. first prod deploy) gets its tables without a
+    // separate migration step. Safe here because there's exactly one
+    // control-plane instance and no horizontal scaling.
+    push: true,
   }),
 
   plugins: [

@@ -79,6 +79,13 @@ export interface SectionSpec {
   required: boolean
   /** Any extra hints for the Layout Composer (e.g. "use a numbered process variant") */
   variantHint?: string
+  /**
+   * Set by ComponentCuratorWorker after planPages(). When present, Layout
+   * Composer looks up the manifest by id and uses its variant string. When
+   * absent (no confident pick or curator skipped), the legacy mood-based
+   * pickXVariant() functions drive the choice — same behavior as pre-registry.
+   */
+  componentId?: string
 }
 
 export interface PageSpec {
@@ -256,6 +263,9 @@ function buildCatalogPage(s: StrategyBriefV2): PageSpec {
     experience: { slug: 'menu',      title: 'Menu' },
     creative:   { slug: 'work',      title: 'Work' },
     local:      { slug: 'offerings', title: 'What We Offer' },
+    healthcare: { slug: 'services',  title: 'Services' },
+    civic:      { slug: 'our-work',  title: 'Our Work' },
+    education:  { slug: 'programs',  title: 'Programs' },
   }
   const { slug, title } = slugMap[s.archetype]
 

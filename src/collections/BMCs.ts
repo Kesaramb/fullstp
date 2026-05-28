@@ -1,4 +1,20 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, PayloadRequest } from 'payload'
+
+const isAdminUser = (req: PayloadRequest) =>
+  Boolean(req.user) && req.user?.collection === 'users'
+
+/**
+ * Access: customers see only their own BMCs (by owner). Payload admins see all.
+ * Returns true | false | a where-clause object (Payload filter pattern).
+ */
+const ownerScopedRead = ({ req }: { req: PayloadRequest }) => {
+  if (!req.user) return false
+  if (isAdminUser(req)) return true
+  if (req.user.collection === 'customers') {
+    return { owner: { equals: req.user.id } }
+  }
+  return false
+}
 
 export const BMCs: CollectionConfig = {
   slug: 'bmcs',
@@ -7,12 +23,23 @@ export const BMCs: CollectionConfig = {
     defaultColumns: ['businessName', 'industry', 'pricingTier', 'buildStatus', 'createdAt'],
   },
   access: {
-    read: () => true,
-    create: () => true,
-    update: () => true,
-    delete: () => true,
+    read: ownerScopedRead,
+    create: ({ req }) => Boolean(req.user), // any logged-in user (customer or admin)
+    update: ownerScopedRead,
+    delete: ({ req }) => isAdminUser(req),
   },
   fields: [
+    // ── Ownership ─────────────────────────────────────────
+    {
+      name: 'owner',
+      type: 'relationship',
+      relationTo: 'customers',
+      hasMany: false,
+      admin: {
+        position: 'sidebar',
+        description: 'The customer who created this BMC. Auto-populated from session.',
+      },
+    },
     // ── Core identity ─────────────────────────────────────
     {
       name: 'businessName',
@@ -136,6 +163,23 @@ export const BMCs: CollectionConfig = {
       admin: {
         description: 'Full CEO Agent strategy conversation that produced this BMC.',
       },
+    },
+    // ── Logo + extracted brand palette ──
+    {
+      name: 'logoUrl',
+      type: 'text',
+      admin: { description: 'Public URL of the customer-uploaded logo.' },
+    },
+    {
+      name: 'logoColors',
+      type: 'group',
+      admin: { description: 'Vision-extracted brand palette from the uploaded logo.' },
+      fields: [
+        { name: 'primary', type: 'text' },
+        { name: 'secondary', type: 'text' },
+        { name: 'accent', type: 'text' },
+        { name: 'description', type: 'text' },
+      ],
     },
   ],
 }

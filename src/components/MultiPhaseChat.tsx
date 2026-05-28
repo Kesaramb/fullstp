@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Loader2, ArrowRight } from 'lucide-react'
+import { Loader2, ArrowRight, Paperclip } from 'lucide-react'
 import LandingChat from './LandingChat'
 import FactoryBuild from './FactoryBuild'
 import ChatInterface from './ChatInterface'
@@ -18,6 +18,8 @@ interface BMC {
   valueProposition?: string
   blocks?: string[]
   brandMood?: string
+  logoUrl?: string
+  logoColors?: { primary: string; secondary: string; accent: string; description?: string }
 }
 
 interface Handoff {
@@ -89,20 +91,68 @@ async function streamCEO(
 
 // ── CEO Strategy Chat ─────────────────────────────────────────────────────────
 
+interface LogoUploadData {
+  logoUrl: string
+  logoColors?: { primary: string; secondary: string; accent: string; description?: string }
+}
+
 function StrategyChatPhase({
   initialMessage,
   onStrategyComplete,
 }: {
   initialMessage: string
-  onStrategyComplete: (bmc: BMC, history: ConversationEntry[]) => void
+  onStrategyComplete: (bmc: BMC, history: ConversationEntry[], logo?: LogoUploadData) => void
 }) {
   const [messages, setMessages] = useState<StrategyChatMessage[]>([])
   const [history, setHistory] = useState<ConversationEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [logo, setLogo] = useState<LogoUploadData | null>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
   const initialized = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const strategyCompleted = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleLogoSelect(file: File | undefined) {
+    if (!file) return
+    setLogoUploading(true)
+    // Show immediate optimistic message
+    const noticeId = `logo-notice-${Date.now()}`
+    setMessages(prev => [
+      ...prev,
+      { id: noticeId, role: 'user', text: `📎 Uploading ${file.name}…`, time: nowTime() },
+    ])
+    try {
+      const form = new FormData()
+      form.set('logo', file)
+      const res = await fetch('/api/upload-logo', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`)
+      const next: LogoUploadData = { logoUrl: data.logoUrl, logoColors: data.colors ?? undefined }
+      setLogo(next)
+      const swatchSummary = next.logoColors
+        ? `palette: ${next.logoColors.primary}  ${next.logoColors.secondary}  ${next.logoColors.accent}${next.logoColors.description ? ` — ${next.logoColors.description}` : ''}`
+        : 'palette: not auto-extracted'
+      setMessages(prev =>
+        prev.map(m => m.id === noticeId
+          ? { ...m, text: `📎 Logo received · ${swatchSummary}`, time: nowTime() }
+          : m
+        )
+      )
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Upload failed'
+      setMessages(prev =>
+        prev.map(m => m.id === noticeId
+          ? { ...m, text: `⚠ Logo upload failed: ${detail}`, time: nowTime() }
+          : m
+        )
+      )
+    } finally {
+      setLogoUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -136,7 +186,7 @@ function StrategyChatPhase({
     await streamCEO(newHistory, (event, data) => {
       if (event === 'strategy_complete' && !strategyCompleted.current) {
         strategyCompleted.current = true
-        onStrategyComplete(data as unknown as BMC, newHistory)
+        onStrategyComplete(data as unknown as BMC, newHistory, logo ?? undefined)
       } else if (event === 'thinking') {
         const t = (data.text as string) || 'Thinking...'
         setMessages(prev => prev.map(m => m.id === typingId ? { ...m, text: t } : m))
@@ -212,6 +262,28 @@ function StrategyChatPhase({
 
           <form onSubmit={handleSend} className="p-5 border-t border-gray-100">
             <div className="relative">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={e => handleLogoSelect(e.target.files?.[0])}
+                className="sr-only"
+              />
+              {/* Paperclip button — opens file picker */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={logoUploading || isProcessing}
+                title={logo ? 'Replace logo' : 'Upload your logo (improves your palette)'}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+              >
+                {logoUploading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Paperclip size={18} />
+                )}
+              </button>
               <input
                 type="text"
                 value={inputValue}
@@ -219,8 +291,8 @@ function StrategyChatPhase({
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                 disabled={isProcessing}
                 autoFocus
-                placeholder={isProcessing ? 'CEO is thinking...' : 'Tell me more about your business...'}
-                className="w-full bg-[#f9fafb] border border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full px-6 py-4 text-[15px] text-gray-800 outline-none transition-all disabled:opacity-60 pr-14"
+                placeholder={isProcessing ? 'CEO is thinking...' : (logo ? 'Logo received — keep chatting…' : 'Tell me more about your business…')}
+                className="w-full bg-[#f9fafb] border border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full pl-14 pr-14 py-4 text-[15px] text-gray-800 outline-none transition-all disabled:opacity-60"
               />
               <button
                 type="submit"
@@ -230,6 +302,20 @@ function StrategyChatPhase({
                 <ArrowRight size={18} strokeWidth={2.5} />
               </button>
             </div>
+            {logo && (
+              <div className="mt-2 px-2 flex items-center gap-2 text-xs text-gray-500">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logo.logoUrl} alt="logo" className="w-5 h-5 rounded object-contain bg-white border border-gray-200" />
+                <span>Logo attached.</span>
+                {logo.logoColors && (
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: logo.logoColors.primary }} />
+                    <span className="inline-block w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: logo.logoColors.secondary }} />
+                    <span className="inline-block w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: logo.logoColors.accent }} />
+                  </span>
+                )}
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -239,19 +325,104 @@ function StrategyChatPhase({
 
 // ── Auth Modal ────────────────────────────────────────────────────────────────
 
+interface AuthModalLogoData {
+  logoUrl: string
+  logoColors?: { primary: string; secondary: string; accent: string; description?: string }
+}
+
+function Swatch({ hex }: { hex: string }) {
+  return (
+    <span
+      className="inline-block w-5 h-5 rounded-full border border-gray-200 shadow-sm"
+      style={{ backgroundColor: hex }}
+      title={hex}
+    />
+  )
+}
+
 function AuthModal({
   bmc,
   onSubmit,
 }: {
   bmc: BMC
-  onSubmit: (name: string, email: string) => void
+  onSubmit: (
+    customer: { id: string | number; name: string; email: string },
+    logo?: AuthModalLogoData
+  ) => void
 }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [logo, setLogo] = useState<AuthModalLogoData | null>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleLogoChange(file: File | undefined) {
+    if (!file) return
+    setLogoUploading(true)
+    setLogoError(null)
+    try {
+      const form = new FormData()
+      form.set('logo', file)
+      const res = await fetch('/api/upload-logo', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`)
+      setLogo({ logoUrl: data.logoUrl, logoColors: data.colors ?? undefined })
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : 'Logo upload failed.')
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (name.trim() && email.trim()) onSubmit(name.trim(), email.trim())
+    if (!name.trim() || !email.trim() || !password.trim()) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      // Try signup first; fall back to login if email already exists
+      const signupRes = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+      })
+      if (signupRes.ok) {
+        const data = await signupRes.json()
+        const customer = data.doc ?? data
+        // Sign in to get a session cookie (signup alone does not set one)
+        const loginRes = await fetch('/api/customers/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email: email.trim(), password }),
+        })
+        if (!loginRes.ok) throw new Error('Account created but sign-in failed.')
+        onSubmit({ id: customer.id, name: name.trim(), email: email.trim() }, logo ?? undefined)
+        return
+      }
+      const loginRes = await fetch('/api/customers/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      if (loginRes.ok) {
+        const data = await loginRes.json()
+        const customer = data.user ?? data.doc ?? data
+        onSubmit({ id: customer.id, name: customer.name ?? name.trim(), email: email.trim() }, logo ?? undefined)
+        return
+      }
+      const errBody = await loginRes.json().catch(() => ({}))
+      throw new Error(errBody?.errors?.[0]?.message || 'Sign-in failed. Check your password.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -292,14 +463,87 @@ function AuthModal({
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              minLength={8}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+            />
+            <p className="mt-1.5 text-xs text-gray-400">If you already have an account, this will sign you in.</p>
+          </div>
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>
+          )}
+
+          {/* Logo upload (optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Logo <span className="text-gray-400 font-normal">(optional — improves your palette)</span>
+            </label>
+            {!logo ? (
+              <label className="block cursor-pointer rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-400 bg-gray-50 hover:bg-blue-50/40 transition-colors px-4 py-5 text-center">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={(e) => handleLogoChange(e.target.files?.[0])}
+                  className="sr-only"
+                />
+                {logoUploading ? (
+                  <span className="text-sm text-gray-500">Reading colors from your logo…</span>
+                ) : (
+                  <>
+                    <span className="block text-sm font-medium text-gray-700">Drop a logo or click to upload</span>
+                    <span className="block text-xs text-gray-400 mt-1">PNG, JPG, WebP, or SVG · up to 4MB</span>
+                  </>
+                )}
+              </label>
+            ) : (
+              <div className="rounded-xl border border-gray-200 bg-white p-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logo.logoUrl} alt="logo preview" className="w-14 h-14 object-contain rounded bg-gray-50" />
+                <div className="flex-1 min-w-0">
+                  {logo.logoColors ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Swatch hex={logo.logoColors.primary} />
+                        <Swatch hex={logo.logoColors.secondary} />
+                        <Swatch hex={logo.logoColors.accent} />
+                        <span className="text-xs text-gray-500 truncate">
+                          {logo.logoColors.description || 'Brand palette extracted'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">We&apos;ll use these colors in your design.</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-500">Uploaded. We couldn&apos;t auto-extract colors — your mood palette will be used.</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setLogo(null); setLogoError(null) }}
+                  className="text-xs text-gray-400 hover:text-gray-700"
+                >
+                  Replace
+                </button>
+              </div>
+            )}
+            {logoError && (
+              <p className="mt-1.5 text-xs text-red-600">{logoError}</p>
+            )}
+          </div>
+
           <button
             type="submit"
-            disabled={!name.trim() || !email.trim()}
+            disabled={!name.trim() || !email.trim() || password.length < 8 || submitting || logoUploading}
             className="w-full bg-[#3b82f6] hover:bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-xl py-3.5 transition-all text-[15px]"
           >
-            Start the build →
+            {submitting ? 'One sec…' : 'Start the build →'}
           </button>
-          <p className="text-center text-xs text-gray-400">No spam. No dashboard. Just your site.</p>
+          <p className="text-center text-xs text-gray-400">No spam. Manage everything from your account.</p>
         </form>
       </div>
     </div>
@@ -308,12 +552,26 @@ function AuthModal({
 
 // ── MultiPhaseChat ─────────────────────────────────────────────────────────────
 
-export default function MultiPhaseChat({ prefilledInitial }: { prefilledInitial?: string } = {}) {
+interface SignedInCustomer {
+  id: string | number
+  name: string
+  email: string
+}
+
+export default function MultiPhaseChat({
+  prefilledInitial,
+  signedInCustomer,
+}: {
+  prefilledInitial?: string
+  signedInCustomer?: SignedInCustomer
+} = {}) {
   const [phase, setPhase] = useState<Phase>(() => prefilledInitial ? 'strategy' : 'landing')
   const [bmc, setBmc] = useState<BMC | null>(null)
   const [initialMessage, setInitialMessage] = useState(prefilledInitial ?? '')
   const [handoff, setHandoff] = useState<Handoff | null>(null)
-  const [customerInfo, setCustomerInfo] = useState<{ name: string; email: string } | null>(null)
+  const [customerInfo, setCustomerInfo] = useState<{ id: string | number; name: string; email: string } | null>(
+    signedInCustomer ?? null
+  )
   const [strategyHistory, setStrategyHistory] = useState<ConversationEntry[]>([])
 
   function handleLandingSubmit(text: string) {
@@ -321,14 +579,37 @@ export default function MultiPhaseChat({ prefilledInitial }: { prefilledInitial?
     setPhase('strategy')
   }
 
-  function handleStrategyComplete(completedBmc: BMC, history: ConversationEntry[]) {
-    setBmc(completedBmc)
+  function handleStrategyComplete(
+    completedBmc: BMC,
+    history: ConversationEntry[],
+    logo?: LogoUploadData
+  ) {
+    const bmcWithLogo: BMC = logo
+      ? { ...completedBmc, logoUrl: logo.logoUrl, logoColors: logo.logoColors }
+      : completedBmc
+    setBmc(bmcWithLogo)
     setStrategyHistory(history)
+    // Already signed in: skip the auth modal and go straight to building
+    if (customerInfo) {
+      setPhase('building')
+      return
+    }
     setPhase('auth')
   }
 
-  function handleAuthSubmit(name: string, email: string) {
-    setCustomerInfo({ name, email })
+  function handleAuthSubmit(
+    customer: { id: string | number; name: string; email: string },
+    logo?: AuthModalLogoData
+  ) {
+    setCustomerInfo(customer)
+    if (logo && bmc) {
+      // Merge logo data into the BMC so the build pipeline can use it
+      setBmc({
+        ...bmc,
+        logoUrl: logo.logoUrl,
+        logoColors: logo.logoColors,
+      })
+    }
     setPhase('building')
   }
 

@@ -2,7 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { PERSONAS, TEAM_ORDER, type Persona } from '@/lib/swarm/personas'
+import OfficeFloor from './OfficeFloor'
 import { translateEvent } from '@/lib/swarm/build-translator'
+import { pickTypingLine, pickChatterBubble } from '@/lib/swarm/chatter'
 
 interface BMC {
   businessName: string
@@ -30,7 +32,7 @@ interface TypingState {
 
 interface Props {
   bmc: BMC
-  customer?: { name: string; email: string }
+  customer?: { id: string | number; name: string; email: string }
   strategyHistory?: { role: string; content: string }[]
   onComplete: (handoff: { businessName: string; domain: string; deploymentId?: string }) => void
 }
@@ -49,7 +51,9 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
   const cache = buildCache.get(cacheKey)
 
   const [messages, setMessages] = useState<ChatMessage[]>(cache?.messages ?? [])
-  const [typing, setTyping] = useState<TypingState[]>(cache?.typing ?? [])
+  // Defensive: never restore typing indicators when the cache is in a terminal
+  // state (success or failure). They're guaranteed to be stale.
+  const [typing, setTyping] = useState<TypingState[]>(cache?.isDone ? [] : (cache?.typing ?? []))
   const [isDone, setIsDone] = useState(cache?.isDone ?? false)
   const [elapsed, setElapsed] = useState(0)
   const scrollEndRef = useRef<HTMLDivElement>(null)
@@ -72,25 +76,126 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     return () => clearInterval(timer)
   }, [])
 
+  // ── Idle chatter: keep the chat alive during long stages (compile / seed) ──
+  const lastActivityAt = useRef<number>(Date.now())
+  const lastBubbleChatterAt = useRef<number>(0)
+
+  useEffect(() => {
+    // Reset the activity timer whenever real messages or typing change
+    lastActivityAt.current = Date.now()
+  }, [messages.length, typing.length])
+
+  // Rotate typing-indicator text every ~18s for any persona still typing
+  useEffect(() => {
+    if (typing.length === 0 || isDone) return
+    const interval = setInterval(() => {
+      setTyping(prev =>
+        prev.map((t) => {
+          const rotationIndex = Math.floor((Date.now() - startTime.current) / 18000)
+          const nextLine = pickTypingLine(t.personaId, rotationIndex + t.personaId.charCodeAt(0))
+          // Only swap if it's actually different (avoid pointless re-renders)
+          return t.activity === nextLine ? t : { ...t, activity: nextLine }
+        })
+      )
+    }, 9000)
+    return () => clearInterval(interval)
+  }, [typing.length, isDone])
+
+  // After ~50s of total silence (no new bubbles/typing changes), drop a chatter bubble
+  useEffect(() => {
+    if (isDone) return
+    const interval = setInterval(() => {
+      const idleMs = Date.now() - lastActivityAt.current
+      const sinceLastChatter = Date.now() - lastBubbleChatterAt.current
+      if (idleMs < 50000 || sinceLastChatter < 60000) return
+      if (typing.length === 0 && messages.length === 0) return // pre-stream silence
+      // Pick a persona that's currently typing, else the last speaker
+      const personaId = typing[0]?.personaId
+        || messages[messages.length - 1]?.personaId
+        || 'owen'
+      const seed = Date.now() ^ personaId.charCodeAt(0)
+      const text = pickChatterBubble(personaId, seed)
+      const ts = Date.now()
+      lastBubbleChatterAt.current = ts
+      lastActivityAt.current = ts
+      setMessages(prev => {
+        const next: ChatMessage[] = [...prev, {
+          id: `chatter-${ts}`,
+          personaId,
+          text,
+          status: 'running' as const,
+          bubbleKey: `chatter-${ts}`,
+          timestamp: ts,
+        }]
+        persistCache({ messages: next })
+        return next
+      })
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [typing, messages, isDone])
+
   useEffect(() => {
     scrollEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, typing])
 
   useEffect(() => {
-    if (cache?.streamActive || cache?.isDone) return
+    // Cache holds three terminal states:
+    //   1. streamActive: a live build (mid-stream) — keep, don't refetch
+    //   2. isDone + handoff: a successful build — keep, replay handoff
+    //   3. isDone without handoff: a failed build — STALE on remount; clear and retry
+    if (cache?.streamActive) {
+      // Heal stale typing in an otherwise-good cache (pre-fix backfill)
+      if (cache.typing?.length) {
+        // leave it — actively streaming may legitimately have typing
+      }
+      return
+    }
+    if (cache?.isDone && cache.handoff) {
+      if (cache.typing?.length) {
+        buildCache.set(cacheKey, { ...cache, typing: [] })
+      }
+      return
+    }
+    if (cache?.isDone && !cache.handoff) {
+      // Stale failure cache — fresh start for retry
+      setMessages([])
+      setTyping([])
+      setIsDone(false)
+    }
     buildCache.set(cacheKey, { messages: [], typing: [], isDone: false, streamActive: true })
 
     async function stream() {
       const response = await fetch('/api/swarm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ mode: 'pipeline', bmc, customer, strategyHistory }),
       })
 
       if (!response.ok) {
         if (response.status === 409) return // already in progress, another mount handles it
-        const errText = await response.text().catch(() => 'Unknown error')
-        applyError(`Build request failed (${response.status}): ${errText}`)
+        const errBody = await response.json().catch(() => null) as
+          | { error?: string; message?: string; quota?: string; current?: number; limit?: number }
+          | null
+        if (response.status === 402 && errBody?.error === 'build_limit_reached') {
+          applyQuotaError(
+            `You've used all ${errBody.limit ?? '?'} builds this month.`,
+            'Wait until next month, or upgrade your plan.'
+          )
+          return
+        }
+        if (response.status === 402 && errBody?.error === 'deployment_limit_reached') {
+          applyQuotaError(
+            `You're at your plan's ${errBody.limit ?? '?'}-site limit.`,
+            'Delete a site or upgrade to add more.'
+          )
+          return
+        }
+        if (response.status === 401) {
+          applyQuotaError('Session expired.', 'Sign back in to continue.')
+          return
+        }
+        applyError(errBody?.message || errBody?.error || `Build request failed (${response.status}).`)
         return
       }
       if (!response.body) return
@@ -129,7 +234,20 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     }
 
     stream().catch(err => {
-      applyError(`Connection failed: ${err instanceof Error ? err.message : String(err)}`)
+      // If we got far enough that an "Owen · Provisioning" event fired,
+      // the bridge is likely deploying server-side even though our SSE died.
+      // Tell the user so they can check the dashboard instead of restarting.
+      const reachedDeploy = buildCache.get(cacheKey)?.messages?.some(
+        m => m.text.toLowerCase().includes('provisioning')
+      )
+      const detail = err instanceof Error ? err.message : String(err)
+      if (reachedDeploy) {
+        applyError(
+          `Lost connection (${detail}). The deploy may still be running on the server — check your dashboard in a minute.`
+        )
+      } else {
+        applyError(`Connection failed: ${detail}. Try again or refresh the page.`)
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -187,6 +305,8 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
   }
 
   function applyError(message: string) {
+    // Clear any in-flight typing indicators — they're stale once the stream dies
+    setTyping([])
     setMessages(prev => {
       const next = [...prev, {
         id: `err-${Date.now()}`,
@@ -196,7 +316,26 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
         bubbleKey: `err-${Date.now()}`,
         timestamp: Date.now(),
       }]
-      persistCache({ messages: next })
+      // streamActive: false so a fresh mount can retry; isDone: true so
+      // the user sees the error before triggering a fetch.
+      persistCache({ messages: next, typing: [], streamActive: false, isDone: true })
+      return next
+    })
+  }
+
+  function applyQuotaError(headline: string, hint: string) {
+    setIsDone(true)
+    setTyping([])
+    setMessages(() => {
+      const next: ChatMessage[] = [{
+        id: `quota-${Date.now()}`,
+        personaId: 'owen',
+        text: `${headline} ${hint}`,
+        status: 'error' as const,
+        bubbleKey: `quota-${Date.now()}`,
+        timestamp: Date.now(),
+      }]
+      persistCache({ messages: next, typing: [], isDone: true, streamActive: false })
       return next
     })
   }
@@ -205,6 +344,7 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     messages: ChatMessage[]
     typing: TypingState[]
     isDone: boolean
+    streamActive: boolean
     handoff: { businessName: string; domain: string; deploymentId?: string }
   }>) {
     const current = buildCache.get(cacheKey) ?? { messages: [], typing: [], isDone: false, streamActive: true }
@@ -213,6 +353,10 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}m ${s % 60}s`
   const activePersonaIds = new Set(typing.map(t => t.personaId))
+  const lastMessage = messages[messages.length - 1]
+  const recentSpeakerId = lastMessage ? lastMessage.personaId : null
+  const liveStatus = typing[0]?.activity
+    || (lastMessage && lastMessage.status !== 'error' ? lastMessage.text : null)
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center px-6 py-10 font-sans">
@@ -255,6 +399,15 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
             )
           })}
         </div>
+
+        {/* 2D office visualization — fills idle time with ambient agent activity */}
+        {!isDone && (
+          <OfficeFloor
+            activePersonaIds={activePersonaIds}
+            recentSpeakerId={recentSpeakerId}
+            status={liveStatus}
+          />
+        )}
 
         {/* Chat panel */}
         <div className="bg-zinc-900/40 backdrop-blur rounded-2xl border border-zinc-800/60 overflow-hidden">

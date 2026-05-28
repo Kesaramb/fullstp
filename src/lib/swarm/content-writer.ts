@@ -8,6 +8,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import fs from 'fs'
+import path from 'path'
 import type { StrategyBrief, DesignBrief, WrittenCopy, LogFn } from './types'
 import type { SharedMemory } from './shared-memory'
 
@@ -209,51 +211,77 @@ export class ContentWriterWorker {
     memory: SharedMemory,
     log: LogFn
   ): Promise<WrittenCopy> {
-    log('Content Writer', `Writing copy for ${strategy.businessName}...`, 'running')
+    log('Content Writer', `Writing copy for ${strategy.businessName} (page-by-page)...`, 'running')
     log('Content Writer', `Brand voice: ${strategy.brandVoice}`, 'running')
 
-    const pageLayoutsSummary = designBrief.pageLayouts?.length
-      ? designBrief.pageLayouts
-        .map(p => `  ${p.slug}: ${p.blockSequence.join(' → ')}`)
-        .join('\n')
-      : Object.entries(designBrief.pagePresets || {})
-        .map(([slug, preset]) => `  ${slug}: preset ${preset}`)
-        .join('\n')
+    const pageLayouts = designBrief.pageLayouts || []
+    if (pageLayouts.length === 0) {
+      log('Content Writer', 'No page layouts found to write copy for.', 'error')
+      return { pages: [] }
+    }
 
-    const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
-      system: [{ type: 'text', text: CONTENT_WRITER_SYSTEM, cache_control: { type: 'ephemeral' } }],
-      messages: [{
-        role: 'user',
-        content: `Strategy Brief:
+    const finalPages: WrittenCopy['pages'] = []
+
+    for (let i = 0; i < pageLayouts.length; i++) {
+      const pageLayout = pageLayouts[i]
+      log('Content Writer', `Writing page ${i + 1}/${pageLayouts.length}: "${pageLayout.slug}" (${pageLayout.blockSequence.join(' → ')})...`, 'running')
+
+      const pageIntent = strategy.pageIntents.find(p => p.slug === pageLayout.slug)
+      const pagePurpose = pageIntent ? pageIntent.purpose : `Content page for ${pageLayout.slug}`
+
+      const userPrompt = `Strategy Brief:
 - Business: ${strategy.businessName} (${strategy.industry})
 - Target Audience: ${strategy.targetAudience}
 - Brand Voice: ${strategy.brandVoice}
 - Messaging Pillars: ${strategy.messagingPillars.join(' | ')}
-- Page Intents:
-${strategy.pageIntents.map(p => `  ${p.slug}: ${p.purpose}`).join('\n')}
+- Page Intent for this specific page ("${pageLayout.slug}"): ${pagePurpose}
 
-Design Brief — Page Layouts:
-${pageLayoutsSummary}
+Page Layout to write copy for:
+- Slug: "${pageLayout.slug}"
+- Block Sequence: ${pageLayout.blockSequence.join(' → ')}
 
-Write compelling copy for every section on every page.`,
-      }],
-    })
+Write compelling copy for every section of this page. Return ONLY a single JSON object matching this exact structure:
+{
+  "slug": "${pageLayout.slug}",
+  "sections": [
+    // Include one object for each block in the sequence in the exact order requested.
+    // e.g. for hero block, include type: "hero", heading, subheading, badge, ctaText, ctaLink, etc.
+  ]
+}`
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map(b => b.text)
-      .join('')
+      const response = await this.client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: [{ type: 'text', text: CONTENT_WRITER_SYSTEM, cache_control: { type: 'ephemeral' } }],
+        messages: [{
+          role: 'user',
+          content: userPrompt,
+        }],
+      })
 
-    const copy = parseJSON<WrittenCopy>(text)
+      const text = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map(b => b.text)
+        .join('')
 
-    memory.set('writtenCopy', copy, 'content-writer')
-    memory.logEvent('copywriting', 'content-writer', 'Copy written for all pages', 'done')
-
-    for (const page of copy.pages) {
-      log('Content Writer', `Page "${page.slug}": ${page.sections.length} sections written`, 'done')
+      try {
+        const parsed = parseJSON<any>(text)
+        const pageCopy = parsed.pages ? parsed.pages[0] : parsed
+        if (!pageCopy || !Array.isArray(pageCopy.sections)) {
+          throw new Error('Parsed object is missing sections array')
+        }
+        pageCopy.slug = pageLayout.slug
+        finalPages.push(pageCopy)
+        log('Content Writer', `Page "${pageLayout.slug}": ${pageCopy.sections.length} sections written`, 'done')
+      } catch (err) {
+        log('Content Writer', `Failed to write copy for page "${pageLayout.slug}": ${(err as Error).message}`, 'error')
+        throw err
+      }
     }
+
+    const copy: WrittenCopy = { pages: finalPages }
+    memory.set('writtenCopy', copy, 'content-writer')
+    memory.logEvent('copywriting', 'content-writer', `Copy written for all ${finalPages.length} pages`, 'done')
     log('Content Writer', `Copy complete: ${copy.pages.length} pages`, 'done')
 
     return copy
@@ -270,5 +298,29 @@ function parseJSON<T>(text: string): T {
   if (start === -1 || end === -1) {
     throw new Error(`No JSON object found in response: ${cleaned.slice(0, 200)}`)
   }
-  return JSON.parse(cleaned.slice(start, end + 1)) as T
+  const jsonStr = cleaned.slice(start, end + 1)
+  try {
+    return JSON.parse(jsonStr) as T
+  } catch (err) {
+    const error = err as Error
+    const match = error.message.match(/position (\d+)/)
+    let context = ''
+    if (match) {
+      const pos = parseInt(match[1], 10)
+      const startPos = Math.max(0, pos - 100)
+      const endPos = Math.min(jsonStr.length, pos + 100)
+      context = jsonStr.slice(startPos, endPos)
+      console.error(`[parseJSON Error] Context around position ${pos}:\n...\n${context}\n...`)
+    }
+    try {
+      const tmpDir = path.join(process.cwd(), '.tmp')
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, 'failed-json-writer.txt'), text)
+      console.error(`[parseJSON Error] Wrote failed JSON to .tmp/failed-json-writer.txt`)
+    } catch (e) {
+      // ignore
+    }
+    throw error
+  }
 }
+

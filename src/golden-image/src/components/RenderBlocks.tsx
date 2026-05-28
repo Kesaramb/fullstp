@@ -24,6 +24,7 @@ import { ReservationWidgetBlock } from '../blocks/ReservationWidget/Component'
 import { LocationMapBlock } from '../blocks/LocationMap/Component'
 import { ServiceCalculatorBlock } from '../blocks/ServiceCalculator/Component'
 import { BrandTimelineBlock } from '../blocks/BrandTimeline/Component'
+import { PostsListBlock } from '../blocks/PostsList/Component'
 
 type Block = {
   blockType: string
@@ -58,6 +59,8 @@ const blockComponents: Record<string, React.ComponentType<{ block: any }>> = {
   locationMap: LocationMapBlock,
   serviceCalculator: ServiceCalculatorBlock,
   brandTimeline: BrandTimelineBlock,
+  // Blog / editorial
+  postsList: PostsListBlock,
 }
 
 interface RenderBlocksProps {

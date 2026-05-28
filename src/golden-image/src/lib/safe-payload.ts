@@ -41,6 +41,53 @@ export async function safeFindPage(slug: string) {
 }
 
 /**
+ * Find a post by slug. Returns the post document or null on any failure.
+ */
+export async function safeFindPost(slug: string, options?: { draft?: boolean }) {
+  try {
+    const payload = await getSafePayload()
+    if (!payload) return null
+    const { docs } = await payload.find({
+      collection: 'posts',
+      where: { slug: { equals: slug } },
+      draft: options?.draft,
+      limit: 1,
+    })
+    return docs[0] || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * List recent published posts, optionally filtered by category id.
+ * Returns [] on any failure.
+ */
+export async function safeFindPosts(options?: {
+  limit?: number
+  categoryId?: string | number
+}) {
+  try {
+    const payload = await getSafePayload()
+    if (!payload) return []
+    const where: Record<string, unknown> = { _status: { equals: 'published' } }
+    if (options?.categoryId) {
+      where.categories = { in: [options.categoryId] }
+    }
+    const { docs } = await payload.find({
+      collection: 'posts',
+      where,
+      sort: '-publishedAt',
+      limit: options?.limit ?? 6,
+      depth: 1, // populate heroImage + categories
+    })
+    return docs
+  } catch {
+    return []
+  }
+}
+
+/**
  * Read a global by slug. Returns the global document or null on any failure.
  */
 export async function safeFindGlobal(slug: string) {
