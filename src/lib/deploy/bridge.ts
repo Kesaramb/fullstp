@@ -700,7 +700,7 @@ export async function getUsedDomains(): Promise<string[]> {
     await ssh.connect(config)
 
     const result = await ssh.execCommand(
-      "ls /home/admin/web/ 2>/dev/null | grep '\\.nip\\.io$' || true"
+      "ls /home/admin/web/ 2>/dev/null | grep -E '\\.nip\\.io$|\\.fullstp\\.com$' || true"
     )
     ssh.dispose()
 
