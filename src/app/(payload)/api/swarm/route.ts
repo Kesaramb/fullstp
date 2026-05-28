@@ -26,7 +26,43 @@ function sseHeaders() {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
+    // Disable proxy buffering so events flush immediately (nginx/Cloudflare).
+    'X-Accel-Buffering': 'no',
   }
+}
+
+/**
+ * Wraps an SSE controller so writes are safe after the client disconnects.
+ *
+ * When the browser drops the stream (e.g. Cloudflare's ~100s idle cut), the
+ * controller closes but the pipeline keeps running server-side. A raw
+ * controller.enqueue() then throws "Invalid state: Controller is already
+ * closed", which previously propagated up and killed the entire build.
+ *
+ * After close, emit() becomes a no-op so the pipeline runs to completion and
+ * persists its result regardless of stream state.
+ */
+function createSafeEmitter(
+  controller: ReadableStreamDefaultController,
+  encoder: TextEncoder,
+) {
+  let closed = false
+  const markClosed = () => { closed = true }
+  const emit = (event: string, data: Record<string, unknown>) => {
+    if (closed) return
+    try {
+      controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+    } catch {
+      // Controller already closed by the runtime — stop writing, let work finish.
+      closed = true
+    }
+  }
+  const close = () => {
+    if (closed) return
+    closed = true
+    try { controller.close() } catch { /* already closed */ }
+  }
+  return { emit, close, markClosed }
 }
 
 export async function POST(req: Request) {
@@ -49,26 +85,29 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: 'messages required' }), { status: 400 })
     }
 
+    let markClosed: () => void = () => {}
     const stream = new ReadableStream({
       async start(controller) {
-        function emit(event: string, data: Record<string, unknown>) {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-        }
+        const safe = createSafeEmitter(controller, encoder)
+        markClosed = safe.markClosed
         try {
           const queen = new QueenAgent(apiKey)
           const result = await queen.chat(messages)
 
           if (result.type === 'strategy_complete') {
-            emit('strategy_complete', result.bmc)
+            safe.emit('strategy_complete', result.bmc)
           } else {
-            emit('message', { text: result.text })
+            safe.emit('message', { text: result.text })
           }
         } catch (err) {
-          emit('error', { message: err instanceof Error ? err.message : String(err) })
+          safe.emit('error', { message: err instanceof Error ? err.message : String(err) })
         } finally {
-          controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
-          controller.close()
+          safe.emit('done', {})
+          safe.close()
         }
+      },
+      cancel() {
+        markClosed()
       },
     })
 
@@ -196,25 +235,34 @@ export async function POST(req: Request) {
     }
     activeBuildDomains.add(domain)
 
+    let markClosed: () => void = () => {}
     const stream = new ReadableStream({
       async start(controller) {
-        function emit(event: string, data: Record<string, unknown>) {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-        }
-        function logEmit(agent: string, text: string, status: 'running' | 'done' | 'error') {
-          emit('log', { agent, text, status })
+        const safe = createSafeEmitter(controller, encoder)
+        markClosed = safe.markClosed
+        const logEmit = (agent: string, text: string, status: 'running' | 'done' | 'error') => {
+          safe.emit('log', { agent, text, status })
         }
 
         try {
           const pipeline = new SwarmPipeline(apiKey)
-          await pipeline.run(bmc, customer, strategyHistory, logEmit, emit)
+          // The pipeline runs to completion and persists its result to the
+          // Deployments collection regardless of stream state. If the client
+          // disconnects (Cloudflare idle cut), safe.emit() no-ops but the build
+          // keeps going — it is no longer killed by a closed SSE controller.
+          await pipeline.run(bmc, customer, strategyHistory, logEmit, safe.emit)
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          emit('build_error', { error: msg })
+          safe.emit('build_error', { error: msg })
         } finally {
           activeBuildDomains.delete(domain)
-          controller.close()
+          safe.close()
         }
+      },
+      cancel() {
+        // Client disconnected. Mark the emitter closed so the still-running
+        // pipeline stops trying to write, but do NOT abort the build.
+        markClosed()
       },
     })
 
@@ -324,21 +372,24 @@ export async function POST(req: Request) {
       } catch { /* non-fatal */ }
     }
 
+    let markClosed: () => void = () => {}
     const stream = new ReadableStream({
       async start(controller) {
-        function emit(event: string, data: Record<string, unknown>) {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-        }
+        const safe = createSafeEmitter(controller, encoder)
+        markClosed = safe.markClosed
         try {
           const ops = new SiteOps(apiKey)
           const result = await ops.chat(messages, tenant, { bmc: bmcContext })
-          emit('message', { text: result.text })
+          safe.emit('message', { text: result.text })
         } catch (err) {
-          emit('error', { message: err instanceof Error ? err.message : String(err) })
+          safe.emit('error', { message: err instanceof Error ? err.message : String(err) })
         } finally {
-          controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
-          controller.close()
+          safe.emit('done', {})
+          safe.close()
         }
+      },
+      cancel() {
+        markClosed()
       },
     })
 

@@ -48,3 +48,7 @@ temp/
 
 # Claude worktrees and cache
 .claude/
+
+# Server Agent playbook — contains live server credentials, never commit
+Server Agent/
+server-agent/
