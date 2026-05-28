@@ -13,6 +13,13 @@ import { SpotlightStageHero } from './SpotlightStage'
 import { TextRevealCanvasHero } from './TextRevealCanvas'
 import { CinemaImmersiveHero } from './CinemaImmersive'
 import { BookSearchHero } from './BookSearch'
+import { AuthorityPortraitHero } from './AuthorityPortrait'
+import { StatsLedHero } from './StatsLed'
+import { FounderLetterHero } from './FounderLetter'
+import { EmailCaptureHero } from './EmailCapture'
+import { CodePreviewHero } from './CodePreview'
+import { ProductShowcaseHero } from './ProductShowcase'
+import { FeaturedQuoteHero } from './FeaturedQuote'
 
 interface HeroBlockProps {
   block: {
@@ -46,6 +53,13 @@ const variants: Record<string, React.ComponentType<HeroBlockProps>> = {
   textRevealCanvas: TextRevealCanvasHero,
   cinemaImmersive: CinemaImmersiveHero,
   bookSearch: BookSearchHero,
+  authorityPortrait: AuthorityPortraitHero,
+  statsLed: StatsLedHero,
+  founderLetter: FounderLetterHero,
+  emailCapture: EmailCaptureHero,
+  codePreview: CodePreviewHero,
+  productShowcase: ProductShowcaseHero,
+  featuredQuote: FeaturedQuoteHero,
 }
 
 export function HeroBlock({ block }: HeroBlockProps) {

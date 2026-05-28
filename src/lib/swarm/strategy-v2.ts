@@ -262,6 +262,9 @@ export const DEFAULT_CONVERSION_GOAL: Record<BusinessArchetype, ConversionGoal> 
   experience: 'reservation',
   creative:   'inquiry',
   local:      'visit',
+  healthcare: 'reservation',  // appointment booking is functionally a reservation
+  civic:      'donation',
+  education:  'application',
 }
 
 /** Default primary CTA copy per conversion goal — used when Strategy Director hasn't picked one. */

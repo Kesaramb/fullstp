@@ -13,6 +13,7 @@ export const FeatureGrid: Block = {
         { label: 'Bento Asymmetric', value: 'bentoAsymmetric' },
         { label: 'Numbered Rail', value: 'numberedRail' },
         { label: 'Glassmorphic Cards', value: 'glassmorphicCards' },
+        { label: 'Outcome Cards (metrics-led)', value: 'outcomeCards' },
       ],
     },
     { name: 'heading', type: 'text', required: true },

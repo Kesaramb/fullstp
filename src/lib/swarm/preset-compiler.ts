@@ -24,6 +24,9 @@ const ARCHETYPE_PAGES: Record<BusinessArchetype, string[]> = {
   experience: ['home', 'menu', 'about', 'contact'],
   creative:   ['home', 'work', 'about', 'contact'],
   local:      ['home', 'offerings', 'about', 'contact'],
+  healthcare: ['home', 'services', 'our-team', 'contact'],
+  civic:      ['home', 'our-work', 'events', 'get-involved'],
+  education:  ['home', 'programs', 'faculty', 'contact'],
 }
 
 // ── Per-page block sequences ──

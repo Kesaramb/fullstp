@@ -80,7 +80,7 @@ export async function POST(req: Request) {
   // ══════════════════════════════════════════════════════
   if (mode === 'pipeline') {
     const bmc = body.bmc
-    const customer: { name?: string; email?: string } = body.customer || {}
+    const clientCustomer: { id?: string | number; name?: string; email?: string } = body.customer || {}
     const strategyHistory: { role: string; content: string }[] = body.strategyHistory || []
 
     if (!bmc?.businessName || typeof bmc.businessName !== 'string') {
@@ -88,6 +88,102 @@ export async function POST(req: Request) {
     }
     if (!bmc.industry || typeof bmc.industry !== 'string') {
       return new Response(JSON.stringify({ error: 'bmc.industry required' }), { status: 400 })
+    }
+
+    // Resolve the authenticated customer from the session cookie.
+    const payload = await getPayload({ config })
+    const { user } = await payload.auth({ headers: req.headers })
+    if (!user || user.collection !== 'customers') {
+      return new Response(JSON.stringify({ error: 'Unauthorized — customer sign-in required' }), { status: 401 })
+    }
+    const ownerId = user.id
+
+    // Load current customer state for quota enforcement.
+    const customerDoc = await payload.findByID({
+      collection: 'customers',
+      id: ownerId,
+      overrideAccess: true,
+    }) as {
+      tier?: string
+      quotas?: { maxDeployments?: number; maxBuildsPerMonth?: number }
+      usage?: { deploymentsCreated?: number; buildsThisMonth?: number; lastResetAt?: string }
+    }
+    const maxDeployments = customerDoc.quotas?.maxDeployments ?? 1
+    const maxBuildsPerMonth = customerDoc.quotas?.maxBuildsPerMonth ?? 3
+    const prevDeploymentsCreated = customerDoc.usage?.deploymentsCreated ?? 0
+    const prevBuildsThisMonth = customerDoc.usage?.buildsThisMonth ?? 0
+    const lastReset = customerDoc.usage?.lastResetAt ? new Date(customerDoc.usage.lastResetAt) : null
+
+    // Lazy monthly reset: if lastResetAt is in a previous calendar month (or null), zero the counter.
+    const now = new Date()
+    const inPreviousMonth =
+      !lastReset ||
+      lastReset.getUTCFullYear() < now.getUTCFullYear() ||
+      (lastReset.getUTCFullYear() === now.getUTCFullYear() &&
+        lastReset.getUTCMonth() < now.getUTCMonth())
+    const buildsThisMonth = inPreviousMonth ? 0 : prevBuildsThisMonth
+
+    // Count active deployments (non-simulated, non-stopped) owned by this customer.
+    const { totalDocs: activeDeployments } = await payload.find({
+      collection: 'deployments',
+      where: {
+        and: [
+          { owner: { equals: ownerId } },
+          { status: { not_in: ['simulated', 'stopped'] } },
+        ],
+      },
+      limit: 0,
+      overrideAccess: true,
+    })
+
+    // Enforce quotas.
+    if (activeDeployments >= maxDeployments) {
+      return new Response(
+        JSON.stringify({
+          error: 'deployment_limit_reached',
+          message: `You're at your ${customerDoc.tier ?? 'free'} plan's ${maxDeployments}-site limit. Upgrade to add more.`,
+          quota: 'maxDeployments',
+          current: activeDeployments,
+          limit: maxDeployments,
+        }),
+        { status: 402, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+    if (buildsThisMonth >= maxBuildsPerMonth) {
+      return new Response(
+        JSON.stringify({
+          error: 'build_limit_reached',
+          message: `You've used all ${maxBuildsPerMonth} builds this month. Upgrade or wait until next month.`,
+          quota: 'maxBuildsPerMonth',
+          current: buildsThisMonth,
+          limit: maxBuildsPerMonth,
+        }),
+        { status: 402, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Increment counters at build start. Even if the build fails, the attempt counts.
+    try {
+      await payload.update({
+        collection: 'customers',
+        id: ownerId,
+        overrideAccess: true,
+        data: {
+          usage: {
+            deploymentsCreated: prevDeploymentsCreated + 1,
+            buildsThisMonth: buildsThisMonth + 1,
+            lastResetAt: inPreviousMonth ? now.toISOString() : (customerDoc.usage?.lastResetAt ?? now.toISOString()),
+          },
+        },
+      })
+    } catch {
+      // non-fatal — usage counters should never block a build
+    }
+
+    const customer = {
+      id: ownerId,
+      name: clientCustomer.name || (user as { name?: string }).name,
+      email: clientCustomer.email || (user as { email?: string }).email,
     }
 
     const domain = generateDomain(bmc.businessName)
@@ -139,30 +235,53 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: 'deploymentId required' }), { status: 400 })
     }
 
-    // ── Auth gate: require authenticated Payload session ──
+    // ── Auth gate: require authenticated session (customer or admin) ──
     const payload = await getPayload({ config })
     const { user } = await payload.auth({ headers: req.headers })
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized — Payload session required' }), { status: 401 })
+      return new Response(JSON.stringify({ error: 'Unauthorized — sign in required' }), { status: 401 })
     }
+    const isAdmin = user.collection === 'users'
+    const isCustomer = user.collection === 'customers'
 
     // Resolve tenant credentials server-side (Local API bypasses hidden field restrictions)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let deployment: any
     try {
-      deployment = await payload.findByID({ collection: 'deployments', id: deploymentId, overrideAccess: true })
+      deployment = await payload.findByID({
+        collection: 'deployments',
+        id: deploymentId,
+        overrideAccess: true,
+        showHiddenFields: true,
+      })
     } catch {
       return new Response(JSON.stringify({ error: 'Deployment not found' }), { status: 404 })
     }
 
-    // ── Ownership check: deployment must belong to an active customer ──
-    if (deployment.customer) {
+    // ── Ownership check ──
+    if (isCustomer) {
+      const ownerId = deployment.owner
+        ? (typeof deployment.owner === 'object' ? deployment.owner.id : deployment.owner)
+        : null
+      if (!ownerId || String(ownerId) !== String(user.id)) {
+        return new Response(JSON.stringify({ error: 'Forbidden — not your deployment' }), { status: 403 })
+      }
+    } else if (!isAdmin) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 })
+    }
+
+    // ── Active-customer check (churned customers cannot operate) ──
+    const legacyCustomerRef = deployment.customer
+      ? (typeof deployment.customer === 'object' ? deployment.customer.id : deployment.customer)
+      : null
+    const customerId = (isCustomer ? user.id : null) ?? legacyCustomerRef
+    if (customerId) {
       try {
-        const customer = await payload.findByID({ collection: 'customers', id: typeof deployment.customer === 'string' ? deployment.customer : deployment.customer.id, overrideAccess: true })
+        const customer = await payload.findByID({ collection: 'customers', id: customerId, overrideAccess: true })
         if (customer.phase === 'churned') {
           return new Response(JSON.stringify({ error: 'Tenant is no longer active' }), { status: 403 })
         }
-      } catch { /* customer lookup failed — non-fatal for now */ }
+      } catch { /* customer lookup failed — non-fatal */ }
     }
 
     if (deployment.status === 'simulated') {
@@ -184,6 +303,27 @@ export async function POST(req: Request) {
       adminPassword: deployment.adminPassword as string,
     }
 
+    // ── Pull the BMC + customer context so SiteOps can answer
+    // "use the BMC" / "based on our strategy" questions intelligently. ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let bmcContext: Record<string, any> | null = null
+    if (deployment.bmc) {
+      const bmcId = typeof deployment.bmc === 'object' ? deployment.bmc.id : deployment.bmc
+      try {
+        const bmcDoc = await payload.findByID({ collection: 'bmcs', id: bmcId, overrideAccess: true }) as unknown as Record<string, unknown>
+        bmcContext = {
+          businessName: bmcDoc.businessName,
+          industry: bmcDoc.industry,
+          tagline: bmcDoc.tagline,
+          valueProposition: bmcDoc.valueProposition,
+          targetSegments: bmcDoc.targetSegments,
+          brandMood: bmcDoc.brandMood,
+          businessArchetype: bmcDoc.businessArchetype,
+          // Strip the rawStrategyConversation — too large and not useful for ops chat
+        }
+      } catch { /* non-fatal */ }
+    }
+
     const stream = new ReadableStream({
       async start(controller) {
         function emit(event: string, data: Record<string, unknown>) {
@@ -191,7 +331,7 @@ export async function POST(req: Request) {
         }
         try {
           const ops = new SiteOps(apiKey)
-          const result = await ops.chat(messages, tenant)
+          const result = await ops.chat(messages, tenant, { bmc: bmcContext })
           emit('message', { text: result.text })
         } catch (err) {
           emit('error', { message: err instanceof Error ? err.message : String(err) })

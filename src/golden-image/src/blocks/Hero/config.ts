@@ -21,6 +21,13 @@ export const Hero: Block = {
         { label: 'Text Reveal Canvas (editorial split-text)', value: 'textRevealCanvas' },
         { label: 'Cinema Immersive (100vh full-bleed + Ken-Burns)', value: 'cinemaImmersive' },
         { label: 'Book Search (publishing / library / discovery)', value: 'bookSearch' },
+        { label: 'Authority Portrait (healthcare / legal / advisory — portrait + credentials)', value: 'authorityPortrait' },
+        { label: 'Stats Led (civic / education / healthcare — giant numbers first)', value: 'statsLed' },
+        { label: 'Founder Letter (heritage / advisory — long-form personal voice)', value: 'founderLetter' },
+        { label: 'Email Capture (creator / newsletter — email field is the CTA)', value: 'emailCapture' },
+        { label: 'Code Preview (devtools / infra — terminal panel on the right)', value: 'codePreview' },
+        { label: 'Product Showcase (DTC product brand — product image + features)', value: 'productShowcase' },
+        { label: 'Featured Quote (service business — single marquee customer quote)', value: 'featuredQuote' },
       ],
     },
     {

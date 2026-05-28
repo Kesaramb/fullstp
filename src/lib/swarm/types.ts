@@ -41,6 +41,9 @@ export type BusinessArchetype =
   | 'creative'    // Browse → Commission work (photography, design, art, music)
   | 'local'       // Find → Visit place (bakery, salon, gym, retail shop)
   | 'saas'        // Try → Subscribe tool (software, app, platform)
+  | 'healthcare'  // Trust → Book appointment (hospital, clinic, dental, vet, physio, mental health, wellness clinic)
+  | 'civic'       // Join → Donate/Volunteer (nonprofit, foundation, community org, Rotary, club, charity)
+  | 'education'   // Apply → Enrol (school, training program, course, bootcamp, academy)
 
 /** Archetype-specific configuration for site structure and content tone. */
 export interface ArchetypeConfig {
@@ -353,6 +356,138 @@ export const ARCHETYPE_CONFIGS: Record<BusinessArchetype, ArchetypeConfig> = {
       'The team behind {{name}} is incredibly responsive. They shipped a feature we requested within two weeks.',
     ],
   },
+  healthcare: {
+    pages: [
+      { slug: 'home', label: 'Home', purpose: 'Establish trust and clinical credibility' },
+      { slug: 'services', label: 'Services', purpose: 'Detail treatments, specialties, and care offered' },
+      { slug: 'our-team', label: 'Our Team', purpose: 'Credentials, specialties, and clinician profiles' },
+      { slug: 'contact', label: 'Contact', purpose: 'Appointment booking, location, hours' },
+    ],
+    navLinks: [
+      { label: 'Home', url: '/' }, { label: 'Services', url: '/services' },
+      { label: 'Our Team', url: '/our-team' }, { label: 'Contact', url: '/contact' },
+    ],
+    headerCta: { label: 'Book Appointment', url: '/contact' },
+    heroCta: { label: 'Book a Consultation', link: '/contact' },
+    highlights: ['Board-Certified', 'Patient-First Care', 'Years of Experience'],
+    features: [
+      { icon: 'heart', title: 'Compassionate Care', descTemplate: 'Every patient is treated with empathy, dignity, and individual attention from the moment they arrive.' },
+      { icon: 'shield', title: 'Specialist Expertise', descTemplate: 'Board-certified clinicians with deep experience across specialties, committed to evidence-based care.' },
+      { icon: 'check', title: 'Trusted Outcomes', descTemplate: 'A track record of patient satisfaction, transparent communication, and clear treatment outcomes.' },
+    ],
+    testimonialHeading: 'Patient Stories',
+    testimonialRoles: ['Patient', 'Family Member', 'Referring Physician'],
+    closingCta: { heading: 'Take the First Step Toward Better Care', description: 'Our team is here to listen, answer your questions, and guide you through every step.', label: 'Book Your Appointment' },
+    socialProofTerm: 'patients',
+    featureGridHeading: 'Why Patients Choose {{name}}',
+    secondPageFeatures: [
+      { icon: 'stethoscope', title: 'Comprehensive Care', descTemplate: 'A full range of services delivered under one roof, coordinated for clarity and continuity.' },
+      { icon: 'users', title: 'Team-Based Approach', descTemplate: 'Specialists, nurses, and care coordinators working together on your treatment plan.' },
+      { icon: 'clock', title: 'Convenient Scheduling', descTemplate: 'Flexible appointment times, telehealth options, and same-week availability for most concerns.' },
+      { icon: 'shield', title: 'Trusted Standards', descTemplate: 'Accredited facility with rigorous safety protocols and ongoing clinical quality programs.' },
+    ],
+    secondPageSubheading: 'Explore the full range of care we provide — from preventive visits to specialized treatment.',
+    secondPageCtaHeading: 'Not Sure Where to Start?',
+    secondPageCtaBody: 'Our care coordinators can help you find the right service and clinician for your needs.',
+    aboutSubheading: 'Meet the clinicians and staff dedicated to your care at {{name}}.',
+    aboutNarrative: 'At {{name}}, we believe that excellent care begins with listening. Every clinician on our team is committed to understanding your concerns before recommending a path forward.\n\nOur team brings decades of combined experience, ongoing specialty training, and a shared commitment to evidence-based medicine. We coordinate closely across specialties so that your care is consistent, communicative, and centered on you.\n\nWhether you\'re visiting for a routine check-up or navigating a complex condition, you\'ll find a team that treats you as a partner, not a case number.',
+    aboutBanner: 'Every clinician at {{name}} is board-certified and committed to ongoing professional development.',
+    contactSubheading: 'Book an appointment, request a referral, or ask a question — we typically respond within one business day.',
+    contactBody: 'For appointments, please use the form below or call us directly during business hours. For urgent medical concerns outside business hours, please contact your local emergency service.\n\nWe accept most major insurance plans and offer transparent pricing for self-pay patients. Our team can help verify your coverage and discuss payment options before your visit.',
+    testimonialQuotes: [
+      'The team at {{name}} took the time to explain everything clearly and made me feel genuinely cared for. I won\'t go anywhere else.',
+      'After years of being shuffled between specialists, finding {{name}} was a relief. They listened, coordinated my care, and got me on the right path.',
+      'I refer my patients to {{name}} with complete confidence. Their clinical standards and patient communication are exceptional.',
+    ],
+  },
+  civic: {
+    pages: [
+      { slug: 'home', label: 'Home', purpose: 'Mission, impact, and how to participate' },
+      { slug: 'our-work', label: 'Our Work', purpose: 'Programs, initiatives, and community impact' },
+      { slug: 'events', label: 'Events', purpose: 'Upcoming gatherings, fundraisers, volunteer days' },
+      { slug: 'get-involved', label: 'Get Involved', purpose: 'Donate, volunteer, become a member' },
+    ],
+    navLinks: [
+      { label: 'Home', url: '/' }, { label: 'Our Work', url: '/our-work' },
+      { label: 'Events', url: '/events' }, { label: 'Get Involved', url: '/get-involved' },
+    ],
+    headerCta: { label: 'Get Involved', url: '/get-involved' },
+    heroCta: { label: 'Join Us', link: '/get-involved' },
+    highlights: ['Community-Led', 'Volunteer Driven', 'Mission Focused'],
+    features: [
+      { icon: 'heart', title: 'Our Mission', descTemplate: 'A clear purpose that guides every program, every event, and every dollar we put to work in the community.' },
+      { icon: 'users', title: 'Community Impact', descTemplate: 'Measurable change in the lives of the people we serve — reported transparently every year.' },
+      { icon: 'hand', title: 'Open to All', descTemplate: 'Members, volunteers, and partners from every background united by a shared commitment to service.' },
+    ],
+    testimonialHeading: 'Stories from Our Community',
+    testimonialRoles: ['Volunteer', 'Member', 'Beneficiary'],
+    closingCta: { heading: 'Join Us in Making a Difference', description: 'Whether you have an hour, a skill, or a story to share — there\'s a way to get involved at {{name}}.', label: 'Find Your Way to Help' },
+    socialProofTerm: 'members',
+    featureGridHeading: 'How {{name}} Works',
+    secondPageFeatures: [
+      { icon: 'leaf', title: 'Ongoing Programs', descTemplate: 'Long-term initiatives delivering consistent support and measurable outcomes year-round.' },
+      { icon: 'calendar', title: 'Community Events', descTemplate: 'Public gatherings, fundraisers, and volunteer days open to members and visitors alike.' },
+      { icon: 'gift', title: 'Direct Giving', descTemplate: 'Targeted campaigns where every contribution maps directly to a program or beneficiary.' },
+      { icon: 'star', title: 'Partnerships', descTemplate: 'Collaborations with local businesses, schools, and other organizations amplifying our impact.' },
+    ],
+    secondPageSubheading: 'Explore the programs and initiatives that {{name}} runs to serve our community.',
+    secondPageCtaHeading: 'Support What Matters to You',
+    secondPageCtaBody: 'Pick the program or initiative that speaks to you — every contribution, large or small, makes a real difference.',
+    aboutSubheading: 'The story, the people, and the purpose behind {{name}}.',
+    aboutNarrative: '{{name}} was founded on a simple belief: that strong communities are built by people who show up for one another. From our first meeting to today, that principle has shaped every program we run and every partnership we build.\n\nWe\'re a member-led organization, which means every initiative starts with a community need and a volunteer willing to take it on. Our leadership rotates, our books are open, and our impact reports are public.\n\nWhether you join us as a donor, a volunteer, or a beneficiary, you become part of a community that\'s been showing up for one another year after year.',
+    aboutBanner: '{{name}} publishes annual impact and financial reports — transparency is non-negotiable for us.',
+    contactSubheading: 'Reach out about joining, volunteering, partnering, or supporting our work — we\'d love to hear from you.',
+    contactBody: 'Whether you want to become a member, organize an event, propose a partnership, or just ask a question — we read every message and respond personally within a few days.\n\nFor donation inquiries, planned giving, or major partnerships, please mention that in your message so we can route you to the right person.',
+    testimonialQuotes: [
+      'Volunteering with {{name}} has been one of the most meaningful things I\'ve ever done. The community here is genuine and the work matters.',
+      'My family has been members of {{name}} for three generations. They\'ve never lost sight of why they started, and our community is better for it.',
+      'When our family was going through a hard time, {{name}} was there. No bureaucracy, no judgement — just real support when we needed it.',
+    ],
+  },
+  education: {
+    pages: [
+      { slug: 'home', label: 'Home', purpose: 'Mission, outcomes, and what makes the program distinct' },
+      { slug: 'programs', label: 'Programs', purpose: 'Courses, tracks, curriculum overview' },
+      { slug: 'faculty', label: 'Faculty', purpose: 'Instructors, advisors, and their credentials' },
+      { slug: 'contact', label: 'Contact', purpose: 'Admissions inquiries, information requests' },
+    ],
+    navLinks: [
+      { label: 'Home', url: '/' }, { label: 'Programs', url: '/programs' },
+      { label: 'Faculty', url: '/faculty' }, { label: 'Contact', url: '/contact' },
+    ],
+    headerCta: { label: 'Apply Now', url: '/contact' },
+    heroCta: { label: 'Request Information', link: '/contact' },
+    highlights: ['Award-Winning Faculty', 'Proven Outcomes', 'Industry Partnerships'],
+    features: [
+      { icon: 'star', title: 'World-Class Faculty', descTemplate: 'Instructors who are recognized practitioners and educators, bringing real-world experience into every class.' },
+      { icon: 'check', title: 'Hands-On Curriculum', descTemplate: 'A learn-by-doing approach with projects, case studies, and applied work woven through every program.' },
+      { icon: 'trending-up', title: 'Career Outcomes', descTemplate: 'Graduates land roles at top organizations, supported by our career services and alumni network.' },
+    ],
+    testimonialHeading: 'What Our Students Say',
+    testimonialRoles: ['Graduate', 'Current Student', 'Industry Partner'],
+    closingCta: { heading: 'Take the Next Step in Your Journey', description: 'Speak with our admissions team to explore programs, ask questions, and find the right fit for your goals.', label: 'Start Your Application' },
+    socialProofTerm: 'students',
+    featureGridHeading: 'Why Choose {{name}}',
+    secondPageFeatures: [
+      { icon: 'book', title: 'Structured Curriculum', descTemplate: 'Carefully sequenced courses that build skill on skill, from foundations to advanced practice.' },
+      { icon: 'users', title: 'Small Cohorts', descTemplate: 'Intentional class sizes that prioritize discussion, mentorship, and individual feedback.' },
+      { icon: 'briefcase', title: 'Industry-Connected', descTemplate: 'Guest speakers, internships, and capstone partnerships with leading organizations in your field.' },
+      { icon: 'award', title: 'Recognized Credentials', descTemplate: 'Degrees and certifications that employers know and value.' },
+    ],
+    secondPageSubheading: 'Browse the programs we offer — full curriculum, faculty, and outcomes available for each.',
+    secondPageCtaHeading: 'Find the Right Program for You',
+    secondPageCtaBody: 'Our admissions advisors can help you compare programs, understand prerequisites, and plan your application.',
+    aboutSubheading: 'Meet the educators and staff shaping the {{name}} experience.',
+    aboutNarrative: '{{name}} was built on the conviction that great education changes lives — and that meaningful change requires great teachers, well-designed curriculum, and a community that pushes you forward.\n\nOur faculty are practitioners as much as they are educators. They bring current, working knowledge from their fields directly into the classroom, and they invest deeply in the success of every student.\n\nFrom the first week to graduation day, you\'ll find a community of peers, mentors, and alumni committed to helping each other grow — academically, professionally, and personally.',
+    aboutBanner: 'Our graduates work in leading organizations across {{name}}\'s field of focus.',
+    contactSubheading: 'Questions about programs, admissions, or visiting campus? Our admissions team is here to help.',
+    contactBody: 'We respond to every inquiry within one business day. Our admissions advisors can walk you through programs, eligibility, financial aid, and application timelines.\n\nIf you\'d like to attend an open day, schedule a virtual info session, or speak with a current student, just mention it in your message and we\'ll set it up.',
+    testimonialQuotes: [
+      '{{name}} changed how I think about my field. The faculty pushed me, the cohort challenged me, and I left with skills and a network I rely on every day.',
+      'I looked at half a dozen programs before choosing {{name}}. The curriculum was the strongest, the faculty were the most accessible, and the outcomes spoke for themselves.',
+      'We\'ve hired multiple {{name}} graduates and they\'re consistently among our strongest team members. Their preparation is real and it shows.',
+    ],
+  },
 }
 
 // ── Section / Block Types ──
@@ -377,6 +512,14 @@ export type SectionType =
   | 'pullQuote'
   | 'callToAction'
   | 'richContent'
+  // PR-Industry-Blocks
+  | 'serviceCalculator'
+  | 'brandTimeline'
+  | 'eventCalendarTeaser'
+  | 'locationMap'
+  | 'menuPreview'
+  | 'openingHoursWidget'
+  | 'reservationWidget'
 
 // ── BMC (input from Strategy phase) ──
 
@@ -389,6 +532,15 @@ export interface BMC {
   blocks?: string[]
   brandMood?: string
   businessArchetype?: BusinessArchetype
+  // Logo + extracted brand palette — customer-uploaded, used to override
+  // the mood-derived palette in the design pipeline.
+  logoUrl?: string
+  logoColors?: {
+    primary: string
+    secondary: string
+    accent: string
+    description?: string
+  }
 }
 
 // ── Queen: Strategy Brief ──

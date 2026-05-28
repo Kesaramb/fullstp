@@ -24,6 +24,7 @@ import { ReservationWidget } from '../blocks/ReservationWidget/config'
 import { LocationMap } from '../blocks/LocationMap/config'
 import { ServiceCalculator } from '../blocks/ServiceCalculator/config'
 import { BrandTimeline } from '../blocks/BrandTimeline/config'
+import { PostsList } from '../blocks/PostsList/config'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -79,6 +80,8 @@ export const Pages: CollectionConfig = {
         LocationMap,
         ServiceCalculator,
         BrandTimeline,
+        // Blog / editorial
+        PostsList,
       ],
       required: true,
     },

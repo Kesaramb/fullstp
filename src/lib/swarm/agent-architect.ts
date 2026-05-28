@@ -37,6 +37,7 @@ const BLOCK_CATALOG: { blockType: string; description: string; validIntents: Sec
     blockType: 'hero',
     description: 'The page-opening section. Required as the first section of every page. Variants are picked downstream (Dark Cinematic / Editorial Luxe / etc.) — do not specify variants here. NOTE: the `bookSearch` hero variant is auto-selected for publishing / library / discovery industries — you don\'t need to hint it.',
     validIntents: ['announce-the-brand-and-primary-cta', 'state-the-positioning-clearly', 'frame-the-page-topic', 'invite-conversation'],
+    supportsVariantHint: ['highImpact', 'mediumImpact', 'lowImpact', 'editorialAsymmetric', 'bentoSplit', 'gradientMeshSpotlight', 'bentoCanvas', 'agentInteractive', 'spotlightStage', 'textRevealCanvas', 'cinemaImmersive', 'bookSearch'],
   },
   {
     blockType: 'brandNarrative',
@@ -51,9 +52,9 @@ const BLOCK_CATALOG: { blockType: string; description: string; validIntents: Sec
   },
   {
     blockType: 'testimonials',
-    description: 'Customer / press / endorsement quotes. Use when proof inventory has type=customer with quotes. Variant hint optional: marqueeWall (many quotes), default (3-up).',
+    description: 'Customer / press / endorsement quotes. Use when proof inventory has type=customer with quotes. Variant hint optional: marqueeWall (many quotes), carousel (3-up).',
     validIntents: ['social-proof-with-quote', 'demonstrate-with-customer-stories'],
-    supportsVariantHint: ['marqueeWall', 'default'],
+    supportsVariantHint: ['marqueeWall', 'carousel'],
   },
   {
     blockType: 'closingBanner',
@@ -74,31 +75,37 @@ const BLOCK_CATALOG: { blockType: string; description: string; validIntents: Sec
     blockType: 'stats',
     description: 'Numeric proof — metrics, milestones, scale. Use ONLY when StrategyBriefV2.hasMetrics is true AND proofPoints includes type=metric.',
     validIntents: ['establish-credibility-with-numbers', 'social-proof-with-metrics'],
+    supportsVariantHint: ['rowOfNumbers', 'tiledCards', 'accentBand', 'animatedCounter'],
   },
   {
     blockType: 'faq',
     description: 'Question / answer pairs. Use when the persona has 2+ stated objections, or when conversion-goal is high-friction (purchase / subscription / application).',
     validIntents: ['address-top-objections', 'closing-with-faq'],
+    supportsVariantHint: ['accordion', 'twoColumn', 'editorial'],
   },
   {
     blockType: 'logoCloud',
     description: 'Customer / press / award logos in a row. Use ONLY when StrategyBriefV2.hasNamedCustomers OR hasAwards is true.',
     validIntents: ['social-proof-with-logos', 'establish-credibility-with-awards'],
+    supportsVariantHint: ['row', 'grid', 'marquee'],
   },
   {
     blockType: 'pricing',
     description: 'Pricing tiers / cards. Use on the pricing page (always) and as a teaser on home for purchase/subscription/trial conversion goals.',
     validIntents: ['present-pricing-or-tiers'],
+    supportsVariantHint: ['threeTier', 'twoTier', 'singleCard'],
   },
   {
     blockType: 'process',
     description: 'Numbered / sequential step-by-step explanation. Use for services or SaaS where the workflow is non-obvious.',
     validIntents: ['explain-how-it-works-process'],
+    supportsVariantHint: ['numberedRow', 'verticalTimeline', 'iconRow'],
   },
   {
     blockType: 'pullQuote',
     description: 'Single large quote — founder voice, philosophy, manifesto. Use sparingly on about / story pages with editorial content depth.',
     validIntents: ['tell-the-founding-story', 'explain-the-philosophy'],
+    supportsVariantHint: ['editorial', 'brandStatement', 'spotlight'],
   },
   // ── PR-Industry-Blocks — pick these when the BMC industry matches ──
   {

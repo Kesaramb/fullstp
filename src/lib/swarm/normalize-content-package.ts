@@ -101,17 +101,33 @@ function normalizeBlock(
   return normalizedBlock
 }
 
+import { validateBlocks } from './block-validator'
+
 export function normalizeContentPackage(content: ContentPackage): ContentPackage {
   const availablePaths = content.pages.map(page => pageSlugToPath(page.slug))
 
   return {
     ...content,
-    pages: content.pages.map(page => ({
-      ...page,
-      layout: page.layout
+    pages: content.pages.map(page => {
+      const normalized = page.layout
         // Strip mediaBlock — requires an upload relationship we can't satisfy during seeding
         .filter(block => block.blockType !== 'mediaBlock')
-        .map(block => normalizeBlock(block, pageSlugToPath(page.slug), availablePaths)),
-    })),
+        .map(block => normalizeBlock(block, pageSlugToPath(page.slug), availablePaths))
+
+      // Final safety net: drop blocks with empty required fields and filter
+      // out malformed array items. A single bad block must never kill a seed.
+      const { blocks: validated, dropped } = validateBlocks(normalized)
+      if (dropped.length > 0) {
+        console.warn(
+          `[validateBlocks] page="${page.slug}" dropped ${dropped.length} block(s):`,
+          dropped.map(d => `${d.blockType} (${d.reason})`).join(', ')
+        )
+      }
+
+      return {
+        ...page,
+        layout: validated,
+      }
+    }),
   }
 }

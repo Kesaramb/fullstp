@@ -16,7 +16,15 @@ export default function LandingChat({ onSubmit }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex flex-col items-center justify-center p-8 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex flex-col items-center justify-center p-8 font-sans relative">
+
+      {/* Sign-in link for returning users */}
+      <a
+        href="/login"
+        className="absolute top-6 right-8 text-sm font-medium text-gray-600 hover:text-gray-900 transition"
+      >
+        Sign in →
+      </a>
 
       {/* Wordmark */}
       <div className="mb-16 text-center">
