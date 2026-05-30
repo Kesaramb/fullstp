@@ -138,9 +138,17 @@ export function packageTemplate(): string {
 }
 
 export function validateArchive(tarballPath: string): void {
-  const listing = execSync(`tar tzf ${tarballPath} | head -30`, {
+  // List the ENTIRE archive — not `head -30`. `tar` emits entries in
+  // filesystem readdir order (directories first, then their contents), so
+  // root-level files like payload.config.ts / next.config.mjs can land far
+  // down the listing (observed at line ~197 of 208). Truncating to 30 lines
+  // made validateArchive falsely report them "Missing at root", failing every
+  // deploy with "Template archive has invalid layout" even though the files
+  // were present at the root the whole time.
+  const listing = execSync(`tar tzf ${tarballPath}`, {
     encoding: 'utf8',
     timeout: 10000,
+    maxBuffer: 1024 * 1024 * 10,
   }).trim()
 
   const entries = listing.split('\n').map(e => e.replace(/^\.\//, ''))

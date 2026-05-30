@@ -14,6 +14,13 @@ export class EventLogger {
     this.eventsFile = join(jobDir, 'events.ndjson')
     this.statusFile = join(jobDir, 'status.json')
     this.startedAt = new Date().toISOString()
+    // Once a terminal state is written it must never regress. The final
+    // `emit(stage, 'runner', 'done', ...)` after writeResult() would otherwise
+    // map back to 'running' (emit only distinguishes error vs running) and
+    // clobber the 'success' that writeResult just persisted — leaving
+    // status.json frozen at {stage:'completed', state:'running'}, which makes
+    // the control-plane pollStatus() hang until timeout. This guard prevents that.
+    this.terminal = false
 
     if (!existsSync(jobDir)) {
       mkdirSync(jobDir, { recursive: true })
@@ -41,6 +48,14 @@ export class EventLogger {
 
   /** Write current status to status.json. */
   writeStatus(stage, state) {
+    // Never regress a terminal state (success/error) back to running. The
+    // final "done" emit must not undo the result written by writeResult().
+    if (this.terminal && state !== 'success' && state !== 'error') {
+      return
+    }
+    if (state === 'success' || state === 'error') {
+      this.terminal = true
+    }
     const status = {
       jobId: this.jobId,
       stage,

@@ -22,11 +22,17 @@ async function main() {
 
   // Use a minimal import to get fallback content
   const { SwarmPipeline } = await import('../src/lib/swarm/pipeline')
+  const { normalizeContentPackage } = await import('../src/lib/swarm/normalize-content-package')
   const pipeline = new SwarmPipeline('fake-key')
   const log = (agent: string, text: string, status: string) => {
     console.log(`  [${agent}] ${text}`)
   }
-  const contentPackage = (pipeline as any).fallbackContentGeneration(bmc, log)
+  // Match the real pipeline: run() always normalizes before deploy. The harness
+  // must too, otherwise raw fallback icons (search/briefcase/etc.) reach Payload
+  // unnormalized and fail the featureGrid icon `select` with HTTP 400.
+  const contentPackage = normalizeContentPackage(
+    (pipeline as any).fallbackContentGeneration(bmc, log)
+  )
 
   console.log(`Content package: ${contentPackage.pages.length} pages, theme: ${contentPackage.globals.siteSettings.theme?.palette}`)
   console.log('Block types per page:')
