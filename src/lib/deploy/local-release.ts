@@ -2,6 +2,20 @@ import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 
+/**
+ * Resolve the repo root explicitly.
+ *
+ * Next.js `output: 'standalone'` ships a `server.js` that calls
+ * `process.chdir(__dirname)`, forcing `process.cwd()` to `.next/standalone/`
+ * at runtime — NOT the repo root. Deploy code that resolves `src/golden-image`
+ * and runner assets off `process.cwd()` would then point at the wrong tree.
+ * `FULLSTP_REPO_ROOT` pins the real checkout (set in the control-plane .env);
+ * we fall back to `process.cwd()` for local dev where cwd IS the repo root.
+ */
+export function getRepoRoot(): string {
+  return process.env.FULLSTP_REPO_ROOT || process.cwd()
+}
+
 export const REQUIRED_TENANT_PATHS = [
   'package.json',
   'payload.config.ts',
@@ -61,11 +75,11 @@ function collectRelativeImports(filePath: string): string[] {
 }
 
 export function getTenantTemplateDir(): string {
-  return path.resolve(process.cwd(), 'src', 'golden-image')
+  return path.resolve(getRepoRoot(), 'src', 'golden-image')
 }
 
 export function getRunnerDir(): string {
-  return path.resolve(process.cwd(), 'scripts', 'server-runner')
+  return path.resolve(getRepoRoot(), 'scripts', 'server-runner')
 }
 
 export function validateTenantSourceShape(templateDir = getTenantTemplateDir()): void {
@@ -122,11 +136,22 @@ export function validateRunnerBundleCompleteness(runnerDir = getRunnerDir()): st
 }
 
 export function runLocalTenantReleaseValidation(): void {
+  // Cheap, dependency-free structural checks always run — they catch a broken
+  // golden-image or incomplete runner bundle before we package anything.
   validateTenantSourceShape()
   validateRunnerBundleCompleteness()
-  execSync('npm run validate:tenant-release', {
-    encoding: 'utf8',
-    stdio: 'pipe',
-    maxBuffer: 1024 * 1024 * 10,
-  })
+
+  // The vitest suite (`npm run validate:tenant-release`) is a dev/CI gate, not a
+  // per-deploy runtime check. In the standalone control-plane build, devDeps and
+  // the test files may not even be present, and running it on every build adds
+  // tens of seconds of silence to the SSE stream. Gate it behind an explicit
+  // opt-in and always run it from the real repo root.
+  if (process.env.RUN_TENANT_RELEASE_TESTS === '1') {
+    execSync('npm run validate:tenant-release', {
+      cwd: getRepoRoot(),
+      encoding: 'utf8',
+      stdio: 'pipe',
+      maxBuffer: 1024 * 1024 * 10,
+    })
+  }
 }

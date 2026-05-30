@@ -15,6 +15,7 @@ import crypto from 'crypto'
 import { execSync } from 'child_process'
 import type { ContentPackage } from '@/lib/swarm/types'
 import {
+  getRepoRoot,
   listRunnerFiles,
   runLocalTenantReleaseValidation,
   validateTenantSourceShape,
@@ -113,8 +114,8 @@ function sleep(ms: number) {
 export function packageTemplate(): string {
   validateTenantSourceShape()
 
-  const goldenImageDir = path.resolve(process.cwd(), 'src', 'golden-image')
-  const tmpDir = path.join(process.cwd(), '.tmp')
+  const goldenImageDir = path.resolve(getRepoRoot(), 'src', 'golden-image')
+  const tmpDir = path.join(getRepoRoot(), '.tmp')
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
 
   const tarballPath = path.join(tmpDir, 'template.tgz')
@@ -199,7 +200,7 @@ async function uploadRunnerTree(
 ): Promise<void> {
   log('DevOps', 'Syncing deployment runner to server...', 'running')
 
-  const runnerDir = path.resolve(process.cwd(), 'scripts', 'server-runner')
+  const runnerDir = path.resolve(getRepoRoot(), 'scripts', 'server-runner')
   const runnerFiles = listRunnerFiles(runnerDir)
   await sshExec(ssh, `mkdir -p ${BRIDGE.runnerPath} ${BRIDGE.runnerPath}/lib ${BRIDGE.jobsPath}`, 30000)
 

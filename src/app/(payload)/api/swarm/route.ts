@@ -62,7 +62,19 @@ function createSafeEmitter(
     closed = true
     try { controller.close() } catch { /* already closed */ }
   }
-  return { emit, close, markClosed }
+  // SSE comment heartbeat. Lines starting with ":" are ignored by every
+  // EventSource client, so this keeps the connection warm through long, silent
+  // build phases (LLM generation, image fetch, tar, upload) without surfacing
+  // as data — preventing Cloudflare's ~100s idle cut from showing "Load failed".
+  const ping = () => {
+    if (closed) return
+    try {
+      controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`))
+    } catch {
+      closed = true
+    }
+  }
+  return { emit, close, markClosed, ping }
 }
 
 export async function POST(req: Request) {
@@ -201,6 +213,18 @@ export async function POST(req: Request) {
       )
     }
 
+    // Resolve the target domain and guard against concurrent duplicate builds
+    // BEFORE touching usage counters. A 409'd retry must NOT burn a build quota.
+    const domain = generateDomain(bmc.businessName)
+
+    if (activeBuildDomains.has(domain)) {
+      return new Response(
+        JSON.stringify({ error: `Build already in progress for ${domain}` }),
+        { status: 409 }
+      )
+    }
+    activeBuildDomains.add(domain)
+
     // Increment counters at build start. Even if the build fails, the attempt counts.
     try {
       await payload.update({
@@ -225,16 +249,6 @@ export async function POST(req: Request) {
       email: clientCustomer.email || (user as { email?: string }).email,
     }
 
-    const domain = generateDomain(bmc.businessName)
-
-    if (activeBuildDomains.has(domain)) {
-      return new Response(
-        JSON.stringify({ error: `Build already in progress for ${domain}` }),
-        { status: 409 }
-      )
-    }
-    activeBuildDomains.add(domain)
-
     let markClosed: () => void = () => {}
     const stream = new ReadableStream({
       async start(controller) {
@@ -243,6 +257,13 @@ export async function POST(req: Request) {
         const logEmit = (agent: string, text: string, status: 'running' | 'done' | 'error') => {
           safe.emit('log', { agent, text, status })
         }
+
+        // Keep the SSE connection warm during long, silent build phases so the
+        // browser keeps receiving the stream instead of hitting Cloudflare's
+        // idle cut. (createSafeEmitter's disconnect survival is the safety net
+        // if the cut happens anyway; this heartbeat prevents it in the first
+        // place, preserving the live build log for the user.)
+        const heartbeat = setInterval(() => safe.ping(), 15000)
 
         try {
           const pipeline = new SwarmPipeline(apiKey)
@@ -255,6 +276,7 @@ export async function POST(req: Request) {
           const msg = err instanceof Error ? err.message : String(err)
           safe.emit('build_error', { error: msg })
         } finally {
+          clearInterval(heartbeat)
           activeBuildDomains.delete(domain)
           safe.close()
         }
