@@ -16,6 +16,7 @@ import fs from 'fs'
 import path from 'path'
 
 import type { ContentPackage } from '@/lib/swarm/types'
+import { getRepoRoot } from './local-release'
 
 export interface DeployConfig {
   domain: string
@@ -168,7 +169,7 @@ async function syncGoldenImageToServer(
   // Resolve the local golden-image source directory.
   // In development, process.cwd() is the project root and src/golden-image/ is available.
   // In production standalone builds, the source tree may not exist — gracefully degrade.
-  const goldenImageDir = path.resolve(process.cwd(), 'src', 'golden-image')
+  const goldenImageDir = path.resolve(getRepoRoot(), 'src', 'golden-image')
   if (!fs.existsSync(goldenImageDir)) {
     log('DevOps', 'Golden-image source not found locally — using server template as-is.', 'running')
     return

@@ -24,8 +24,12 @@ const activeBuildDomains = new Set<string>()
 function sseHeaders() {
   return {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
+    // Disable response buffering in nginx (and Cloudflare honors this hint),
+    // so heartbeat pings and log events flush immediately instead of being
+    // held back until the stream ends.
+    'X-Accel-Buffering': 'no',
   }
 }
 
@@ -162,6 +166,18 @@ export async function POST(req: Request) {
       )
     }
 
+    // Resolve the target domain and guard against concurrent duplicate builds
+    // BEFORE touching usage counters. A 409'd retry must NOT burn a build quota.
+    const domain = generateDomain(bmc.businessName)
+
+    if (activeBuildDomains.has(domain)) {
+      return new Response(
+        JSON.stringify({ error: `Build already in progress for ${domain}` }),
+        { status: 409 }
+      )
+    }
+    activeBuildDomains.add(domain)
+
     // Increment counters at build start. Even if the build fails, the attempt counts.
     try {
       await payload.update({
@@ -186,24 +202,31 @@ export async function POST(req: Request) {
       email: clientCustomer.email || (user as { email?: string }).email,
     }
 
-    const domain = generateDomain(bmc.businessName)
-
-    if (activeBuildDomains.has(domain)) {
-      return new Response(
-        JSON.stringify({ error: `Build already in progress for ${domain}` }),
-        { status: 409 }
-      )
-    }
-    activeBuildDomains.add(domain)
-
     const stream = new ReadableStream({
       async start(controller) {
+        let closed = false
         function emit(event: string, data: Record<string, unknown>) {
+          if (closed) return
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
         }
         function logEmit(agent: string, text: string, status: 'running' | 'done' | 'error') {
           emit('log', { agent, text, status })
         }
+
+        // Cloudflare's free plan closes idle streamed responses after ~100s.
+        // A long, silent build phase (LLM generation, image fetch, tar, upload)
+        // would otherwise be cut as "Load failed" in the browser. Send an SSE
+        // comment ping every 15s to keep the connection warm. Comments (lines
+        // starting with ":") are ignored by EventSource and never surface as data.
+        const heartbeat = setInterval(() => {
+          if (closed) return
+          try {
+            controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`))
+          } catch {
+            // controller already closed — stop pinging
+            clearInterval(heartbeat)
+          }
+        }, 15000)
 
         try {
           const pipeline = new SwarmPipeline(apiKey)
@@ -212,6 +235,8 @@ export async function POST(req: Request) {
           const msg = err instanceof Error ? err.message : String(err)
           emit('build_error', { error: msg })
         } finally {
+          clearInterval(heartbeat)
+          closed = true
           activeBuildDomains.delete(domain)
           controller.close()
         }
