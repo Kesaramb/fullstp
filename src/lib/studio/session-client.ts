@@ -68,18 +68,27 @@ export async function loadStudioSession(): Promise<StudioSession | null> {
   }
 }
 
-/** Persist (upsert) the session state. Fire-and-forget friendly; errors are swallowed. */
-export async function saveStudioSession(input: {
-  phase: string
-  state: StudioSessionState
-  deploymentId?: string | number
-}): Promise<StudioSession | null> {
+/** Persist (upsert) the session state. Fire-and-forget friendly; errors are swallowed.
+ *
+ * Pass `keepalive: true` when saving during page teardown (refresh / tab close):
+ * a normal fetch is aborted when the document unloads, but a keepalive request
+ * is allowed to complete in the background. This is what guarantees the latest
+ * transcript reaches the server even on an immediate refresh. */
+export async function saveStudioSession(
+  input: {
+    phase: string
+    state: StudioSessionState
+    deploymentId?: string | number
+  },
+  opts: { keepalive?: boolean } = {}
+): Promise<StudioSession | null> {
   try {
     const anonKey = getAnonKey()
     const res = await fetch('/api/studio-session', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
+      keepalive: opts.keepalive ?? false,
       body: JSON.stringify({
         anonKey,
         phase: input.phase,
@@ -99,6 +108,11 @@ export async function saveStudioSession(input: {
 export function createDebouncedSaver(delayMs = 800) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let pending: Parameters<typeof saveStudioSession>[0] | null = null
+  // The most recent payload we've been asked to save, whether or not it's still
+  // pending a debounce. Used by flushOnUnload so a refresh always persists the
+  // latest state even if the last write already fired (the in-flight one may be
+  // aborted by the unload).
+  let last: Parameters<typeof saveStudioSession>[0] | null = null
 
   const flush = () => {
     if (pending) {
@@ -111,12 +125,27 @@ export function createDebouncedSaver(delayMs = 800) {
   return {
     save(input: Parameters<typeof saveStudioSession>[0]) {
       pending = input
+      last = input
       if (timer) clearTimeout(timer)
       timer = setTimeout(flush, delayMs)
+    },
+    /** Persist immediately, bypassing the debounce (e.g. a turn just completed). */
+    saveNow(input: Parameters<typeof saveStudioSession>[0]) {
+      pending = null
+      last = input
+      if (timer) { clearTimeout(timer); timer = null }
+      void saveStudioSession(input)
     },
     flushNow() {
       if (timer) clearTimeout(timer)
       flush()
+    },
+    /** Synchronously fire a keepalive write of the latest payload on page teardown. */
+    flushOnUnload() {
+      if (timer) { clearTimeout(timer); timer = null }
+      const payload = pending ?? last
+      pending = null
+      if (payload) void saveStudioSession(payload, { keepalive: true })
     },
   }
 }

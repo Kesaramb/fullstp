@@ -659,9 +659,28 @@ export default function MultiPhaseChat({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Flush any pending save before the page goes away (refresh / tab close /
+  // mobile background). A normal debounced fetch would be aborted by the
+  // unload; flushOnUnload uses a keepalive request that survives teardown.
+  // 'pagehide' fires on actual navigation away; 'visibilitychange' (hidden)
+  // covers tab switches and the mobile/bfcache case where pagehide may not.
+  useEffect(() => {
+    const saver = saverRef.current
+    const onHide = () => saver.flushOnUnload()
+    const onVisibility = () => { if (document.visibilityState === 'hidden') saver.flushOnUnload() }
+    window.addEventListener('pagehide', onHide)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pagehide', onHide)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
+
   // Persist a snapshot of the current flow state. Called on every transition.
+  // Pass `immediate` to bypass the debounce (e.g. a completed CEO turn) so the
+  // write is durable within one round-trip instead of after the debounce window.
   const persist = useCallback(
-    (nextPhase: Phase, overrides: Partial<StudioSessionState> = {}) => {
+    (nextPhase: Phase, overrides: Partial<StudioSessionState> = {}, immediate = false) => {
       const state: StudioSessionState = {
         phase: nextPhase,
         initialMessage,
@@ -672,7 +691,9 @@ export default function MultiPhaseChat({
         logo: strategyStateRef.current.logo,
         ...overrides,
       }
-      saverRef.current.save({ phase: nextPhase, state })
+      const saver = saverRef.current
+      if (immediate) saver.saveNow({ phase: nextPhase, state })
+      else saver.save({ phase: nextPhase, state })
     },
     [initialMessage, bmc, customerInfo]
   )
@@ -769,11 +790,13 @@ export default function MultiPhaseChat({
             history: s.strategyHistory,
             logo: s.logo,
           }
+          // A settled strategy turn — persist immediately so a fast refresh
+          // can't drop it inside the debounce window.
           persist('strategy', {
             strategyMessages: s.strategyMessages,
             strategyHistory: s.strategyHistory,
             logo: s.logo,
-          })
+          }, true)
         }}
       />
     )
