@@ -12,6 +12,8 @@ interface Props {
     heading: string
     subheading?: string | null
     backgroundImage?: { url: string; alt: string } | null
+    backgroundVideoUrl?: string | null
+    backgroundVideoPosterUrl?: string | null
     ctaLabel?: string | null
     ctaLink?: string | null
     highlights?: { text: string }[] | null
@@ -19,18 +21,41 @@ interface Props {
 }
 
 export function HighImpactHero({ block }: Props) {
+  // Resolution order: video > image > animated mesh gradient
+  const hasVideo = Boolean(block.backgroundVideoUrl && !block.backgroundVideoUrl.startsWith('{{'))
+  const hasImage = Boolean(block.backgroundImage?.url)
+  const posterUrl = (block.backgroundVideoPosterUrl && !block.backgroundVideoPosterUrl.startsWith('{{'))
+    ? block.backgroundVideoPosterUrl
+    : block.backgroundImage?.url
+
   return (
-    <section
-      className="relative min-h-[90vh] flex items-center justify-center overflow-hidden noise-overlay"
-      style={
-        block.backgroundImage?.url
-          ? { backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url(${block.backgroundImage.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-          : undefined
-      }
-    >
-      {/* Mesh gradient background when no image */}
-      {!block.backgroundImage?.url && (
+    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden noise-overlay bg-[#0a0a0a]">
+      {/* Background layer — video > image > mesh, sits behind the dark overlay */}
+      {hasVideo ? (
+        <video
+          data-effect="hero-video"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster={posterUrl || undefined}
+          className="absolute inset-0 w-full h-full object-cover"
+        >
+          <source src={block.backgroundVideoUrl!} type="video/mp4" />
+        </video>
+      ) : hasImage ? (
+        <div
+          className="absolute inset-0 w-full h-full"
+          style={{ backgroundImage: `url(${block.backgroundImage!.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        />
+      ) : (
         <div className="absolute inset-0 mesh-gradient" />
+      )}
+
+      {/* Dark overlay for text readability over video/image */}
+      {(hasVideo || hasImage) && (
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/70" />
       )}
 
       {/* Floating decorative shapes for depth */}

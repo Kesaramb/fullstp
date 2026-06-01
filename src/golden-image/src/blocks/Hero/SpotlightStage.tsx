@@ -16,6 +16,8 @@ interface Props {
     heading: string
     subheading?: string | null
     backgroundImage?: { url: string; alt: string } | null
+    backgroundVideoUrl?: string | null
+    backgroundVideoPosterUrl?: string | null
     ctaLabel?: string | null
     ctaLink?: string | null
     secondaryCtaLabel?: string | null
@@ -55,12 +57,36 @@ export function SpotlightStageHero({ block }: Props) {
   const trustPills = block.trustPills || []
   const highlights = (block.highlights || []).slice(0, 3)
   const proofLogos = block.proofLogoNames?.slice(0, 6) || []
+  // Optional full-cover background video behind the dark stage
+  const hasVideo = Boolean(block.backgroundVideoUrl && !block.backgroundVideoUrl.startsWith('{{'))
+  const posterUrl = (block.backgroundVideoPosterUrl && !block.backgroundVideoPosterUrl.startsWith('{{'))
+    ? block.backgroundVideoPosterUrl
+    : block.backgroundImage?.url
 
   return (
     <section
       ref={ref}
       className="relative isolate overflow-hidden bg-[#08080c] text-white noise-overlay"
     >
+      {/* Background video — full cover behind the stage, dimmed for readability */}
+      {hasVideo && (
+        <>
+          <video
+            data-effect="hero-video"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            poster={posterUrl || undefined}
+            className="absolute inset-0 w-full h-full object-cover"
+          >
+            <source src={block.backgroundVideoUrl!} type="video/mp4" />
+          </video>
+          <div aria-hidden="true" className="absolute inset-0 bg-[#08080c]/75" />
+        </>
+      )}
+
       {/* Cursor spotlight */}
       <div
         aria-hidden="true"
