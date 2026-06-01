@@ -25,6 +25,8 @@ import { LocationMapBlock } from '../blocks/LocationMap/Component'
 import { ServiceCalculatorBlock } from '../blocks/ServiceCalculator/Component'
 import { BrandTimelineBlock } from '../blocks/BrandTimeline/Component'
 import { PostsListBlock } from '../blocks/PostsList/Component'
+// Spline 3D — interactive "magic" scene block
+import { SplineSceneBlock } from '../blocks/SplineScene/Component'
 
 type Block = {
   blockType: string
@@ -61,6 +63,8 @@ const blockComponents: Record<string, React.ComponentType<{ block: any }>> = {
   brandTimeline: BrandTimelineBlock,
   // Blog / editorial
   postsList: PostsListBlock,
+  // Spline 3D — interactive scene
+  splineScene: SplineSceneBlock,
 }
 
 interface RenderBlocksProps {

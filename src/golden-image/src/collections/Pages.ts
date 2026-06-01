@@ -25,6 +25,7 @@ import { LocationMap } from '../blocks/LocationMap/config'
 import { ServiceCalculator } from '../blocks/ServiceCalculator/config'
 import { BrandTimeline } from '../blocks/BrandTimeline/config'
 import { PostsList } from '../blocks/PostsList/config'
+import { SplineScene } from '../blocks/SplineScene/config'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -82,6 +83,8 @@ export const Pages: CollectionConfig = {
         BrandTimeline,
         // Blog / editorial
         PostsList,
+        // Spline 3D — interactive scene
+        SplineScene,
       ],
       required: true,
     },

@@ -100,6 +100,7 @@ export const BLOCK_REQUIRED_FIELDS: Record<string, BlockRequirements> = {
     arrays: [{ field: 'items', required: ['quote', 'author'] }],
   },
   postsList: { topLevel: [] }, // all top-level fields optional; data comes from /api/posts
+  splineScene: { topLevel: ['sceneUrl'] }, // drop if no scene URL — nothing to render
 }
 
 /** Check whether a string value is "useful" — not empty, not a leftover {{token}}. */

@@ -17,6 +17,8 @@
     "@payloadcms/plugin-mcp": "3.79.0",
     "@payloadcms/plugin-seo": "3.79.0",
     "@payloadcms/richtext-lexical": "3.79.0",
+    "@splinetool/react-spline": "^4.1.0",
+    "@splinetool/runtime": "^1.12.95",
     "@tailwindcss/postcss": "^4.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "class-variance-authority": "^0.7.0",
