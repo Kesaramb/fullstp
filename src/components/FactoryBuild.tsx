@@ -35,6 +35,13 @@ interface Props {
   customer?: { id: string | number; name: string; email: string }
   strategyHistory?: { role: string; content: string }[]
   onComplete: (handoff: { businessName: string; domain: string; deploymentId?: string }) => void
+  /**
+   * Reconnect mode: the page was refreshed while a build was in progress. The
+   * build keeps running server-side (it survives client disconnect), so rather
+   * than start a new build we poll /api/deployments/active until the record
+   * lands with a terminal status, then hand off to the live site.
+   */
+  reconnect?: boolean
 }
 
 // ── Module-level state: survives HMR re-mounts ──
@@ -46,7 +53,7 @@ const buildCache = new Map<string, {
   handoff?: { businessName: string; domain: string; deploymentId?: string }
 }>()
 
-export default function FactoryBuild({ bmc, customer, strategyHistory, onComplete }: Props) {
+export default function FactoryBuild({ bmc, customer, strategyHistory, onComplete, reconnect }: Props) {
   const cacheKey = bmc.businessName
   const cache = buildCache.get(cacheKey)
 
@@ -138,7 +145,82 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     scrollEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, typing])
 
+  // ── Reconnect mode: refreshed mid-build. Poll the deployment outcome. ──
   useEffect(() => {
+    if (!reconnect) return
+    // If this mount already saw a terminal cache, don't re-poll.
+    if (cache?.isDone) return
+
+    let cancelled = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 150 // ~5 min at 2s intervals
+
+    // Seed a status bubble so the user knows we're reattaching.
+    setMessages(prev => prev.length > 0 ? prev : [{
+      id: `reconnect-${Date.now()}`,
+      personaId: 'owen',
+      text: 'Reattaching to your build — it kept running while you were away…',
+      status: 'running' as const,
+      bubbleKey: 'reconnect-status',
+      timestamp: Date.now(),
+    }])
+    setTyping([{ personaId: 'owen', activity: 'checking build status' }])
+
+    async function poll() {
+      while (!cancelled && attempts < MAX_ATTEMPTS) {
+        attempts++
+        try {
+          const res = await fetch('/api/deployments/active', { credentials: 'include' })
+          if (res.ok) {
+            const { deployment } = await res.json() as {
+              deployment: {
+                id: string | number
+                domain: string | null
+                status: string | null
+                seedStatus: string | null
+                businessName: string | null
+              } | null
+            }
+            if (deployment) {
+              const terminalOk = deployment.status === 'running' || deployment.status === 'simulated'
+              const terminalErr = deployment.status === 'error' || deployment.status === 'stopped'
+              if (terminalOk) {
+                if (cancelled) return
+                handleBuildComplete({
+                  handoff: {
+                    businessName: deployment.businessName || bmc.businessName,
+                    domain: deployment.domain || '',
+                    deploymentId: String(deployment.id),
+                  },
+                })
+                return
+              }
+              if (terminalErr) {
+                if (cancelled) return
+                applyError('That build ended with an error. You can start a new one.')
+                return
+              }
+              // status === 'provisioning' (in progress) → keep polling
+            }
+          }
+        } catch { /* transient — keep polling */ }
+        await new Promise(r => setTimeout(r, 2000))
+      }
+      if (!cancelled && attempts >= MAX_ATTEMPTS) {
+        applyError(
+          "We couldn't confirm your build finished. Check your dashboard in a minute — it may still be deploying."
+        )
+      }
+    }
+    void poll()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reconnect])
+
+  useEffect(() => {
+    // In reconnect mode we never start a new build — the dedicated reconnect
+    // effect above polls the outcome instead.
+    if (reconnect) return
     // Cache holds three terminal states:
     //   1. streamActive: a live build (mid-stream) — keep, don't refetch
     //   2. isDone + handoff: a successful build — keep, replay handoff

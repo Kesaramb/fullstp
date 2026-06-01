@@ -21,7 +21,7 @@ export default async function LaunchPage({
       ? {
           id: user.id,
           name: (user as { name?: string }).name ?? '',
-          email: user.email,
+          email: user.email ?? '',
         }
       : null
 

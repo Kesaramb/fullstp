@@ -5,6 +5,12 @@ import { Loader2, ArrowRight, Paperclip } from 'lucide-react'
 import LandingChat from './LandingChat'
 import FactoryBuild from './FactoryBuild'
 import ChatInterface from './ChatInterface'
+import {
+  loadStudioSession,
+  createDebouncedSaver,
+  clearAnonKey,
+  type StudioSessionState,
+} from '@/lib/studio/session-client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -99,20 +105,43 @@ interface LogoUploadData {
 function StrategyChatPhase({
   initialMessage,
   onStrategyComplete,
+  restoredMessages,
+  restoredHistory,
+  restoredLogo,
+  onPersist,
 }: {
   initialMessage: string
   onStrategyComplete: (bmc: BMC, history: ConversationEntry[], logo?: LogoUploadData) => void
+  restoredMessages?: StrategyChatMessage[]
+  restoredHistory?: ConversationEntry[]
+  restoredLogo?: LogoUploadData | null
+  onPersist?: (state: {
+    strategyMessages: StrategyChatMessage[]
+    strategyHistory: ConversationEntry[]
+    logo: LogoUploadData | null
+  }) => void
 }) {
-  const [messages, setMessages] = useState<StrategyChatMessage[]>([])
-  const [history, setHistory] = useState<ConversationEntry[]>([])
+  // Restoring a prior session? Seed state from it and skip the auto-kickoff.
+  const hasRestored = Boolean(restoredMessages && restoredMessages.length > 0)
+  const [messages, setMessages] = useState<StrategyChatMessage[]>(restoredMessages ?? [])
+  const [history, setHistory] = useState<ConversationEntry[]>(restoredHistory ?? [])
   const [inputValue, setInputValue] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [logo, setLogo] = useState<LogoUploadData | null>(null)
+  const [logo, setLogo] = useState<LogoUploadData | null>(restoredLogo ?? null)
   const [logoUploading, setLogoUploading] = useState(false)
-  const initialized = useRef(false)
+  const initialized = useRef(hasRestored)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const strategyCompleted = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Persist the strategy transcript whenever it settles (not while typing/streaming).
+  useEffect(() => {
+    if (!onPersist) return
+    if (isProcessing) return
+    if (messages.length === 0) return
+    onPersist({ strategyMessages: messages, strategyHistory: history, logo })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, history, logo, isProcessing])
 
   async function handleLogoSelect(file: File | undefined) {
     if (!file) return
@@ -574,9 +603,84 @@ export default function MultiPhaseChat({
   )
   const [strategyHistory, setStrategyHistory] = useState<ConversationEntry[]>([])
 
+  // ── Server-persisted studio state ──────────────────────────────────────────
+  // Restored strategy transcript + logo from a prior session (null until hydrated).
+  const [restoredStrategy, setRestoredStrategy] = useState<{
+    messages: StrategyChatMessage[]
+    history: ConversationEntry[]
+    logo: LogoUploadData | null
+  } | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+  // True when this mount RESTORED the 'building' phase from a prior session
+  // (i.e. the user refreshed mid-build) — FactoryBuild then reconnects by
+  // polling the outcome instead of starting a fresh build.
+  const [reconnectBuild, setReconnectBuild] = useState(false)
+  const saverRef = useRef(createDebouncedSaver(800))
+  // Live mirror of the strategy transcript so phase-transition saves include it.
+  const strategyStateRef = useRef<{
+    messages: StrategyChatMessage[]
+    history: ConversationEntry[]
+    logo: LogoUploadData | null
+  }>({ messages: [], history: [], logo: null })
+
+  // Hydrate once on mount. If a session exists and we're not deep-linked via
+  // ?initial, resume where the user left off.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const session = await loadStudioSession()
+      if (cancelled || !session?.state) {
+        setHydrated(true)
+        return
+      }
+      const s = session.state as StudioSessionState
+      const restoredPhase = (session.phase || s.phase) as Phase | undefined
+      // Don't clobber an explicit deep-link (prefilledInitial) — that's a fresh intent.
+      if (!prefilledInitial && restoredPhase && restoredPhase !== 'landing') {
+        if (s.initialMessage) setInitialMessage(s.initialMessage)
+        if (s.bmcDraft) setBmc(s.bmcDraft as unknown as BMC)
+        if (s.strategyHistory) setStrategyHistory(s.strategyHistory as ConversationEntry[])
+        if (s.customerInfo && !signedInCustomer) setCustomerInfo(s.customerInfo)
+        if (s.strategyMessages || s.strategyHistory) {
+          setRestoredStrategy({
+            messages: (s.strategyMessages as StrategyChatMessage[]) ?? [],
+            history: (s.strategyHistory as ConversationEntry[]) ?? [],
+            logo: (s.logo as LogoUploadData) ?? null,
+          })
+        }
+        // A build that was already running keeps running server-side. Flag
+        // reconnect so FactoryBuild polls the outcome instead of re-building.
+        if (restoredPhase === 'building') setReconnectBuild(true)
+        setPhase(restoredPhase)
+      }
+      setHydrated(true)
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Persist a snapshot of the current flow state. Called on every transition.
+  const persist = useCallback(
+    (nextPhase: Phase, overrides: Partial<StudioSessionState> = {}) => {
+      const state: StudioSessionState = {
+        phase: nextPhase,
+        initialMessage,
+        bmcDraft: (bmc as unknown as Record<string, unknown>) ?? null,
+        customerInfo,
+        strategyMessages: strategyStateRef.current.messages,
+        strategyHistory: strategyStateRef.current.history,
+        logo: strategyStateRef.current.logo,
+        ...overrides,
+      }
+      saverRef.current.save({ phase: nextPhase, state })
+    },
+    [initialMessage, bmc, customerInfo]
+  )
+
   function handleLandingSubmit(text: string) {
     setInitialMessage(text)
     setPhase('strategy')
+    persist('strategy', { initialMessage: text })
   }
 
   function handleStrategyComplete(
@@ -589,12 +693,15 @@ export default function MultiPhaseChat({
       : completedBmc
     setBmc(bmcWithLogo)
     setStrategyHistory(history)
+    const bmcOverride = { bmcDraft: bmcWithLogo as unknown as Record<string, unknown>, strategyHistory: history }
     // Already signed in: skip the auth modal and go straight to building
     if (customerInfo) {
       setPhase('building')
+      persist('building', bmcOverride)
       return
     }
     setPhase('auth')
+    persist('auth', bmcOverride)
   }
 
   function handleAuthSubmit(
@@ -602,21 +709,47 @@ export default function MultiPhaseChat({
     logo?: AuthModalLogoData
   ) {
     setCustomerInfo(customer)
+    let nextBmc = bmc
     if (logo && bmc) {
       // Merge logo data into the BMC so the build pipeline can use it
-      setBmc({
+      nextBmc = {
         ...bmc,
         logoUrl: logo.logoUrl,
         logoColors: logo.logoColors,
-      })
+      }
+      setBmc(nextBmc)
     }
     setPhase('building')
+    persist('building', {
+      customerInfo: customer,
+      bmcDraft: (nextBmc as unknown as Record<string, unknown>) ?? null,
+    })
   }
 
   const handleBuildComplete = useCallback((h: Handoff) => {
     setHandoff(h)
     setPhase('operational')
+    // Persist the terminal phase + deployment link, then retire the anon key
+    // so a brand-new visit starts a clean session.
+    saverRef.current.save({
+      phase: 'operational',
+      state: { phase: 'operational' },
+      deploymentId: h.deploymentId,
+    })
+    saverRef.current.flushNow()
+    clearAnonKey()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Wait for hydration before deciding what to show, so a resumable session
+  // doesn't flash the landing page first. (Skip the wait when deep-linked.)
+  if (!hydrated && !prefilledInitial) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-500" size={28} />
+      </div>
+    )
+  }
 
   if (phase === 'landing') {
     return <LandingChat onSubmit={handleLandingSubmit} />
@@ -627,6 +760,21 @@ export default function MultiPhaseChat({
       <StrategyChatPhase
         initialMessage={initialMessage}
         onStrategyComplete={handleStrategyComplete}
+        restoredMessages={restoredStrategy?.messages}
+        restoredHistory={restoredStrategy?.history}
+        restoredLogo={restoredStrategy?.logo ?? null}
+        onPersist={(s) => {
+          strategyStateRef.current = {
+            messages: s.strategyMessages,
+            history: s.strategyHistory,
+            logo: s.logo,
+          }
+          persist('strategy', {
+            strategyMessages: s.strategyMessages,
+            strategyHistory: s.strategyHistory,
+            logo: s.logo,
+          })
+        }}
       />
     )
   }
@@ -635,15 +783,26 @@ export default function MultiPhaseChat({
     return <AuthModal bmc={bmc} onSubmit={handleAuthSubmit} />
   }
 
-  if (phase === 'building' && bmc) {
-    return (
-      <FactoryBuild
-        bmc={bmc}
-        customer={customerInfo ?? undefined}
-        strategyHistory={strategyHistory}
-        onComplete={handleBuildComplete}
-      />
-    )
+  if (phase === 'building') {
+    // In reconnect mode the build is already running server-side, so we don't
+    // strictly need a full BMC — fall back to a minimal one if the draft was
+    // lost. In the normal (live) path bmc is always set by this point.
+    const buildBmc: BMC =
+      bmc ??
+      (reconnectBuild
+        ? { businessName: initialMessage || 'your site', industry: '' }
+        : null as unknown as BMC)
+    if (buildBmc) {
+      return (
+        <FactoryBuild
+          bmc={buildBmc}
+          customer={customerInfo ?? undefined}
+          strategyHistory={strategyHistory}
+          onComplete={handleBuildComplete}
+          reconnect={reconnectBuild}
+        />
+      )
+    }
   }
 
   return <ChatInterface handoff={handoff ?? undefined} />
