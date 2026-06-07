@@ -250,6 +250,48 @@ export const Deployments: CollectionConfig = {
         position: 'sidebar',
       },
     },
+    // ── Custom domain (BYO domain) fields ──
+    {
+      name: 'customDomain',
+      type: 'text',
+      admin: {
+        description: "Customer's own domain connected to this site (e.g., aradanabookshop.com). Empty until the customer connects one.",
+      },
+    },
+    {
+      name: 'customDomainStatus',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'None', value: 'none' },
+        { label: 'Pending DNS', value: 'pending_dns' },
+        { label: 'DNS Verified', value: 'dns_verified' },
+        { label: 'Provisioning', value: 'provisioning' },
+        { label: 'Live', value: 'live' },
+        { label: 'Error', value: 'error' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'Lifecycle of the connected custom domain.',
+      },
+    },
+    {
+      name: 'customDomainVerifiedAt',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+        description: 'When DNS for the custom domain was first observed pointing at the server.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'customDomainError',
+      type: 'textarea',
+      admin: {
+        description: 'Last error encountered while provisioning the custom domain.',
+        readOnly: true,
+      },
+    },
     {
       name: 'errorCode',
       type: 'text',

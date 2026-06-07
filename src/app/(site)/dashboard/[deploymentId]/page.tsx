@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import ChatInterface from '@/components/ChatInterface'
+import ConnectDomainCard from '@/components/ConnectDomainCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,14 @@ export default async function ManageDeploymentPage({
             deploymentId: String(deployment.id),
           }}
         />
+
+        <div className="mt-8">
+          <ConnectDomainCard
+            deploymentId={String(deployment.id)}
+            connectionType={deployment.connectionType ?? undefined}
+            port={deployment.port}
+          />
+        </div>
       </div>
     </div>
   )
