@@ -344,6 +344,8 @@ export default function ConnectDomainCard({ deploymentId, connectionType, port, 
               {cfError && <p className="mt-2 text-xs text-red-600">{cfError}</p>}
               <p className="mt-2 text-[11px] text-blue-900/50">
                 Your token is used once to add the records and is never stored.
+                For peace of mind, scope it to “Edit zone DNS” on {customDomain} only,
+                and delete it in Cloudflare once your domain is connected.
               </p>
             </div>
           )}
