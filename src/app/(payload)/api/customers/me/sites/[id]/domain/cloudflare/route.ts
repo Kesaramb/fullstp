@@ -3,15 +3,15 @@
  *
  *   POST /api/customers/me/sites/:id/domain/cloudflare   { token }
  *
- * Uses the customer's scoped Cloudflare token to write the apex + www A-records
- * (DNS-only) pointing at our server, so they don't have to add them by hand.
+ * Uses the customer's scoped Cloudflare token to write the apex + www CNAME
+ * records (DNS-only) pointing at the tenant's FullStop hostname, so they don't
+ * have to add them by hand and our raw server IP never lands in their zone.
  * The token is used transiently and never stored or logged. After the records
  * are written we leave the domain in `pending_dns`; the regular status poll
  * (GET .../domain) then observes DNS, advances to `dns_verified`, and the card
  * triggers provisioning (HestiaCP + Let's Encrypt) exactly as in the manual flow.
  */
 
-import { SERVER_IP_PUBLIC } from '@/lib/deploy/custom-domain'
 import { writeApexAndWww } from '@/lib/deploy/cloudflare-dns'
 import { loadOwnedDeployment } from '@/lib/deploy/owned-deployment'
 
@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     )
   }
 
-  const result = await writeApexAndWww(token, customDomain, SERVER_IP_PUBLIC)
+  const result = await writeApexAndWww(token, customDomain, deployment.domain)
   // Token is intentionally not persisted or logged.
   if (!result.success) {
     return Response.json(

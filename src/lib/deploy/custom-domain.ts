@@ -205,12 +205,16 @@ async function execRemote(
 // ── Path A provider: HestiaCP + Let's Encrypt ─────────────────────────────────
 
 class HestiaCpProvider implements CustomDomainProvider {
-  dnsInstructions({ customDomain }: { customDomain: string; tenantDomain: string }): DnsRecord[] {
-    // Apex + www both as A-records to the server IP. Using A for www (rather
-    // than CNAME) keeps it simple and avoids apex-CNAME restrictions.
+  dnsInstructions({ tenantDomain }: { customDomain: string; tenantDomain: string }): DnsRecord[] {
+    // Point apex + www at the tenant's FullStop hostname via CNAME rather than
+    // exposing the raw server IP. This hides our infrastructure address and lets
+    // us move servers without every connected domain needing a DNS edit — the
+    // CNAME target's A-record changes once, centrally. Apex CNAME relies on the
+    // provider's flattening/ALIAS support (Cloudflare, Route 53, etc.); the UI
+    // notes the ALIAS/ANAME fallback for providers that don't allow it.
     return [
-      { type: 'A', host: '@', value: SERVER_IP },
-      { type: 'A', host: 'www', value: SERVER_IP },
+      { type: 'CNAME', host: '@', value: tenantDomain },
+      { type: 'CNAME', host: 'www', value: tenantDomain },
     ]
   }
 
@@ -226,10 +230,10 @@ class HestiaCpProvider implements CustomDomainProvider {
     let detail: string | undefined
     if (!apexOk) {
       detail = apexRecords.length
-        ? `${customDomain} points to ${apexRecords.join(', ')} — expected ${SERVER_IP}.`
-        : `No A record found for ${customDomain} yet. DNS can take a few minutes to propagate.`
+        ? `${customDomain} isn't pointing at FullStop yet. Double-check the record value and that there are no conflicting records.`
+        : `No DNS record found for ${customDomain} yet. DNS can take a few minutes to propagate.`
     } else if (!wwwOk) {
-      detail = `www.${customDomain} points to ${wwwRecords.join(', ')} — expected ${SERVER_IP}.`
+      detail = `www.${customDomain} isn't pointing at FullStop yet — check the www record.`
     }
     return { verified, apexRecords, wwwRecords, detail }
   }

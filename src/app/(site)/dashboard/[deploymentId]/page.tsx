@@ -74,6 +74,7 @@ export default async function ManageDeploymentPage({
             deploymentId={String(deployment.id)}
             connectionType={deployment.connectionType ?? undefined}
             port={deployment.port}
+            tenantDomain={deployment.domain}
           />
         </div>
       </div>

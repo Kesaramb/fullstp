@@ -2,10 +2,12 @@
  * Cloudflare DNS automation for "bring your own domain".
  *
  * When a customer's domain is hosted on Cloudflare, they can hand us a scoped
- * API token ("Edit zone DNS" on their zone) and we write the A-records for them
- * instead of asking them to do it by hand. We point the apex + www at our
- * server IP as **DNS-only / grey-cloud** records (proxied: false) so that:
- *   - the public hostname resolves directly to our server, and
+ * API token ("Edit zone DNS" on their zone) and we write the records for them
+ * instead of asking them to do it by hand. We point the apex + www at the
+ * tenant's FullStop hostname via **DNS-only / grey-cloud** CNAME records
+ * (proxied: false) so that:
+ *   - the public hostname resolves directly to our server (no raw IP in the
+ *     customer's zone; Cloudflare flattens the apex CNAME automatically), and
  *   - Let's Encrypt HTTP-01 validation reaches our origin.
  * The cert + routing are still handled by the existing HestiaCP+LE provisioning;
  * this module only removes the manual "add these records" step.
@@ -91,18 +93,25 @@ export async function findZoneId(
   }
 }
 
-async function upsertA(
+async function upsertCname(
   token: string,
   zoneId: string,
   name: string,
-  ip: string,
+  target: string,
 ): Promise<CfRecordResult> {
-  const list = await cf<Array<{ id: string }>>(
+  // Look for any existing apex/host record (A or CNAME) and replace it, so we
+  // don't end up with a conflicting A + CNAME pair on the same name.
+  const list = await cf<Array<{ id: string; type: string }>>(
     token,
-    `/zones/${zoneId}/dns_records?type=A&name=${encodeURIComponent(name)}`,
+    `/zones/${zoneId}/dns_records?name=${encodeURIComponent(name)}`,
   )
-  const body = JSON.stringify({ type: 'A', name, content: ip, ttl: 1, proxied: false })
-  const existing = list.success ? list.result?.[0] : undefined
+  // CNAME pointing at the tenant host. proxied:false keeps it DNS-only so the
+  // domain resolves directly to our origin and Let's Encrypt HTTP-01 works.
+  // Cloudflare flattens an apex CNAME to A automatically at resolution time.
+  const body = JSON.stringify({ type: 'CNAME', name, content: target, ttl: 1, proxied: false })
+  const existing = list.success
+    ? list.result?.find((r) => r.type === 'CNAME' || r.type === 'A')
+    : undefined
   if (existing) {
     const env = await cf<{ id: string }>(token, `/zones/${zoneId}/dns_records/${existing.id}`, {
       method: 'PUT',
@@ -120,13 +129,16 @@ async function upsertA(
 }
 
 /**
- * Write apex + www A-records pointing at `ip` (DNS-only). Idempotent: updates
- * existing records in place. Verifies the token and resolves the zone first.
+ * Write apex + www CNAME records pointing at `target` (the tenant's FullStop
+ * hostname, DNS-only). This avoids exposing our raw server IP in the customer's
+ * zone and lets us move servers without re-editing their DNS. Idempotent:
+ * replaces existing apex/www records in place. Verifies the token and resolves
+ * the zone first.
  */
 export async function writeApexAndWww(
   token: string,
   domain: string,
-  ip: string,
+  target: string,
 ): Promise<CfDnsWriteResult> {
   const v = await verifyToken(token)
   if (!v.ok) return { success: false, records: [], error: v.error }
@@ -135,8 +147,8 @@ export async function writeApexAndWww(
   if (!z.zoneId) return { success: false, records: [], error: z.error }
 
   try {
-    const apex = await upsertA(token, z.zoneId, domain, ip)
-    const www = await upsertA(token, z.zoneId, `www.${domain}`, ip)
+    const apex = await upsertCname(token, z.zoneId, domain, target)
+    const www = await upsertCname(token, z.zoneId, `www.${domain}`, target)
     return {
       success: true,
       zoneId: z.zoneId,

@@ -40,17 +40,18 @@ interface Props {
   connectionType?: string
   /** App listen port; 0 / missing means not a managed site. */
   port?: number
+  /** The tenant's FullStop hostname — the CNAME target customers point at. */
+  tenantDomain?: string
 }
 
 const POLL_MS = 8000
 
-export default function ConnectDomainCard({ deploymentId, connectionType, port }: Props) {
+export default function ConnectDomainCard({ deploymentId, connectionType, port, tenantDomain }: Props) {
   const base = `/api/customers/me/sites/${deploymentId}/domain`
 
   const [loaded, setLoaded] = useState(false)
   const [status, setStatus] = useState<DomainStatus>('none')
   const [customDomain, setCustomDomain] = useState<string | null>(null)
-  const [serverIp, setServerIp] = useState<string>('')
   const [dnsRecords, setDnsRecords] = useState<DnsRecord[]>([])
   const [registrar, setRegistrar] = useState<RegistrarHint | null>(null)
   const [dns, setDns] = useState<DnsCheckResult | null>(null)
@@ -78,7 +79,6 @@ export default function ConnectDomainCard({ deploymentId, connectionType, port }
   const applyStatus = useCallback((d: StatusResponse) => {
     setStatus(d.status)
     setCustomDomain(d.customDomain)
-    if (d.serverIp) setServerIp(d.serverIp)
     if (d.dnsRecords) setDnsRecords(d.dnsRecords)
     if (d.registrar) setRegistrar(d.registrar)
     if (d.dns !== undefined) setDns(d.dns)
@@ -278,7 +278,7 @@ export default function ConnectDomainCard({ deploymentId, connectionType, port }
           {showManual && (
             <ManualDnsHelp
               domain={input.trim() || 'yourbrand.com'}
-              serverIp={serverIp}
+              target={tenantDomain || ''}
               copied={copied}
               onCopy={copy}
               afterError={!!error}
@@ -408,7 +408,7 @@ export default function ConnectDomainCard({ deploymentId, connectionType, port }
                 {status === 'pending_dns' ? (
                   <>
                     <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                    Waiting for DNS to point at {serverIp || 'our server'}. We check automatically every few seconds.
+                    Waiting for {customDomain} to point at FullStop. We check automatically every few seconds.
                   </>
                 ) : (
                   <>
@@ -479,21 +479,21 @@ export default function ConnectDomainCard({ deploymentId, connectionType, port }
  */
 function ManualDnsHelp({
   domain,
-  serverIp,
+  target,
   copied,
   onCopy,
   afterError,
 }: {
   domain: string
-  serverIp: string
+  target: string
   copied: string | null
   onCopy: (value: string, label: string) => void
   afterError: boolean
 }) {
-  const ip = serverIp || '—'
+  const value = target || '—'
   const records = [
-    { type: 'A', host: '@', value: ip },
-    { type: 'A', host: 'www', value: ip },
+    { type: 'CNAME', host: '@', value },
+    { type: 'CNAME', host: 'www', value },
   ]
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
@@ -507,9 +507,9 @@ function ManualDnsHelp({
         <span className="font-medium">Connect domain</span> above.
       </p>
 
-      {!serverIp && (
+      {!target && (
         <p className="text-xs text-amber-600 mb-2">
-          Tip: reload this page to load your server address, or enter your domain and click Connect to see it.
+          Tip: enter your domain and click Connect to load the exact value to point at.
         </p>
       )}
 
@@ -533,7 +533,7 @@ function ManualDnsHelp({
                   <button
                     type="button"
                     onClick={() => onCopy(r.value, `m-${r.host}-${i}`)}
-                    disabled={!serverIp}
+                    disabled={!target}
                     className="text-xs text-blue-600 hover:text-blue-700 disabled:text-gray-300"
                   >
                     {copied === `m-${r.host}-${i}` ? 'Copied!' : 'Copy'}
@@ -549,9 +549,14 @@ function ManualDnsHelp({
         <li>Log in to your domain provider (e.g. GoDaddy, Namecheap, Cloudflare).</li>
         <li>Open the <span className="font-medium">DNS</span> or <span className="font-medium">DNS records</span> section.</li>
         <li>
-          Add the two <span className="font-mono">A</span> records above. If an{' '}
+          Add the two <span className="font-mono">CNAME</span> records above. If an{' '}
           <span className="font-mono">@</span> or <span className="font-mono">www</span> record already
-          exists, edit it to point to <span className="font-mono">{ip}</span>.
+          exists, edit it to point to <span className="font-mono">{value}</span>.
+        </li>
+        <li>
+          If your provider won&apos;t allow a <span className="font-mono">CNAME</span> on the root
+          (<span className="font-mono">@</span>), use an <span className="font-medium">ALIAS</span> or{' '}
+          <span className="font-medium">ANAME</span> record with the same value.
         </li>
         <li>Save. DNS changes can take a few minutes (sometimes up to an hour) to take effect.</li>
         <li>Come back here, enter your domain, and click <span className="font-medium">Connect domain</span> — we&apos;ll verify it and turn on HTTPS automatically.</li>
