@@ -118,7 +118,15 @@ const REGISTRAR_MAP: Array<{ match: RegExp; name: string; helpUrl: string }> = [
 export async function detectRegistrar(domain: string): Promise<RegistrarHint> {
   let nameservers: string[] = []
   try {
-    nameservers = (await dns.resolveNs(domain)).map((n) => n.toLowerCase())
+    // Hard cap the lookup — a slow/unreachable resolver must never hang the
+    // request handler (that surfaces as a generic "Load failed" in the browser
+    // when the connection is eventually dropped). Registrar detection is only a
+    // convenience hint, so timing out simply means "unknown registrar".
+    const ns = await Promise.race([
+      dns.resolveNs(domain),
+      new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 4000)),
+    ])
+    nameservers = ns.map((n) => n.toLowerCase())
   } catch {
     // Domain may be brand-new / unregistered / NS not yet propagated.
     return { name: null, helpUrl: null, nameservers: [] }
