@@ -19,6 +19,15 @@ import dns from 'dns/promises'
 const SERVER_IP = process.env.DEPLOY_SERVER_IP || '167.86.81.161'
 const HESTIA_BIN = 'export PATH=$PATH:/usr/local/hestia/bin'
 
+/**
+ * Stable, brand-neutral CNAME target that customers point their domain at. It's
+ * a DNS-only (grey-cloud) A-record in our Cloudflare zone resolving straight to
+ * the origin — so customer domains bypass Cloudflare's proxy, nginx routes by
+ * Host, and Let's Encrypt HTTP-01 reaches us. Hides the raw IP and lets us move
+ * servers by editing one record. Override per-env if the host ever changes.
+ */
+const CNAME_TARGET = process.env.CUSTOM_DOMAIN_CNAME_TARGET || 'connect.fullstp.com'
+
 // ── Public types ────────────────────────────────────────────────────────────
 
 export interface DnsRecord {
@@ -205,16 +214,14 @@ async function execRemote(
 // ── Path A provider: HestiaCP + Let's Encrypt ─────────────────────────────────
 
 class HestiaCpProvider implements CustomDomainProvider {
-  dnsInstructions({ tenantDomain }: { customDomain: string; tenantDomain: string }): DnsRecord[] {
-    // Point apex + www at the tenant's FullStop hostname via CNAME rather than
-    // exposing the raw server IP. This hides our infrastructure address and lets
-    // us move servers without every connected domain needing a DNS edit — the
-    // CNAME target's A-record changes once, centrally. Apex CNAME relies on the
-    // provider's flattening/ALIAS support (Cloudflare, Route 53, etc.); the UI
-    // notes the ALIAS/ANAME fallback for providers that don't allow it.
+  dnsInstructions(): DnsRecord[] {
+    // Point apex + www at our stable grey-cloud host via CNAME rather than
+    // exposing the raw server IP. Apex CNAME relies on the provider's
+    // flattening/ALIAS support (Cloudflare, Route 53, etc.); the UI notes the
+    // ALIAS/ANAME fallback for providers that don't allow it.
     return [
-      { type: 'CNAME', host: '@', value: tenantDomain },
-      { type: 'CNAME', host: 'www', value: tenantDomain },
+      { type: 'CNAME', host: '@', value: CNAME_TARGET },
+      { type: 'CNAME', host: 'www', value: CNAME_TARGET },
     ]
   }
 
@@ -325,3 +332,4 @@ export function getCustomDomainProvider(): CustomDomainProvider {
 }
 
 export const SERVER_IP_PUBLIC = SERVER_IP
+export const CNAME_TARGET_PUBLIC = CNAME_TARGET

@@ -12,6 +12,7 @@
  * triggers provisioning (HestiaCP + Let's Encrypt) exactly as in the manual flow.
  */
 
+import { CNAME_TARGET_PUBLIC } from '@/lib/deploy/custom-domain'
 import { writeApexAndWww } from '@/lib/deploy/cloudflare-dns'
 import { loadOwnedDeployment } from '@/lib/deploy/owned-deployment'
 
@@ -45,7 +46,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     )
   }
 
-  const result = await writeApexAndWww(token, customDomain, deployment.domain)
+  const result = await writeApexAndWww(token, customDomain, CNAME_TARGET_PUBLIC)
   // Token is intentionally not persisted or logged.
   if (!result.success) {
     return Response.json(

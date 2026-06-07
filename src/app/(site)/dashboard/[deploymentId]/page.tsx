@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import ChatInterface from '@/components/ChatInterface'
 import ConnectDomainCard from '@/components/ConnectDomainCard'
+import { CNAME_TARGET_PUBLIC } from '@/lib/deploy/custom-domain'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +75,7 @@ export default async function ManageDeploymentPage({
             deploymentId={String(deployment.id)}
             connectionType={deployment.connectionType ?? undefined}
             port={deployment.port}
-            tenantDomain={deployment.domain}
+            cnameTarget={CNAME_TARGET_PUBLIC}
           />
         </div>
       </div>

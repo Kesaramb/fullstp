@@ -40,13 +40,13 @@ interface Props {
   connectionType?: string
   /** App listen port; 0 / missing means not a managed site. */
   port?: number
-  /** The tenant's FullStop hostname — the CNAME target customers point at. */
-  tenantDomain?: string
+  /** Stable grey-cloud host customers CNAME their domain at (hides the IP). */
+  cnameTarget?: string
 }
 
 const POLL_MS = 8000
 
-export default function ConnectDomainCard({ deploymentId, connectionType, port, tenantDomain }: Props) {
+export default function ConnectDomainCard({ deploymentId, connectionType, port, cnameTarget }: Props) {
   const base = `/api/customers/me/sites/${deploymentId}/domain`
 
   const [loaded, setLoaded] = useState(false)
@@ -278,7 +278,7 @@ export default function ConnectDomainCard({ deploymentId, connectionType, port, 
           {showManual && (
             <ManualDnsHelp
               domain={input.trim() || 'yourbrand.com'}
-              target={tenantDomain || ''}
+              target={cnameTarget || ''}
               copied={copied}
               onCopy={copy}
               afterError={!!error}
