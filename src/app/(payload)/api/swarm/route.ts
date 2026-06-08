@@ -12,6 +12,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { SwarmPipeline } from '@/lib/swarm/pipeline'
+import { resolveTemplateForDeployment } from '@/lib/swarm/preset-loader'
 import { QueenAgent } from '@/lib/swarm/queen'
 import { SiteOps } from '@/lib/swarm/site-ops'
 import { generateDomain } from '@/lib/deploy/domain'
@@ -133,6 +134,7 @@ export async function POST(req: Request) {
     const bmc = body.bmc
     const clientCustomer: { id?: string | number; name?: string; email?: string } = body.customer || {}
     const strategyHistory: { role: string; content: string }[] = body.strategyHistory || []
+    const templateId: string | number | undefined = body.templateId
 
     if (!bmc?.businessName || typeof bmc.businessName !== 'string') {
       return new Response(JSON.stringify({ error: 'bmc.businessName required' }), { status: 400 })
@@ -249,6 +251,19 @@ export async function POST(req: Request) {
       email: clientCustomer.email || (user as { email?: string }).email,
     }
 
+    // If the customer picked an approved template from the gallery, resolve it
+    // and register it as a runtime preset for the build. Invalid/unapproved
+    // template ids are ignored — the build falls back to AI design.
+    let forcedTemplate: { presetName: string; slug: string } | undefined
+    let forcedTemplateId: string | number | undefined
+    if (templateId != null) {
+      const resolved = await resolveTemplateForDeployment(payload, templateId)
+      if (resolved) {
+        forcedTemplate = { presetName: resolved.presetName, slug: resolved.slug }
+        forcedTemplateId = resolved.doc.id
+      }
+    }
+
     let markClosed: () => void = () => {}
     const stream = new ReadableStream({
       async start(controller) {
@@ -271,7 +286,25 @@ export async function POST(req: Request) {
           // Deployments collection regardless of stream state. If the client
           // disconnects (Cloudflare idle cut), safe.emit() no-ops but the build
           // keeps going — it is no longer killed by a closed SSE controller.
-          await pipeline.run(bmc, customer, strategyHistory, logEmit, safe.emit)
+          await pipeline.run(bmc, customer, strategyHistory, logEmit, safe.emit, { forcedTemplate })
+          // Credit the creator: bump the install count on a successful build.
+          if (forcedTemplateId != null) {
+            try {
+              const tpl = await payload.findByID({
+                collection: 'templates',
+                id: forcedTemplateId,
+                overrideAccess: true,
+              })
+              await payload.update({
+                collection: 'templates',
+                id: forcedTemplateId,
+                overrideAccess: true,
+                data: { installs: Number((tpl as { installs?: number }).installs ?? 0) + 1 },
+              })
+            } catch {
+              // non-fatal — install accounting must never fail a build
+            }
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           safe.emit('build_error', { error: msg })

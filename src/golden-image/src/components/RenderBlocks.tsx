@@ -27,6 +27,8 @@ import { BrandTimelineBlock } from '../blocks/BrandTimeline/Component'
 import { PostsListBlock } from '../blocks/PostsList/Component'
 // Spline 3D — interactive "magic" scene block
 import { SplineSceneBlock } from '../blocks/SplineScene/Component'
+// Creator marketplace — sandboxed declarative section
+import { CreatorBlockComponent } from '../blocks/CreatorBlock/Component'
 
 type Block = {
   blockType: string
@@ -65,6 +67,8 @@ const blockComponents: Record<string, React.ComponentType<{ block: any }>> = {
   postsList: PostsListBlock,
   // Spline 3D — interactive scene
   splineScene: SplineSceneBlock,
+  // Creator marketplace — sandboxed declarative section
+  creatorBlock: CreatorBlockComponent,
 }
 
 interface RenderBlocksProps {

@@ -247,11 +247,25 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     buildCache.set(cacheKey, { messages: [], typing: [], isDone: false, streamActive: true })
 
     async function stream() {
+      // A template chosen from the gallery ("Use this template") is handed off
+      // via localStorage. Consume it once so a later organic build isn't forced.
+      let templateId: string | null = null
+      if (typeof window !== 'undefined') {
+        templateId = window.localStorage.getItem('fullstp.templateId')
+        if (templateId) window.localStorage.removeItem('fullstp.templateId')
+      }
+
       const response = await fetch('/api/swarm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ mode: 'pipeline', bmc, customer, strategyHistory }),
+        body: JSON.stringify({
+          mode: 'pipeline',
+          bmc,
+          customer,
+          strategyHistory,
+          ...(templateId ? { templateId } : {}),
+        }),
       })
 
       if (!response.ok) {

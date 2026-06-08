@@ -14,6 +14,7 @@ import { BMCs } from '@/collections/BMCs'
 import { BrandKits } from '@/collections/BrandKits'
 import { Deployments } from '@/collections/Deployments'
 import { StudioSessions } from '@/collections/StudioSessions'
+import { Templates } from '@/collections/Templates'
 import { Header } from '@/globals/Header'
 import { Footer } from '@/globals/Footer'
 import { SiteSettings } from '@/globals/SiteSettings'
@@ -29,7 +30,7 @@ export default buildConfig({
     },
   },
 
-  collections: [Pages, Media, Users, Customers, BMCs, BrandKits, Deployments, StudioSessions],
+  collections: [Pages, Media, Users, Customers, BMCs, BrandKits, Deployments, StudioSessions, Templates],
 
   globals: [Header, Footer, SiteSettings],
 

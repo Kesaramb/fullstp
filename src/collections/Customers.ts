@@ -90,6 +90,15 @@ export const Customers: CollectionConfig = {
       admin: { position: 'sidebar' },
     },
     {
+      name: 'isCreator',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        position: 'sidebar',
+        description: 'Whether this customer can publish templates to the marketplace.',
+      },
+    },
+    {
       name: 'tier',
       type: 'select',
       defaultValue: 'free',

@@ -24,7 +24,7 @@ import { UIArchitectWorker, PayloadExpertWorker } from './workers'
 import { DesignDirectorWorker } from './design-director'
 import { ContentWriterWorker } from './content-writer'
 import { normalizeContentPackage } from './normalize-content-package'
-import { buildContentFromPresets, buildContentFromCompiledPresets, loadPagePreset, type PagePreset } from './preset-loader'
+import { buildContentFromPresets, buildContentFromCompiledPresets, loadPagePreset, defaultPresetForSlug, type PagePreset } from './preset-loader'
 import { compilePreset, pagesForArchetype } from './preset-compiler'
 // PR-Generative-Theme — synthesize per-BMC palette + fonts instead of selecting from menu
 import { computePalette } from '@/lib/theme/compute-palette'
@@ -71,13 +71,22 @@ export class SwarmPipeline {
     this.memory = new SharedMemory()
   }
 
+  /**
+   * When set, the customer chose a specific approved creator template from the
+   * gallery. The build uses it deterministically for its target page (AI still
+   * writes the copy) instead of letting the Design Director explore a mood.
+   */
+  private forcedTemplate?: { presetName: string; slug: string }
+
   async run(
     bmc: BMC,
     customer: { id?: string | number; name?: string; email?: string },
     strategyHistory: { role: string; content: string }[],
     log: LogFn,
-    emit: (event: string, data: Record<string, unknown>) => void
+    emit: (event: string, data: Record<string, unknown>) => void,
+    options?: { forcedTemplate?: { presetName: string; slug: string } }
   ): Promise<void> {
+    this.forcedTemplate = options?.forcedTemplate
     const buildLogs: { agent: string; text: string; status: string }[] = []
 
     const trackedLog: LogFn = (agent, text, status) => {
@@ -306,6 +315,19 @@ export class SwarmPipeline {
   // ── Swarm Content Generation (primary path) ──
 
   private async swarmContentGeneration(bmc: BMC, log: LogFn): Promise<ContentPackage> {
+    // ── Forced creator template (gallery "Use this template") ──
+    // The customer explicitly chose an approved template, so skip mood
+    // exploration and build deterministically from presets. The AI still
+    // writes the copy that fills the template's placeholders.
+    if (this.forcedTemplate) {
+      try {
+        return await this.forcedTemplateGeneration(bmc, this.forcedTemplate, log)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        log('Factory', `Forced template failed: ${msg.slice(0, 150)}. Falling back to AI design.`, 'error')
+      }
+    }
+
     // ── PR3c: BMC-thinking path ──
     // Queen V2 → Information Architect → DesignDirector (mood) → Layout Composer → ContentWriter → fillTemplate.
     // Falls back to the PR2 mood path if any stage throws.
@@ -383,6 +405,41 @@ export class SwarmPipeline {
     }
 
     return finalContent
+  }
+
+  /**
+   * Deterministic build from a chosen creator template. The forced template
+   * (already registered as a runtime preset under `forced.presetName`) serves
+   * its target page; the remaining archetype pages use sensible disk presets.
+   * The AI writes copy as usual, so the chosen layout gets real content.
+   */
+  private async forcedTemplateGeneration(
+    bmc: BMC,
+    forced: { presetName: string; slug: string },
+    log: LogFn,
+  ): Promise<ContentPackage> {
+    log('Factory', `Building from chosen template for the "${forced.slug}" page...`, 'running')
+
+    const strategy = await this.queen.generateStrategy(bmc, this.memory, log)
+    const designBrief = await this.designDirector.createDesignBrief(strategy, this.memory, log)
+
+    const archetype = strategy.businessArchetype || bmc.businessArchetype || this.inferArchetype(bmc)
+    const slugs = pagesForArchetype(archetype)
+
+    // Map every page to a disk preset, then force the chosen page to the
+    // creator template. Routing through pagePresets (not mood) sends this down
+    // the deterministic buildFromPresets path.
+    const pagePresets: Record<string, string> = {}
+    for (const slug of new Set([...slugs, forced.slug])) {
+      pagePresets[slug] = defaultPresetForSlug(slug)
+    }
+    pagePresets[forced.slug] = forced.presetName
+
+    designBrief.pagePresets = pagePresets
+    designBrief.mood = undefined // force preset path, not the dynamic compiler
+
+    const copy = await this.contentWriter.writeCopy(strategy, designBrief, this.memory, log)
+    return this.buildFromPresets(bmc, designBrief, copy, log)
   }
 
   /**

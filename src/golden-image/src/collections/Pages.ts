@@ -26,6 +26,7 @@ import { ServiceCalculator } from '../blocks/ServiceCalculator/config'
 import { BrandTimeline } from '../blocks/BrandTimeline/config'
 import { PostsList } from '../blocks/PostsList/config'
 import { SplineScene } from '../blocks/SplineScene/config'
+import { CreatorBlock } from '../blocks/CreatorBlock/config'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -85,6 +86,8 @@ export const Pages: CollectionConfig = {
         PostsList,
         // Spline 3D — interactive scene
         SplineScene,
+        // Creator marketplace — sandboxed declarative section
+        CreatorBlock,
       ],
       required: true,
     },
