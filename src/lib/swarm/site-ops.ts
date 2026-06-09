@@ -165,6 +165,32 @@ export class SiteOps {
     return { text: cleaned + mutationReport }
   }
 
+  /**
+   * Append creator marketplace components to a page on a LIVE tenant.
+   * Deterministic (no AI): builds `insert_block` mutations at the end of the
+   * page and applies them via the tenant's REST API. Append-only — never
+   * removes or reorders existing blocks. Returns applied/failed counts.
+   */
+  async addBlocks(
+    tenant: TenantContext,
+    page: string,
+    blocks: Record<string, unknown>[],
+  ): Promise<{ applied: number; failures: string[] }> {
+    if (blocks.length === 0) return { applied: 0, failures: [] }
+    const baseUrl = await this.resolveBaseUrl(tenant.domain)
+    const token = await this.login(baseUrl, tenant.adminEmail, tenant.adminPassword)
+    if (!token) return { applied: 0, failures: ['Could not authenticate with the site.'] }
+    const auth = { 'Content-Type': 'application/json', Authorization: `JWT ${token}` }
+    const mutations: Mutation[] = blocks.map((block) => ({
+      type: 'insert_block',
+      page,
+      position: 'end',
+      block,
+    }))
+    const failures = await this.applyMutations(baseUrl, auth, mutations)
+    return { applied: mutations.length - failures.length, failures }
+  }
+
   private async login(baseUrl: string, email: string, password: string): Promise<string | null> {
     try {
       const res = await fetch(`${baseUrl}/api/users/login`, {

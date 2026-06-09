@@ -250,9 +250,24 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
       // A template chosen from the gallery ("Use this template") is handed off
       // via localStorage. Consume it once so a later organic build isn't forced.
       let templateId: string | null = null
+      let componentIds: string[] = []
       if (typeof window !== 'undefined') {
         templateId = window.localStorage.getItem('fullstp.templateId')
         if (templateId) window.localStorage.removeItem('fullstp.templateId')
+        // Marketplace cart components chosen via "Build a new site with these".
+        try {
+          const raw = window.localStorage.getItem('fullstp.cart')
+          const parsed = raw ? JSON.parse(raw) : []
+          if (Array.isArray(parsed)) {
+            componentIds = parsed
+              .map((i) => (i && typeof i.id === 'string' ? i.id : null))
+              .filter((v): v is string => Boolean(v))
+          }
+          // Consume the cart so a later build isn't re-seeded with stale items.
+          if (componentIds.length > 0) window.localStorage.removeItem('fullstp.cart')
+        } catch {
+          /* ignore malformed cart */
+        }
       }
 
       const response = await fetch('/api/swarm', {
@@ -265,6 +280,7 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
           customer,
           strategyHistory,
           ...(templateId ? { templateId } : {}),
+          ...(componentIds.length > 0 ? { componentIds } : {}),
         }),
       })
 

@@ -18,16 +18,23 @@ import type { Where } from 'payload'
 import config from '@payload-config'
 import { validateTemplateSpec } from '@/lib/templates/validate'
 
-const GALLERY_FIELDS = ['id', 'name', 'category', 'description', 'tags', 'previews', 'installs'] as const
+const GALLERY_FIELDS = ['id', 'name', 'category', 'description', 'tags', 'previews', 'installs', 'kind'] as const
 
 export async function GET(req: Request) {
   const payload = await getPayload({ config })
   const url = new URL(req.url)
   const category = url.searchParams.get('category')
+  const kind = url.searchParams.get('kind')
   const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 100)
 
   const where: Where = { status: { equals: 'approved' } }
   if (category) where.category = { equals: category }
+  if (kind) where.kind = { equals: kind }
+
+  // Components (creator-block-spec) need their declarative spec to render live
+  // previews in the gallery. The spec is non-sensitive (a sandboxed node tree),
+  // so it's safe to expose publicly alongside the gallery fields.
+  const fields = kind === 'creator-block-spec' ? [...GALLERY_FIELDS, 'spec'] : [...GALLERY_FIELDS]
 
   const result = await payload.find({
     collection: 'templates',
@@ -35,7 +42,7 @@ export async function GET(req: Request) {
     limit,
     depth: 1,
     overrideAccess: true,
-    select: Object.fromEntries(GALLERY_FIELDS.map((f) => [f, true])),
+    select: Object.fromEntries(fields.map((f) => [f, true])),
   })
 
   return Response.json({

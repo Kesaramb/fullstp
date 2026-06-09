@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ConnectExistingSiteModal from './ConnectExistingSiteModal'
+import { useCart } from './CartProvider'
 
 interface CustomerData {
   id: string | number
@@ -207,8 +208,38 @@ function UsageCard({
 }
 
 function DeploymentCard({ deployment }: { deployment: DeploymentSummary }) {
+  const cart = useCart()
   const statusClass = STATUS_COLOR[deployment.status] || 'bg-slate-100 text-slate-600'
   const isLive = deployment.status === 'running' && deployment.seedStatus === 'success'
+  const isManaged = deployment.connectionType !== 'external'
+  const canAddComponents = cart.count > 0 && isLive && isManaged
+
+  const [adding, setAdding] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  async function addComponents() {
+    setAdding(true)
+    setResult(null)
+    try {
+      const res = await fetch(`/api/customers/me/sites/${deployment.id}/components`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ componentIds: cart.items.map((i) => i.id), page: 'home' }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setResult(body?.message || 'Could not add components.')
+        return
+      }
+      setResult(`✓ Added ${body.applied} component${body.applied === 1 ? '' : 's'} to your home page.`)
+      cart.clear()
+    } catch {
+      setResult('Something went wrong. Please try again.')
+    } finally {
+      setAdding(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl bg-white/80 border border-gray-100 p-5 shadow-sm flex items-center justify-between gap-4">
@@ -231,8 +262,18 @@ function DeploymentCard({ deployment }: { deployment: DeploymentSummary }) {
           })}
           {deployment.stage && deployment.stage !== 'completed' && ` · ${deployment.stage}`}
         </div>
+        {result && <div className="mt-2 text-xs font-medium text-gray-600">{result}</div>}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
+        {canAddComponents && (
+          <button
+            onClick={addComponents}
+            disabled={adding}
+            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-300 text-white text-sm font-medium transition"
+          >
+            {adding ? 'Adding…' : `Add ${cart.count} component${cart.count === 1 ? '' : 's'}`}
+          </button>
+        )}
         {isLive && deployment.siteUrl && (
           <a
             href={deployment.siteUrl}

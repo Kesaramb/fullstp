@@ -135,6 +135,7 @@ export async function POST(req: Request) {
     const clientCustomer: { id?: string | number; name?: string; email?: string } = body.customer || {}
     const strategyHistory: { role: string; content: string }[] = body.strategyHistory || []
     const templateId: string | number | undefined = body.templateId
+    const componentIds: (string | number)[] = Array.isArray(body.componentIds) ? body.componentIds : []
 
     if (!bmc?.businessName || typeof bmc.businessName !== 'string') {
       return new Response(JSON.stringify({ error: 'bmc.businessName required' }), { status: 400 })
@@ -264,6 +265,30 @@ export async function POST(req: Request) {
       }
     }
 
+    // Resolve marketplace cart components (approved creator-block-spec only).
+    // Each becomes a creatorBlock appended to the home page during the build.
+    let components: { id: string | number; name: string; spec: unknown }[] = []
+    if (componentIds.length > 0) {
+      const { docs } = await payload.find({
+        collection: 'templates',
+        where: {
+          and: [
+            { id: { in: componentIds } },
+            { status: { equals: 'approved' } },
+            { kind: { equals: 'creator-block-spec' } },
+          ],
+        },
+        limit: 50,
+        depth: 0,
+        overrideAccess: true,
+      })
+      components = docs.map((d) => ({
+        id: d.id,
+        name: String((d as { name?: unknown }).name ?? 'Component'),
+        spec: (d as { spec?: unknown }).spec,
+      }))
+    }
+
     let markClosed: () => void = () => {}
     const stream = new ReadableStream({
       async start(controller) {
@@ -286,7 +311,24 @@ export async function POST(req: Request) {
           // Deployments collection regardless of stream state. If the client
           // disconnects (Cloudflare idle cut), safe.emit() no-ops but the build
           // keeps going — it is no longer killed by a closed SSE controller.
-          await pipeline.run(bmc, customer, strategyHistory, logEmit, safe.emit, { forcedTemplate })
+          await pipeline.run(bmc, customer, strategyHistory, logEmit, safe.emit, {
+            forcedTemplate,
+            components: components.map((c) => ({ name: c.name, spec: c.spec })),
+          })
+          // Credit creators whose components were used in this build.
+          for (const c of components) {
+            try {
+              const tpl = await payload.findByID({ collection: 'templates', id: c.id, overrideAccess: true })
+              await payload.update({
+                collection: 'templates',
+                id: c.id,
+                overrideAccess: true,
+                data: { installs: Number((tpl as { installs?: number }).installs ?? 0) + 1 },
+              })
+            } catch {
+              /* install credit is best-effort */
+            }
+          }
           // Credit the creator: bump the install count on a successful build.
           if (forcedTemplateId != null) {
             try {

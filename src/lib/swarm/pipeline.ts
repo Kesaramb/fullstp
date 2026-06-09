@@ -78,15 +78,25 @@ export class SwarmPipeline {
    */
   private forcedTemplate?: { presetName: string; slug: string }
 
+  /**
+   * Creator components chosen from the marketplace cart, appended to the home
+   * page after content generation. Each is a sandboxed creatorBlock spec.
+   */
+  private components?: { name: string; spec: unknown }[]
+
   async run(
     bmc: BMC,
     customer: { id?: string | number; name?: string; email?: string },
     strategyHistory: { role: string; content: string }[],
     log: LogFn,
     emit: (event: string, data: Record<string, unknown>) => void,
-    options?: { forcedTemplate?: { presetName: string; slug: string } }
+    options?: {
+      forcedTemplate?: { presetName: string; slug: string }
+      components?: { name: string; spec: unknown }[]
+    }
   ): Promise<void> {
     this.forcedTemplate = options?.forcedTemplate
+    this.components = options?.components
     const buildLogs: { agent: string; text: string; status: string }[] = []
 
     const trackedLog: LogFn = (agent, text, status) => {
@@ -123,6 +133,9 @@ export class SwarmPipeline {
     }
 
     contentPkg = normalizeContentPackage(contentPkg)
+
+    // ── Append marketplace cart components to the home page ──
+    this.appendComponents(contentPkg, trackedLog)
 
     // ── Fetch stock images (optional, non-blocking) ──
     let imageAssignments: ImageAssignment[] = []
@@ -310,6 +323,22 @@ export class SwarmPipeline {
         ...(deployResult?.mcpApiKey && { mcpApiKey: deployResult.mcpApiKey }),
       },
     })
+  }
+
+  /**
+   * Append creator-chosen marketplace components (sandboxed creatorBlock specs)
+   * to the home page layout, after the AI content is generated. Deterministic —
+   * each becomes a `creatorBlock` block the tenant's golden-image renders.
+   */
+  private appendComponents(pkg: ContentPackage, log: LogFn): void {
+    const components = this.components
+    if (!components || components.length === 0) return
+    const home = pkg.pages.find((p) => p.slug === 'home') || pkg.pages[0]
+    if (!home || !Array.isArray(home.layout)) return
+    for (const c of components) {
+      home.layout.push({ blockType: 'creatorBlock', name: c.name, spec: c.spec } as Record<string, unknown>)
+    }
+    log('Factory', `Added ${components.length} marketplace component${components.length === 1 ? '' : 's'} to the home page.`, 'done')
   }
 
   // ── Swarm Content Generation (primary path) ──
