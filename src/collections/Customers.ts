@@ -1,5 +1,6 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
 import { quotasForTier } from '@/lib/billing/tiers'
+import { forgotPasswordEmailHTML } from '@/lib/email/templates'
 
 /**
  * Customers — the end-user account collection (auth-enabled).
@@ -36,6 +37,16 @@ export const Customers: CollectionConfig = {
     cookies: {
       sameSite: 'Lax',
       secure: process.env.NODE_ENV === 'production',
+    },
+    forgotPassword: {
+      generateEmailSubject: () => 'Reset your FullStop password',
+      // Customers reset via the public site page, not the Payload admin panel.
+      generateEmailHTML: (args) => {
+        const token = args?.token ?? ''
+        const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://fullstp.com'
+        const url = `${base}/reset-password?token=${encodeURIComponent(token)}`
+        return forgotPasswordEmailHTML(url)
+      },
     },
   },
   admin: {

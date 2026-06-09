@@ -18,17 +18,25 @@ import { Templates } from '@/collections/Templates'
 import { Header } from '@/globals/Header'
 import { Footer } from '@/globals/Footer'
 import { SiteSettings } from '@/globals/SiteSettings'
+import { resendEmailAdapter } from '@/lib/email/payload-adapter'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 export default buildConfig({
+  // Absolute base URL for links in transactional email (e.g. the admin
+  // password-reset link `${serverURL}/admin/reset/<token>`).
+  serverURL: process.env.NEXT_PUBLIC_SITE_URL || 'https://fullstp.com',
+
   admin: {
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
     },
   },
+
+  // Transactional email via Resend (forgot-password, verification, etc.).
+  email: resendEmailAdapter,
 
   collections: [Pages, Media, Users, Customers, BMCs, BrandKits, Deployments, StudioSessions, Templates],
 

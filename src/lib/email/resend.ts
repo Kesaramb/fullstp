@@ -1,8 +1,8 @@
 import { Resend } from 'resend'
 
-const FROM = 'FullStop <noreply@fullstp.app>'
+export const FROM = 'FullStop <noreply@fullstp.app>'
 
-function getResendClient(): Resend | null {
+export function getResendClient(): Resend | null {
   const key = process.env.RESEND_API_KEY
   if (!key) return null
   return new Resend(key)
