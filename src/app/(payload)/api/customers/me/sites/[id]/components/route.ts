@@ -21,7 +21,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!loaded.ok) return loaded.response
   const { payload, deployment } = loaded
 
-  const dep = deployment as typeof deployment & { adminEmail?: string; adminPassword?: string }
+  // loadOwnedDeployment confirms ownership but does not expose the hidden admin
+  // creds. Re-fetch with showHiddenFields so SiteOps can authenticate (same
+  // pattern as the site-ops chat path in api/swarm/route.ts).
+  const dep = (await payload.findByID({
+    collection: 'deployments',
+    id: deployment.id,
+    overrideAccess: true,
+    showHiddenFields: true,
+  })) as { adminEmail?: string; adminPassword?: string; domain?: string }
+
   if (!dep.adminEmail || !dep.adminPassword || !dep.domain) {
     return Response.json(
       { error: 'unsupported', message: 'This site is not managed by FullStop, so components can’t be added.' },
