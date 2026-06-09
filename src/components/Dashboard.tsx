@@ -75,6 +75,12 @@ export default function Dashboard({ customer, deployments }: Props) {
             <span className="text-xl font-bold text-gray-900">FullStop</span>
           </div>
           <div className="flex items-center gap-4 text-sm">
+            <a
+              href="/components"
+              className="hidden sm:inline-block px-3 py-2 rounded-lg text-gray-700 hover:bg-white/60 transition font-medium"
+            >
+              🧩 Components
+            </a>
             <div className="text-right">
               <div className="text-gray-800 font-medium">{customer.name || customer.email}</div>
               <div className="text-gray-500 text-xs">{tierLabel(customer.tier)} plan</div>

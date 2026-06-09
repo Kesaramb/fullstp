@@ -46,6 +46,14 @@ export default function ComponentGallery() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] font-sans">
       <div className="mx-auto max-w-6xl px-6 py-14">
+        <nav className="mb-8 flex items-center justify-between text-sm">
+          <a href="/" className="flex items-center gap-2 font-bold text-gray-900">
+            <span>⚡</span> FullStop
+          </a>
+          <a href="/dashboard" className="font-medium text-gray-600 hover:text-gray-900">
+            Dashboard →
+          </a>
+        </nav>
         <header className="text-center mb-10">
           <div className="text-4xl mb-3">🧩</div>
           <h1 className="text-3xl font-bold text-gray-900">Component Marketplace</h1>

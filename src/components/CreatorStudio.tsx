@@ -151,12 +151,20 @@ export default function CreatorStudio({ isCreator, mine, gallery }: Props) {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Creator Studio</h1>
-        <p className="text-gray-500">
-          Build and publish page templates. Approved templates appear in the gallery and can be
-          picked by the AI when it builds a site.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-gray-900">Creator Studio</h1>
+          <p className="text-gray-500">
+            Build and publish page templates. Approved templates appear in the gallery and can be
+            picked by the AI when it builds a site.
+          </p>
+        </div>
+        <a
+          href="/components"
+          className="flex-shrink-0 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          🧩 Browse components
+        </a>
       </header>
 
       {!creator ? (
