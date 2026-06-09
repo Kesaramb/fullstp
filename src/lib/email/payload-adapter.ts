@@ -1,16 +1,25 @@
 import type { EmailAdapter, SendEmailOptions } from 'payload'
+import nodemailer from 'nodemailer'
+import type { Transporter } from 'nodemailer'
 import { FROM, getResendClient } from './resend'
 
 /**
- * Payload email adapter backed by Resend.
+ * Payload transactional-email adapter (forgot-password, verification, etc.).
  *
- * Wires Payload's transactional email (forgot-password, verification, etc.)
- * through the same Resend integration used for deployment notifications.
+ * Transport selection, in priority order:
+ *   1. SMTP_HOST set        → send via SMTP (the server's local Exim/HestiaCP
+ *                             mail stack at 127.0.0.1:25, which DKIM-signs
+ *                             outbound mail for fullstp.com).
+ *   2. RESEND_API_KEY set   → send via Resend (hosted ESP).
+ *   3. neither              → log a warning and no-op (dev/build safe).
  *
- * If RESEND_API_KEY is not set the adapter degrades gracefully: it logs a
- * warning and no-ops instead of throwing, so local/dev and build steps keep
- * working. Email only sends once the key is present in the environment.
+ * From address comes from MAIL_FROM, else the shared FROM default.
  */
+
+function fromAddress(message: SendEmailOptions): string {
+  if (typeof message.from === 'string' && message.from.trim()) return message.from
+  return process.env.MAIL_FROM || FROM
+}
 
 /** Normalise nodemailer's flexible `to`/`address` shapes into plain strings. */
 function toAddresses(to: SendEmailOptions['to']): string[] {
@@ -21,36 +30,65 @@ function toAddresses(to: SendEmailOptions['to']): string[] {
     .filter((addr): addr is string => Boolean(addr))
 }
 
+// Reuse one SMTP transporter across sends (connection pooling).
+let cachedTransport: Transporter | null = null
+function getSmtpTransport(): Transporter | null {
+  const host = process.env.SMTP_HOST
+  if (!host) return null
+  if (cachedTransport) return cachedTransport
+  const port = Number(process.env.SMTP_PORT) || 25
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  cachedTransport = nodemailer.createTransport({
+    host,
+    port,
+    // 465 = implicit TLS; 25/587 = plain/STARTTLS. Localhost relay needs no TLS.
+    secure: port === 465,
+    ...(user && pass ? { auth: { user, pass } } : {}),
+    // Local relay uses a self-signed/hostname-mismatched cert; don't fail on it.
+    tls: { rejectUnauthorized: false },
+  })
+  return cachedTransport
+}
+
 export const resendEmailAdapter: EmailAdapter = () => ({
-  name: 'resend',
-  defaultFromAddress: 'noreply@fullstp.app',
+  name: 'fullstp-mail',
+  defaultFromAddress: process.env.MAIL_FROM?.match(/<(.+)>/)?.[1] || 'noreply@fullstp.com',
   defaultFromName: 'FullStop',
   sendEmail: async (message: SendEmailOptions) => {
-    const resend = getResendClient()
     const to = toAddresses(message.to)
+    const from = fromAddress(message)
+    const subject = message.subject ?? ''
+    const html = typeof message.html === 'string' ? message.html : undefined
+    const text = typeof message.text === 'string' ? message.text : undefined
 
-    if (!resend) {
-      console.warn(
-        `[email] RESEND_API_KEY not set — skipping email "${message.subject ?? ''}" to ${to.join(', ')}`,
-      )
-      return { skipped: true }
+    // 1. Local SMTP (Exim) preferred.
+    const smtp = getSmtpTransport()
+    if (smtp) {
+      const info = await smtp.sendMail({ from, to, subject, html, text })
+      return info
     }
 
-    const from =
-      typeof message.from === 'string' && message.from.trim() ? message.from : FROM
-
-    const { data, error } = await resend.emails.send({
-      from,
-      to,
-      subject: message.subject ?? '',
-      html: typeof message.html === 'string' ? message.html : undefined,
-      text: typeof message.text === 'string' ? message.text : undefined,
-    })
-
-    if (error) {
-      console.error('[email] Resend send failed:', error)
-      throw new Error(`Resend send failed: ${error.message}`)
+    // 2. Resend fallback.
+    const resend = getResendClient()
+    if (resend) {
+      // Resend's CreateEmailOptions is a union requiring html|text|react; our
+      // transactional mail is always HTML. Cast to satisfy the discriminator.
+      const payload = { from, to, subject, html: html ?? text ?? '', text } as Parameters<
+        typeof resend.emails.send
+      >[0]
+      const { data, error } = await resend.emails.send(payload)
+      if (error) {
+        console.error('[email] Resend send failed:', error)
+        throw new Error(`Resend send failed: ${error.message}`)
+      }
+      return data
     }
-    return data
+
+    // 3. No transport configured.
+    console.warn(
+      `[email] No SMTP_HOST or RESEND_API_KEY — skipping email "${subject}" to ${to.join(', ')}`,
+    )
+    return { skipped: true }
   },
 })
