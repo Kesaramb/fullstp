@@ -24,10 +24,11 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 export default buildConfig({
-  // Absolute base URL for links in transactional email (e.g. the admin
-  // password-reset link `${serverURL}/admin/reset/<token>`).
-  serverURL: process.env.NEXT_PUBLIC_SITE_URL || 'https://fullstp.com',
-
+  // NOTE: intentionally NOT setting `serverURL`. Payload pushes serverURL into
+  // `config.csrf`, which makes cookie-based auth reject any request whose
+  // Origin isn't in that list (server-side calls, same-origin GETs that omit
+  // Origin, curl). That silently breaks login sessions. Absolute URLs for
+  // transactional email are built explicitly from NEXT_PUBLIC_SITE_URL instead.
   admin: {
     user: Users.slug,
     importMap: {
