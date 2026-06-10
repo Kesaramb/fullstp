@@ -100,6 +100,13 @@ export default function LoginForm() {
               Start a new business
             </a>
           </p>
+          <p className="text-gray-400 text-xs">
+            By continuing you agree to our{' '}
+            <a href="/privacy" className="underline hover:text-gray-600">
+              Privacy Policy
+            </a>
+            .
+          </p>
         </div>
       </div>
     </div>

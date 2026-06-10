@@ -458,7 +458,12 @@ export default function MarketingHomepage() {
             <span className="font-black text-gray-900 tracking-tight">FullStop</span>
             <span className="text-gray-300 ml-2">Zero-Human Digital Agency</span>
           </div>
-          <p className="text-gray-400 text-sm">© {new Date().getFullYear()} FullStop. All rights reserved.</p>
+          <div className="flex items-center gap-5 text-sm">
+            <a href="/privacy" className="text-gray-500 hover:text-gray-900 transition-colors">
+              Privacy Policy
+            </a>
+            <p className="text-gray-400">© {new Date().getFullYear()} FullStop. All rights reserved.</p>
+          </div>
         </div>
       </footer>
 
