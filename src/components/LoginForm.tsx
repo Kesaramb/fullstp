@@ -102,6 +102,10 @@ export default function LoginForm() {
           </p>
           <p className="text-gray-400 text-xs">
             By continuing you agree to our{' '}
+            <a href="/terms" className="underline hover:text-gray-600">
+              Terms
+            </a>{' '}
+            and{' '}
             <a href="/privacy" className="underline hover:text-gray-600">
               Privacy Policy
             </a>
