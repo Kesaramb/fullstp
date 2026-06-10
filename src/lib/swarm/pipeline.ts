@@ -333,17 +333,31 @@ export class SwarmPipeline {
   private appendComponents(pkg: ContentPackage, log: LogFn): void {
     const components = this.components
     if (!components || components.length === 0) return
-    const home = pkg.pages.find((p) => p.slug === 'home') || pkg.pages[0]
+    const titleize = (slug: string) =>
+      slug.split('-').map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ')
     let placed = 0
+    let created = 0
     for (const c of components) {
-      // Honour the chosen page; fall back to home if it isn't in this build.
-      const target = pkg.pages.find((p) => p.slug === (c.page || 'home')) || home
-      if (!target || !Array.isArray(target.layout)) continue
+      const slug = (c.page || 'home').trim() || 'home'
+      let target = pkg.pages.find((p) => p.slug === slug)
+      if (!target) {
+        // Honour the chosen page even if the archetype didn't generate it:
+        // create it (and a nav link) so placement is never silently downgraded.
+        target = { title: titleize(slug), slug, layout: [] }
+        pkg.pages.push(target)
+        created++
+        const navLinks = pkg.globals?.header?.navLinks
+        if (Array.isArray(navLinks) && !navLinks.some((l) => l.url === `/${slug}`)) {
+          navLinks.push({ label: titleize(slug), url: `/${slug}` })
+        }
+      }
+      if (!Array.isArray(target.layout)) continue
       target.layout.push({ blockType: 'creatorBlock', name: c.name, spec: c.spec } as Record<string, unknown>)
       placed++
     }
     if (placed > 0) {
-      log('Factory', `Added ${placed} marketplace component${placed === 1 ? '' : 's'} to your pages.`, 'done')
+      const note = created > 0 ? ` (created ${created} new page${created === 1 ? '' : 's'})` : ''
+      log('Factory', `Added ${placed} marketplace component${placed === 1 ? '' : 's'} to your pages${note}.`, 'done')
     }
   }
 

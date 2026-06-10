@@ -181,6 +181,19 @@ export class SiteOps {
     const token = await this.login(baseUrl, tenant.adminEmail, tenant.adminPassword)
     if (!token) return { applied: 0, failures: ['Could not authenticate with the site.'] }
     const auth = { 'Content-Type': 'application/json', Authorization: `JWT ${token}` }
+
+    // If the target page doesn't exist on the live site, create it with the
+    // blocks as its layout (so placement is never silently downgraded);
+    // otherwise append each block to the end.
+    const existing = await this.fetchPageBySlug(baseUrl, auth, page)
+    if (!existing) {
+      const title = page.split('-').map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ')
+      const failures = await this.applyMutations(baseUrl, auth, [
+        { type: 'create_page', slug: page, title, layout: blocks },
+      ])
+      return { applied: failures.length === 0 ? blocks.length : 0, failures }
+    }
+
     const mutations: Mutation[] = blocks.map((block) => ({
       type: 'insert_block',
       page,
