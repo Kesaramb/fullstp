@@ -135,7 +135,16 @@ export async function POST(req: Request) {
     const clientCustomer: { id?: string | number; name?: string; email?: string } = body.customer || {}
     const strategyHistory: { role: string; content: string }[] = body.strategyHistory || []
     const templateId: string | number | undefined = body.templateId
-    const componentIds: (string | number)[] = Array.isArray(body.componentIds) ? body.componentIds : []
+    // Cart components: prefer the {id, page} mapping; fall back to a flat
+    // componentIds[] (all targeting home) for older clients.
+    const componentReqs: { id: string | number; page: string }[] = Array.isArray(body.components)
+      ? body.components
+          .filter((c: unknown): c is { id: string | number; page?: string } => Boolean(c) && typeof c === 'object' && 'id' in (c as object))
+          .map((c: { id: string | number; page?: string }) => ({ id: c.id, page: typeof c.page === 'string' && c.page ? c.page : 'home' }))
+      : Array.isArray(body.componentIds)
+        ? body.componentIds.map((id: string | number) => ({ id, page: 'home' }))
+        : []
+    const componentIds: (string | number)[] = componentReqs.map((c) => c.id)
 
     if (!bmc?.businessName || typeof bmc.businessName !== 'string') {
       return new Response(JSON.stringify({ error: 'bmc.businessName required' }), { status: 400 })
@@ -267,7 +276,7 @@ export async function POST(req: Request) {
 
     // Resolve marketplace cart components (approved creator-block-spec only).
     // Each becomes a creatorBlock appended to the home page during the build.
-    let components: { id: string | number; name: string; spec: unknown }[] = []
+    let components: { id: string | number; name: string; spec: unknown; page: string }[] = []
     if (componentIds.length > 0) {
       const { docs } = await payload.find({
         collection: 'templates',
@@ -286,6 +295,7 @@ export async function POST(req: Request) {
         id: d.id,
         name: String((d as { name?: unknown }).name ?? 'Component'),
         spec: (d as { spec?: unknown }).spec,
+        page: componentReqs.find((r) => String(r.id) === String(d.id))?.page ?? 'home',
       }))
     }
 
@@ -313,7 +323,7 @@ export async function POST(req: Request) {
           // keeps going — it is no longer killed by a closed SSE controller.
           await pipeline.run(bmc, customer, strategyHistory, logEmit, safe.emit, {
             forcedTemplate,
-            components: components.map((c) => ({ name: c.name, spec: c.spec })),
+            components: components.map((c) => ({ name: c.name, spec: c.spec, page: c.page })),
           })
           // Credit creators whose components were used in this build.
           for (const c of components) {

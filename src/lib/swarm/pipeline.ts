@@ -82,7 +82,7 @@ export class SwarmPipeline {
    * Creator components chosen from the marketplace cart, appended to the home
    * page after content generation. Each is a sandboxed creatorBlock spec.
    */
-  private components?: { name: string; spec: unknown }[]
+  private components?: { name: string; spec: unknown; page?: string }[]
 
   async run(
     bmc: BMC,
@@ -92,7 +92,7 @@ export class SwarmPipeline {
     emit: (event: string, data: Record<string, unknown>) => void,
     options?: {
       forcedTemplate?: { presetName: string; slug: string }
-      components?: { name: string; spec: unknown }[]
+      components?: { name: string; spec: unknown; page?: string }[]
     }
   ): Promise<void> {
     this.forcedTemplate = options?.forcedTemplate
@@ -334,11 +334,17 @@ export class SwarmPipeline {
     const components = this.components
     if (!components || components.length === 0) return
     const home = pkg.pages.find((p) => p.slug === 'home') || pkg.pages[0]
-    if (!home || !Array.isArray(home.layout)) return
+    let placed = 0
     for (const c of components) {
-      home.layout.push({ blockType: 'creatorBlock', name: c.name, spec: c.spec } as Record<string, unknown>)
+      // Honour the chosen page; fall back to home if it isn't in this build.
+      const target = pkg.pages.find((p) => p.slug === (c.page || 'home')) || home
+      if (!target || !Array.isArray(target.layout)) continue
+      target.layout.push({ blockType: 'creatorBlock', name: c.name, spec: c.spec } as Record<string, unknown>)
+      placed++
     }
-    log('Factory', `Added ${components.length} marketplace component${components.length === 1 ? '' : 's'} to the home page.`, 'done')
+    if (placed > 0) {
+      log('Factory', `Added ${placed} marketplace component${placed === 1 ? '' : 's'} to your pages.`, 'done')
+    }
   }
 
   // ── Swarm Content Generation (primary path) ──

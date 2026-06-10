@@ -231,7 +231,7 @@ function DeploymentCard({ deployment }: { deployment: DeploymentSummary }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ componentIds: cart.items.map((i) => i.id), page: 'home' }),
+        body: JSON.stringify({ items: cart.items.map((i) => ({ id: i.id, page: i.page })) }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {

@@ -4,6 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCart } from './CartProvider'
 
+// Common page targets a component can be dropped onto. If a chosen page doesn't
+// exist on the built/live site, the build falls back to home and the live-apply
+// reports it as a skipped page.
+const PAGE_TARGETS = [
+  { slug: 'home', label: 'Home' },
+  { slug: 'about', label: 'About' },
+  { slug: 'services', label: 'Services' },
+  { slug: 'products', label: 'Products' },
+  { slug: 'contact', label: 'Contact' },
+] as const
+
 export default function CartDrawer() {
   const cart = useCart()
   const router = useRouter()
@@ -51,17 +62,31 @@ export default function CartDrawer() {
               ) : (
                 <ul className="space-y-2">
                   {cart.items.map((i) => (
-                    <li
-                      key={i.id}
-                      className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3"
-                    >
-                      <span className="text-sm font-medium text-gray-800">{i.name}</span>
-                      <button
-                        onClick={() => cart.remove(i.id)}
-                        className="text-xs font-medium text-gray-400 hover:text-red-600"
-                      >
-                        Remove
-                      </button>
+                    <li key={i.id} className="rounded-xl border border-gray-100 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-800">{i.name}</span>
+                        <button
+                          onClick={() => cart.remove(i.id)}
+                          className="text-xs font-medium text-gray-400 hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <label className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                        Add to
+                        <select
+                          value={i.page}
+                          onChange={(e) => cart.setPage(i.id, e.target.value)}
+                          className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                        >
+                          {PAGE_TARGETS.map((p) => (
+                            <option key={p.slug} value={p.slug}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                        page
+                      </label>
                     </li>
                   ))}
                 </ul>

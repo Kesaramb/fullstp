@@ -250,7 +250,7 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
       // A template chosen from the gallery ("Use this template") is handed off
       // via localStorage. Consume it once so a later organic build isn't forced.
       let templateId: string | null = null
-      let componentIds: string[] = []
+      let components: { id: string; page: string }[] = []
       if (typeof window !== 'undefined') {
         templateId = window.localStorage.getItem('fullstp.templateId')
         if (templateId) window.localStorage.removeItem('fullstp.templateId')
@@ -259,12 +259,12 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
           const raw = window.localStorage.getItem('fullstp.cart')
           const parsed = raw ? JSON.parse(raw) : []
           if (Array.isArray(parsed)) {
-            componentIds = parsed
-              .map((i) => (i && typeof i.id === 'string' ? i.id : null))
-              .filter((v): v is string => Boolean(v))
+            components = parsed
+              .filter((i) => i && typeof i.id === 'string')
+              .map((i) => ({ id: i.id as string, page: typeof i.page === 'string' && i.page ? i.page : 'home' }))
           }
           // Consume the cart so a later build isn't re-seeded with stale items.
-          if (componentIds.length > 0) window.localStorage.removeItem('fullstp.cart')
+          if (components.length > 0) window.localStorage.removeItem('fullstp.cart')
         } catch {
           /* ignore malformed cart */
         }
@@ -280,7 +280,7 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
           customer,
           strategyHistory,
           ...(templateId ? { templateId } : {}),
-          ...(componentIds.length > 0 ? { componentIds } : {}),
+          ...(components.length > 0 ? { components } : {}),
         }),
       })
 
