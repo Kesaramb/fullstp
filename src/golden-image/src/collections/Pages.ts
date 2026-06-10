@@ -25,6 +25,7 @@ import { LocationMap } from '../blocks/LocationMap/config'
 import { ServiceCalculator } from '../blocks/ServiceCalculator/config'
 import { BrandTimeline } from '../blocks/BrandTimeline/config'
 import { PostsList } from '../blocks/PostsList/config'
+import { ProductGrid } from '../blocks/ProductGrid/config'
 import { SplineScene } from '../blocks/SplineScene/config'
 import { CreatorBlock } from '../blocks/CreatorBlock/config'
 
@@ -84,6 +85,8 @@ export const Pages: CollectionConfig = {
         BrandTimeline,
         // Blog / editorial
         PostsList,
+        // Commerce — live catalog grid backed by the Products collection
+        ProductGrid,
         // Spline 3D — interactive scene
         SplineScene,
         // Creator marketplace — sandboxed declarative section

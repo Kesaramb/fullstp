@@ -7,7 +7,7 @@
  * never crash the Next.js build or first-boot render.
  */
 
-import { getPayload } from 'payload'
+import { getPayload, type Where } from 'payload'
 import config from '@payload-config'
 
 /**
@@ -70,7 +70,7 @@ export async function safeFindPosts(options?: {
   try {
     const payload = await getSafePayload()
     if (!payload) return []
-    const where: Record<string, unknown> = { _status: { equals: 'published' } }
+    const where: Where = { _status: { equals: 'published' } }
     if (options?.categoryId) {
       where.categories = { in: [options.categoryId] }
     }
@@ -84,6 +84,68 @@ export async function safeFindPosts(options?: {
     return docs
   } catch {
     return []
+  }
+}
+
+/**
+ * List available products, optionally filtered by category. Returns [] on
+ * any failure (e.g. tenant predates the products table).
+ */
+export async function safeFindProducts(options?: {
+  limit?: number
+  category?: string
+}) {
+  try {
+    const payload = await getSafePayload()
+    if (!payload) return []
+    const where: Where = {}
+    if (options?.category) {
+      where.category = { equals: options.category }
+    }
+    const { docs } = await payload.find({
+      collection: 'products',
+      where,
+      sort: '-createdAt',
+      limit: options?.limit ?? 12,
+      depth: 1, // populate image uploads
+    })
+    return docs
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Find a product by slug. Returns the product document or null on any failure.
+ */
+export async function safeFindProduct(slug: string) {
+  try {
+    const payload = await getSafePayload()
+    if (!payload) return null
+    const { docs } = await payload.find({
+      collection: 'products',
+      where: { slug: { equals: slug } },
+      limit: 1,
+      depth: 1,
+    })
+    return docs[0] || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Public store settings — currency, policies, and whether the store is on.
+ * Secret keys are field-access-protected and NOT returned here (no
+ * overrideAccess); API routes that need them read the global themselves.
+ */
+export async function safeFindStoreSettings() {
+  try {
+    const payload = await getSafePayload()
+    if (!payload) return null
+    return await payload.findGlobal({ slug: 'store-settings', overrideAccess: false })
+  } catch {
+    return null
   }
 }
 

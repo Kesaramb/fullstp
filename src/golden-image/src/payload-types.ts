@@ -73,6 +73,8 @@ export interface Config {
     users: User;
     posts: Post;
     categories: Category;
+    products: Product;
+    orders: Order;
     forms: Form;
     'form-submissions': FormSubmission;
     'payload-mcp-api-keys': PayloadMcpApiKey;
@@ -89,6 +91,8 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
+    products: ProductsSelect<false> | ProductsSelect<true>;
+    orders: OrdersSelect<false> | OrdersSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
@@ -106,11 +110,13 @@ export interface Config {
     header: Header;
     footer: Footer;
     'site-settings': SiteSetting;
+    'store-settings': StoreSetting;
   };
   globalsSelect: {
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     'site-settings': SiteSettingsSelect<false> | SiteSettingsSelect<true>;
+    'store-settings': StoreSettingsSelect<false> | StoreSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -188,6 +194,13 @@ export interface Page {
               | 'textRevealCanvas'
               | 'cinemaImmersive'
               | 'bookSearch'
+              | 'authorityPortrait'
+              | 'statsLed'
+              | 'founderLetter'
+              | 'emailCapture'
+              | 'codePreview'
+              | 'productShowcase'
+              | 'featuredQuote'
             )
           | null;
         /**
@@ -308,7 +321,7 @@ export interface Page {
         blockType: 'brandNarrative';
       }
     | {
-        variant?: ('default' | 'bentoAsymmetric' | 'numberedRail' | 'glassmorphicCards') | null;
+        variant?: ('default' | 'bentoAsymmetric' | 'numberedRail' | 'glassmorphicCards' | 'outcomeCards') | null;
         heading: string;
         subheading?: string | null;
         columns?: ('3' | '4') | null;
@@ -875,6 +888,85 @@ export interface Page {
         blockName?: string | null;
         blockType: 'brandTimeline';
       }
+    | {
+        variant?: ('grid' | 'list' | 'featured') | null;
+        /**
+         * e.g. "Latest stories"
+         */
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * Max number of posts to show.
+         */
+        limit?: number | null;
+        /**
+         * Optional — filter by a single category.
+         */
+        category?: (number | null) | Category;
+        showImage?: boolean | null;
+        /**
+         * Show a short excerpt under each post title.
+         */
+        showExcerpt?: boolean | null;
+        ctaLabel?: string | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'postsList';
+      }
+    | {
+        variant?: ('grid' | 'featured' | 'minimal') | null;
+        eyebrow?: string | null;
+        heading?: string | null;
+        subheading?: string | null;
+        /**
+         * Only show products in this category (leave empty for all)
+         */
+        category?: string | null;
+        limit?: number | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'productGrid';
+      }
+    | {
+        /**
+         * Exported .splinecode URL (Spline → Export → Code). Must be a scene you are licensed to use commercially.
+         */
+        sceneUrl: string;
+        variant?: ('heroOverlay' | 'split' | 'showcase') | null;
+        /**
+         * Optional. Shown for heroOverlay / split variants.
+         */
+        heading?: string | null;
+        subheading?: string | null;
+        ctaLabel?: string | null;
+        ctaLink?: string | null;
+        height?: ('compact' | 'tall' | 'full') | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'splineScene';
+      }
+    | {
+        /**
+         * Optional label for this creator section (editor only).
+         */
+        name?: string | null;
+        /**
+         * Declarative node tree: { "nodes": [...] }. Rendered by the sandboxed renderer.
+         */
+        spec:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+        blockName?: string | null;
+        blockType: 'creatorBlock';
+      }
   )[];
   meta?: {
     title?: string | null;
@@ -1109,6 +1201,21 @@ export interface Form {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -1184,17 +1291,111 @@ export interface Post {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * Your sellable catalog. Each product gets its own page at /products/{slug}.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
+ * via the `definition` "products".
  */
-export interface Category {
+export interface Product {
   id: number;
   title: string;
-  /**
-   * When enabled, the slug will auto-generate from the title field on save and autosave.
-   */
-  generateSlug?: boolean | null;
   slug: string;
+  /**
+   * Price in your store currency (e.g. 48 or 48.50)
+   */
+  price: number;
+  /**
+   * Optional “was” price shown struck through
+   */
+  compareAtPrice?: number | null;
+  /**
+   * 1-2 sentences shown on product cards and below the title
+   */
+  shortDescription?: string | null;
+  /**
+   * Full description — materials, process, what makes it special
+   */
+  description?: string | null;
+  /**
+   * Primary product image (preferred over Image URL when both set)
+   */
+  image?: (number | null) | Media;
+  /**
+   * Fallback image URL used when no Media upload is set
+   */
+  imageUrl?: string | null;
+  gallery?:
+    | {
+        image?: (number | null) | Media;
+        imageUrl?: string | null;
+        alt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Free-form grouping, e.g. "Candles"
+   */
+  category?: string | null;
+  /**
+   * Optional card badge, e.g. "Best Seller"
+   */
+  badge?: string | null;
+  /**
+   * Spec rows — Materials, Dimensions, Care…
+   */
+  details?:
+    | {
+        label: string;
+        value: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Uncheck to hide the buy button (still browsable)
+   */
+  available?: boolean | null;
+  trackInventory?: boolean | null;
+  /**
+   * Units on hand — only enforced when Track Inventory is on
+   */
+  stock?: number | null;
+  /**
+   * Per-product shipping/lead-time note, e.g. "Ships in 2-3 days"
+   */
+  shippingNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Orders land here automatically when Stripe checkout completes.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders".
+ */
+export interface Order {
+  id: number;
+  orderNumber: string;
+  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
+  items: {
+    product?: (number | null) | Product;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+    id?: string | null;
+  }[];
+  subtotal: number;
+  shippingTotal?: number | null;
+  total: number;
+  currency: string;
+  customerEmail?: string | null;
+  customerName?: string | null;
+  shippingAddress?: string | null;
+  stripeSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  /**
+   * Internal fulfillment notes
+   */
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1268,6 +1469,24 @@ export interface PayloadMcpApiKey {
     update?: boolean | null;
     /**
      * Allow clients to delete media.
+     */
+    delete?: boolean | null;
+  };
+  products?: {
+    /**
+     * Allow clients to find products.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create products.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update products.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete products.
      */
     delete?: boolean | null;
   };
@@ -1443,6 +1662,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'categories';
         value: number | Category;
+      } | null)
+    | ({
+        relationTo: 'products';
+        value: number | Product;
+      } | null)
+    | ({
+        relationTo: 'orders';
+        value: number | Order;
       } | null)
     | ({
         relationTo: 'forms';
@@ -1948,6 +2175,54 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        postsList?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              limit?: T;
+              category?: T;
+              showImage?: T;
+              showExcerpt?: T;
+              ctaLabel?: T;
+              id?: T;
+              blockName?: T;
+            };
+        productGrid?:
+          | T
+          | {
+              variant?: T;
+              eyebrow?: T;
+              heading?: T;
+              subheading?: T;
+              category?: T;
+              limit?: T;
+              id?: T;
+              blockName?: T;
+            };
+        splineScene?:
+          | T
+          | {
+              sceneUrl?: T;
+              variant?: T;
+              heading?: T;
+              subheading?: T;
+              ctaLabel?: T;
+              ctaLink?: T;
+              height?: T;
+              id?: T;
+              blockName?: T;
+            };
+        creatorBlock?:
+          | T
+          | {
+              name?: T;
+              spec?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   meta?:
     | T
@@ -2074,6 +2349,72 @@ export interface CategoriesSelect<T extends boolean = true> {
   title?: T;
   generateSlug?: T;
   slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products_select".
+ */
+export interface ProductsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  price?: T;
+  compareAtPrice?: T;
+  shortDescription?: T;
+  description?: T;
+  image?: T;
+  imageUrl?: T;
+  gallery?:
+    | T
+    | {
+        image?: T;
+        imageUrl?: T;
+        alt?: T;
+        id?: T;
+      };
+  category?: T;
+  badge?: T;
+  details?:
+    | T
+    | {
+        label?: T;
+        value?: T;
+        id?: T;
+      };
+  available?: T;
+  trackInventory?: T;
+  stock?: T;
+  shippingNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders_select".
+ */
+export interface OrdersSelect<T extends boolean = true> {
+  orderNumber?: T;
+  status?: T;
+  items?:
+    | T
+    | {
+        product?: T;
+        name?: T;
+        unitPrice?: T;
+        quantity?: T;
+        id?: T;
+      };
+  subtotal?: T;
+  shippingTotal?: T;
+  total?: T;
+  currency?: T;
+  customerEmail?: T;
+  customerName?: T;
+  shippingAddress?: T;
+  stripeSessionId?: T;
+  stripePaymentIntentId?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2243,6 +2584,14 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   media?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  products?:
     | T
     | {
         find?: T;
@@ -2498,6 +2847,57 @@ export interface SiteSetting {
   createdAt?: string | null;
 }
 /**
+ * Connect your own Stripe account to start selling. Your keys never leave this site.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "store-settings".
+ */
+export interface StoreSetting {
+  id: number;
+  /**
+   * Master switch — shows the cart and buy buttons across the site
+   */
+  storeEnabled?: boolean | null;
+  currency?: ('usd' | 'eur' | 'gbp' | 'cad' | 'aud' | 'inr') | null;
+  /**
+   * From dashboard.stripe.com → Developers → API keys
+   */
+  stripe?: {
+    /**
+     * pk_live_… or pk_test_…
+     */
+    publishableKey?: string | null;
+    /**
+     * sk_live_… or sk_test_… — never exposed publicly
+     */
+    secretKey?: string | null;
+    /**
+     * whsec_… — add a webhook endpoint for {your-domain}/api/stripe-webhook with event checkout.session.completed
+     */
+    webhookSecret?: string | null;
+  };
+  shipping?: {
+    /**
+     * Flat shipping per order in store currency. 0 = free shipping.
+     */
+    flatRate?: number | null;
+    /**
+     * Orders at or above this subtotal ship free (leave empty to disable)
+     */
+    freeShippingThreshold?: number | null;
+    /**
+     * Shown on product pages — e.g. "Ships worldwide in 2-5 business days"
+     */
+    shippingPolicy?: string | null;
+  };
+  /**
+   * Shown on product pages — the single cheapest trust signal you can write
+   */
+  returnsPolicy?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "header_select".
  */
@@ -2573,6 +2973,32 @@ export interface SiteSettingsSelect<T extends boolean = true> {
         customFontBody?: T;
         customGoogleFontsUrl?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "store-settings_select".
+ */
+export interface StoreSettingsSelect<T extends boolean = true> {
+  storeEnabled?: T;
+  currency?: T;
+  stripe?:
+    | T
+    | {
+        publishableKey?: T;
+        secretKey?: T;
+        webhookSecret?: T;
+      };
+  shipping?:
+    | T
+    | {
+        flatRate?: T;
+        freeShippingThreshold?: T;
+        shippingPolicy?: T;
+      };
+  returnsPolicy?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

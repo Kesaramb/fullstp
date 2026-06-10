@@ -13,9 +13,12 @@ import { Media } from './src/collections/Media'
 import { Users } from './src/collections/Users'
 import { Posts } from './src/collections/Posts'
 import { Categories } from './src/collections/Categories'
+import { Products } from './src/collections/Products'
+import { Orders } from './src/collections/Orders'
 import { Header } from './src/globals/Header'
 import { Footer } from './src/globals/Footer'
 import { SiteSettings } from './src/globals/SiteSettings'
+import { StoreSettings } from './src/globals/StoreSettings'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -37,9 +40,9 @@ export default buildConfig({
     },
   },
 
-  collections: [Pages, Media, Users, Posts, Categories],
+  collections: [Pages, Media, Users, Posts, Categories, Products, Orders],
 
-  globals: [Header, Footer, SiteSettings],
+  globals: [Header, Footer, SiteSettings, StoreSettings],
 
   editor: lexicalEditor(),
 
@@ -78,6 +81,7 @@ export default buildConfig({
       collections: {
         pages: { enabled: true },
         media: { enabled: true },
+        products: { enabled: true },
       },
       globals: {
         header: { enabled: true },
