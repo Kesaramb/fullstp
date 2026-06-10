@@ -690,6 +690,44 @@ export async function deployTenant(
           }
         }
         log('Payload Expert', `${pagesSeeded}/${deployConfig.contentPackage.pages.length} pages seeded.`, pagesSeeded > 0 ? 'done' : 'error')
+
+        // ── PR-Commerce: store settings + product catalog (product tenants only) ──
+        // Seeded AFTER the strict page/global gate inputs — commerce seeding
+        // never changes pagesSeeded/globalsSeeded, so a flaky product POST
+        // can't flip an otherwise-good deploy out of `operational`.
+        if (deployConfig.contentPackage.storeSettings) {
+          const b64 = Buffer.from(JSON.stringify(deployConfig.contentPackage.storeSettings)).toString('base64')
+          await exec(ssh, `echo '${b64}' | base64 -d > /tmp/seed-store.json`)
+          const status = await exec(ssh,
+            `curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${port}/api/globals/store-settings ${authArgs} -d @/tmp/seed-store.json`
+          )
+          await exec(ssh, 'rm -f /tmp/seed-store.json')
+          if (['200', '201'].includes(status.trim())) {
+            log('Payload Expert', 'Store settings configured (connect Stripe keys in /admin to accept payments).', 'done')
+          } else {
+            log('Payload Expert', `Store settings seed failed (HTTP ${status.trim()}).`, 'error')
+          }
+        }
+        const products = deployConfig.contentPackage.products || []
+        if (products.length > 0) {
+          let productsSeeded = 0
+          for (const product of products) {
+            const b64 = Buffer.from(JSON.stringify(product)).toString('base64')
+            await exec(ssh, `echo '${b64}' | base64 -d > /tmp/seed-product.json`)
+            const seedResult = await exec(ssh,
+              `curl -s -w '\\n%{http_code}' -X POST http://127.0.0.1:${port}/api/products ${authArgs} -d @/tmp/seed-product.json`
+            )
+            await exec(ssh, 'rm -f /tmp/seed-product.json')
+            const seedLines = seedResult.trim().split('\n')
+            const seedStatus = seedLines[seedLines.length - 1]
+            if (['200', '201'].includes(seedStatus.trim())) {
+              productsSeeded++
+            } else {
+              log('Payload Expert', `Product "${product.slug}" seed failed (HTTP ${seedStatus}): ${seedLines.slice(0, -1).join('').slice(0, 200)}`, 'error')
+            }
+          }
+          log('Payload Expert', `${productsSeeded}/${products.length} products stocked in the shop.`, productsSeeded > 0 ? 'done' : 'error')
+        }
       } else {
         log('Payload Expert', 'Could not authenticate for seeding — skipped.', 'error')
       }

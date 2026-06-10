@@ -30,7 +30,7 @@ import { compilePreset, pagesForArchetype } from './preset-compiler'
 import { computePalette } from '@/lib/theme/compute-palette'
 import { computeFonts } from '@/lib/theme/compute-fonts'
 import { SharedMemory } from './shared-memory'
-import type { BMC, ContentPackage, WrittenCopy, DesignBrief, LogFn, BusinessArchetype, ArchetypeConfig, SectionType, StrategyBrief } from './types'
+import type { BMC, ContentPackage, ProductSeed, WrittenCopy, DesignBrief, LogFn, BusinessArchetype, ArchetypeConfig, SectionType, StrategyBrief } from './types'
 import { ARCHETYPE_CONFIGS } from './types'
 // PR3c — wire BMC Queen + Information Architect + Layout Composer
 import { BMCQueenAgent } from './queen-bmc'
@@ -133,6 +133,9 @@ export class SwarmPipeline {
     }
 
     contentPkg = normalizeContentPackage(contentPkg)
+
+    // ── PR-Commerce: attach product catalog + store settings for product tenants ──
+    await this.attachCommerceSeeds(contentPkg, bmc, trackedLog)
 
     // ── Append marketplace cart components to the home page ──
     this.appendComponents(contentPkg, trackedLog)
@@ -361,6 +364,78 @@ export class SwarmPipeline {
     }
   }
 
+  /**
+   * PR-Commerce — for `product` archetype tenants, attach the seedable
+   * catalog (from the Queen's extracted productInventory) and store
+   * settings to the ContentPackage. Tenant owns the Stripe account: the
+   * store ships enabled with policies written, and goes transactable the
+   * moment the tenant pastes their keys into /admin → Store Settings.
+   * Never throws — commerce attach failures must not sink a deploy.
+   */
+  private async attachCommerceSeeds(pkg: ContentPackage, bmc: BMC, log: LogFn): Promise<void> {
+    try {
+      const briefV2 = this.memory.get('strategyBriefV2') as StrategyBriefV2 | undefined
+      const archetype = briefV2?.archetype || bmc.businessArchetype
+      if (archetype !== 'product') return
+
+      const inventory = briefV2?.productInventory || []
+      const source = inventory.length > 0 ? inventory : [
+        // Fallback-path safety net (no V2 brief in memory): a small, honest
+        // placeholder line so the shop is never an empty shell.
+        { name: `${bmc.businessName} Signature`, priceUSD: 48, shortDescription: `The piece ${bmc.businessName} is known for — our flagship, made in small batches.`, badge: 'Best Seller' },
+        { name: `${bmc.businessName} Classic`, priceUSD: 32, shortDescription: 'The everyday favorite — simple, well-made, built to be used.' },
+        { name: `${bmc.businessName} Starter Set`, priceUSD: 56, shortDescription: 'The easiest way in — a curated introduction to the collection.' },
+      ]
+
+      const usedSlugs = new Set<string>()
+      const products: ProductSeed[] = source.map(item => {
+        let slug = slugifyProductName(item.name)
+        let n = 2
+        while (usedSlugs.has(slug)) slug = `${slugifyProductName(item.name)}-${n++}`
+        usedSlugs.add(slug)
+        return {
+          title: item.name,
+          slug,
+          price: Math.round(item.priceUSD * 100) / 100,
+          shortDescription: item.shortDescription,
+          description: 'description' in item ? item.description : undefined,
+          category: 'category' in item ? item.category : undefined,
+          badge: item.badge,
+          details: 'details' in item ? item.details : undefined,
+          available: true,
+          shippingNote: 'Ships in 2-5 business days',
+        }
+      })
+
+      // Product imagery — Unsplash hot-links, same graceful degradation as
+      // hero images. Cards render a branded placeholder when this yields none.
+      try {
+        const images = await fetchUnsplashImages(bmc.industry, bmc.businessName, {
+          budget: Math.min(10, products.length),
+        })
+        if (images.length > 0) {
+          products.forEach((p, i) => { p.imageUrl = images[i % images.length].url })
+        }
+      } catch { /* non-blocking */ }
+
+      pkg.products = products
+      pkg.storeSettings = {
+        storeEnabled: true,
+        currency: 'usd',
+        shipping: {
+          flatRate: 0,
+          shippingPolicy: 'Free shipping on every order. Most orders ship within 2-5 business days.',
+        },
+        returnsPolicy: `30-day returns — if it's not right, ${bmc.businessName} will make it right.`,
+      }
+
+      log('Factory', `Commerce catalog attached: ${products.length} products, store pre-configured (connect Stripe keys in /admin to go live).`, 'done')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      log('Factory', `Commerce attach skipped: ${msg.slice(0, 120)}`, 'error')
+    }
+  }
+
   // ── Swarm Content Generation (primary path) ──
 
   private async swarmContentGeneration(bmc: BMC, log: LogFn): Promise<ContentPackage> {
@@ -517,6 +592,7 @@ export class SwarmPipeline {
           : section.type === 'closingBanner' ? 'closing'
           : section.type === 'formBlock' ? 'form'
           : section.type === 'content' ? 'richcontent'
+          : section.type === 'productGrid' ? 'shop'
           : section.type
 
         if (section.heading) values[`${prefix}_heading`] = section.heading
@@ -735,6 +811,7 @@ export class SwarmPipeline {
           : section.type === 'closingBanner' ? 'closing'
           : section.type === 'formBlock' ? 'form'
           : section.type === 'content' ? 'richcontent'
+          : section.type === 'productGrid' ? 'shop'
           : section.type
 
         if (section.heading) values[`${prefix}_heading`] = section.heading
@@ -868,6 +945,7 @@ export class SwarmPipeline {
           : section.type === 'closingBanner' ? 'closing'
           : section.type === 'formBlock' ? 'form'
           : section.type === 'content' ? 'richcontent'
+          : section.type === 'productGrid' ? 'shop'
           : section.type
 
         if (section.heading) values[`${prefix}_heading`] = section.heading
@@ -1140,6 +1218,12 @@ export class SwarmPipeline {
       }
       case 'banner':
         setIfEmpty('banner_content', `Welcome to ${name}.`)
+        break
+      // PR-Commerce
+      case 'productGrid':
+        setIfEmpty('shop_eyebrow', 'The Collection')
+        setIfEmpty('shop_heading', `Shop ${name}`)
+        setIfEmpty('shop_subheading', 'Made in small batches. Secure checkout, easy returns.')
         break
       case 'brandTimeline':
         setIfEmpty('timeline_heading', `${name} Through the Years`)
@@ -1564,6 +1648,33 @@ export class SwarmPipeline {
       }
 
       log('Payload Expert', `${pagesSeeded}/${contentPkg.pages.length} pages seeded, 3 globals configured.`, 'done')
+
+      // PR-Commerce — seed store settings + product catalog (product tenants only)
+      if (contentPkg.storeSettings) {
+        const res = await this.fetchWithRetry(
+          `${baseUrl}/api/globals/store-settings`,
+          { method: 'POST', headers: auth, body: JSON.stringify(contentPkg.storeSettings) }
+        )
+        if (!res.ok) {
+          log('Payload Expert', `Store settings warning (${res.status}): ${await this.parseApiError(res)}`, 'error')
+        }
+      }
+      if (contentPkg.products && contentPkg.products.length > 0) {
+        let productsSeeded = 0
+        for (const product of contentPkg.products) {
+          try {
+            const res = await this.fetchWithRetry(
+              `${baseUrl}/api/products`,
+              { method: 'POST', headers: auth, body: JSON.stringify(product) }
+            )
+            if (res.ok) productsSeeded++
+            else log('Payload Expert', `Product "${product.slug}" failed (${res.status}): ${await this.parseApiError(res)}`, 'error')
+          } catch (err) {
+            log('Payload Expert', `Product "${product.slug}" network error: ${err instanceof Error ? err.message : String(err)}`, 'error')
+          }
+        }
+        log('Payload Expert', `${productsSeeded}/${contentPkg.products.length} products stocked in the shop.`, productsSeeded > 0 ? 'done' : 'error')
+      }
       return true
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -1938,6 +2049,18 @@ function navLabelFromSlug(slug: string): string {
  * Source of truth: pageSlugs come from the same list that drives page seeding,
  * so the nav can never point to a slug that wasn't built.
  */
+/** PR-Commerce — URL-safe slug from a product name ("Amber & Oak" → "amber-oak"). */
+function slugifyProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'product'
+}
+
 function buildNavFromPages(
   pageSlugs: string[],
   archetypeFallback: { navLinks: { label: string; url: string }[] },

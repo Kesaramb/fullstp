@@ -157,6 +157,14 @@ const BLOCK_CATALOG: { blockType: string; description: string; validIntents: Sec
     supportsVariantHint: ['verticalSpine', 'horizontalScroll', 'decadeBands'],
     industryHints: ['heritage', 'legacy', 'family', 'estate', 'winery', 'whiskey', 'distillery', 'jeweler', 'jewelry', 'museum', 'institute', 'foundation', 'publisher'],
   },
+  // ── PR-Commerce — the transaction path for product (DTC / ecommerce) tenants ──
+  {
+    blockType: 'productGrid',
+    description: 'LIVE shoppable product grid — renders the tenant Products collection with prices, images, and add-to-cart. REQUIRED on the shop/products page of every product-archetype tenant (it IS the store), and recommended on home as a featured teaser (variantHint: featured). Never use featureGrid to list sellable products — featureGrid cards cannot be bought.',
+    validIntents: ['browse-and-buy-products', 'explain-the-product-or-service'],
+    supportsVariantHint: ['grid', 'featured', 'minimal'],
+    industryHints: ['ecommerce', 'dtc', 'd2c', 'retail', 'candle', 'soap', 'skincare', 'beauty', 'apparel', 'clothing', 'jewelry', 'homeware', 'ceramics', 'goods', 'shop', 'boutique', 'food products'],
+  },
 ]
 
 const VALID_BLOCK_TYPES = new Set(BLOCK_CATALOG.map(b => b.blockType))
@@ -261,6 +269,27 @@ Your output should:
 - Re-order or omit pages based on what the brief actually justifies
 - Use page slugs that describe the function (not "menu" for a SaaS that has no menu; not "features" for a restaurant that has no features)
 - **Use industry-specific blocks** when the BMC industry matches. Each block in get_available_blocks may carry an \`industryHints\` array — substring-match it against the brief's industry. A cafe should use openingHoursWidget on its visit page; a Rotary club should use eventCalendarTeaser; a restaurant should use menuPreview and reservationWidget; a heritage brand should use brandTimeline on its about page. Do NOT use these niche blocks for unrelated industries — a SaaS does not get openingHoursWidget.
+
+# E-commerce skill (archetype = product ONLY)
+
+E-commerce solves one problem: two strangers exchanging value without meeting.
+The site must walk the buyer through five stages — discovery (find the product),
+evaluation (inspect it remotely), transaction (pay), fulfillment (trust it will
+arrive), post-purchase (come back). Architect for the stages, not for decoration:
+
+- The shop page (slug 'products' or category-true equivalent) MUST use
+  productGrid with intent=browse-and-buy-products — it renders the live,
+  buyable catalog. A products page built from featureGrid is a brochure
+  pretending to be a store; that is the #1 failure mode to avoid.
+- Home should include productGrid with variantHint=featured — DTC homepages
+  sell from the first scroll.
+- Do NOT propose a SaaS-style pricing page: product prices live on the cards.
+- Include an faq section with intent=address-top-objections on the shop page —
+  purchase objections (shipping time, returns, quality) are the evaluation-stage
+  gaps a stranger needs closed before paying first.
+- Differentiated/artisan goods follow the listing model: the seller IS part of
+  the product, so keep brandNarrative (story, process, provenance) adjacent to
+  the catalog — it is evaluation data, not decoration.
 
 # Output discipline
 

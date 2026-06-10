@@ -192,6 +192,30 @@ export interface AlternativeModel {
   fastestValidationTest: string
 }
 
+// ── PR-Commerce: product inventory extracted by the Queen ──
+
+/**
+ * One sellable item the Queen extracted (or plausibly inferred) from the
+ * brief. Law of model-goods fit: differentiated DTC goods get a listing
+ * model — each item carries its own story, not just a price.
+ */
+export interface ProductInventoryItem {
+  /** Customer-facing product name — specific, not generic ("Amber & Oak Candle", not "Candle 1") */
+  name: string
+  /** Realistic retail price in USD (major units) */
+  priceUSD: number
+  /** 1-2 sentence card description — closes the "what is it like to own?" gap */
+  shortDescription: string
+  /** Longer evaluation copy — materials, process, provenance */
+  description?: string
+  /** Free-form grouping, e.g. "Candles", "Gift Sets" */
+  category?: string
+  /** Optional merchandising badge, e.g. "Best Seller", "Small Batch" */
+  badge?: string
+  /** Spec rows that substitute for physical inspection */
+  details?: { label: string; value: string }[]
+}
+
 // ── The full V2 brief ──
 export interface StrategyBriefV2 {
   // Identity
@@ -250,6 +274,13 @@ export interface StrategyBriefV2 {
   alternativesConsidered: AlternativeModel[]
   /** What we'd test next if this brief were a real product plan. */
   recommendedExperiments: string[]
+
+  /**
+   * PR-Commerce — only for `product` archetype: the sellable inventory
+   * (4-8 items) extracted from the brief or plausibly inferred from the
+   * business description. Seeded into the tenant Products collection.
+   */
+  productInventory?: ProductInventoryItem[]
 }
 
 // ── Helpers consumed downstream ──

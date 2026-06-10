@@ -81,6 +81,7 @@ const VALID_VARIANTS: Record<string, string[]> = {
   openingHoursWidget: ['weekGrid', 'stackedList', 'inlineBanner'],
   reservationWidget: ['inline', 'splitWithImage', 'fullBand'],
   postsList: ['grid', 'list', 'featured'],
+  productGrid: ['grid', 'featured', 'minimal'],
 }
 
 function clampVariant(blockType: string, candidate: string | undefined, fallback: string): string {
@@ -492,6 +493,22 @@ function buildServiceCalculator(section: SectionSpec): Record<string, unknown> {
   }
 }
 
+// PR-Commerce — the grid renders live Products documents at request time;
+// the block only carries the section framing copy + display options.
+function buildProductGrid(section: SectionSpec, pageSlug: string): Record<string, unknown> {
+  // Home gets the featured teaser (fewer items, first one large); the shop
+  // page gets the full browsing grid.
+  const fallback = pageSlug === 'home' ? 'featured' : 'grid'
+  return {
+    blockType: 'productGrid',
+    variant: clampVariant('productGrid', section.variantHint, fallback),
+    eyebrow: '{{shop_eyebrow}}',
+    heading: '{{shop_heading}}',
+    subheading: '{{shop_subheading}}',
+    limit: pageSlug === 'home' ? 6 : 24,
+  }
+}
+
 function buildBrandTimeline(section: SectionSpec): Record<string, unknown> {
   return {
     blockType: 'brandTimeline',
@@ -542,6 +559,8 @@ export function composePage(args: {
       case 'locationMap':         blocks.push(buildLocationMap(section)); break
       case 'serviceCalculator':   blocks.push(buildServiceCalculator(section)); break
       case 'brandTimeline':       blocks.push(buildBrandTimeline(section)); break
+      // PR-Commerce
+      case 'productGrid':         blocks.push(buildProductGrid(section, page.slug)); break
       default:
         // Unknown block type — skip silently to keep the deploy green.
         // The Critic stage (PR5) will flag missing blocks for follow-up.

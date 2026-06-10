@@ -69,6 +69,8 @@ export type SectionIntent =
   | 'surface-location-and-directions'
   | 'estimate-cost-or-scope'
   | 'capture-with-availability-check'
+  // PR-Commerce — the transaction path for product tenants
+  | 'browse-and-buy-products'
 
 export interface SectionSpec {
   /** The block type that fulfills this intent. Layout Composer picks the variant. */
@@ -118,7 +120,9 @@ export function planPages(strategy: StrategyBriefV2): PageSpec[] {
   pages.push(buildCatalogPage(strategy))
 
   // 3. Pricing — only if conversion goal involves money decisions.
-  if (strategy.needsPricingPage || isPricingRelevant(strategy.conversionGoal)) {
+  //    Product tenants skip it: the shop IS the pricing page (SaaS-style
+  //    pricing tiers on a DTC store read as template confusion).
+  if (strategy.archetype !== 'product' && (strategy.needsPricingPage || isPricingRelevant(strategy.conversionGoal))) {
     pages.push(buildPricingPage(strategy))
   }
 
@@ -184,13 +188,24 @@ function buildHomePage(s: StrategyBriefV2): PageSpec {
     required: true,
   })
 
-  // Feature surface — what they get
-  sections.push({
-    blockType: 'featureGrid',
-    intent: 'explain-the-product-or-service',
-    required: true,
-    variantHint: s.archetype === 'saas' || s.archetype === 'product' ? 'bentoAsymmetric' : 'numberedRail',
-  })
+  // Feature surface — what they get. Product tenants show the actual
+  // products (featured grid, shoppable from the home page) instead of an
+  // abstract feature list — the canonical DTC home pattern.
+  if (s.archetype === 'product') {
+    sections.push({
+      blockType: 'productGrid',
+      intent: 'browse-and-buy-products',
+      required: true,
+      variantHint: 'featured',
+    })
+  } else {
+    sections.push({
+      blockType: 'featureGrid',
+      intent: 'explain-the-product-or-service',
+      required: true,
+      variantHint: s.archetype === 'saas' ? 'bentoAsymmetric' : 'numberedRail',
+    })
+  }
 
   // Process / how-it-works — for saas, services with non-obvious flow
   if (['saas', 'service'].includes(s.archetype)) {
@@ -218,8 +233,9 @@ function buildHomePage(s: StrategyBriefV2): PageSpec {
     required: true,
   })
 
-  // Pricing teaser — for purchase/subscription/trial conversion goals
-  if (isPricingRelevant(s.conversionGoal)) {
+  // Pricing teaser — for purchase/subscription/trial conversion goals.
+  // Not for product tenants: their prices live on the product cards.
+  if (s.archetype !== 'product' && isPricingRelevant(s.conversionGoal)) {
     sections.push({
       blockType: 'pricing',
       intent: 'present-pricing-or-tiers',
@@ -268,6 +284,26 @@ function buildCatalogPage(s: StrategyBriefV2): PageSpec {
     education:  { slug: 'programs',  title: 'Programs' },
   }
   const { slug, title } = slugMap[s.archetype]
+
+  // PR-Commerce — product tenants get a transactable shop, not a brochure.
+  // Five-stage pipeline: discovery (grid) → evaluation (per-product pages)
+  // → transaction (cart/Stripe); FAQ pre-answers purchase objections.
+  if (s.archetype === 'product') {
+    return {
+      slug,
+      title: `${title} — ${s.businessName}`,
+      purpose: `Let visitors browse the full ${s.businessName} collection and buy without friction.`,
+      pageConversionGoal: s.conversionGoal,
+      primaryCtaCopy: s.primaryCtaCopy,
+      sections: [
+        { blockType: 'hero', intent: 'frame-the-page-topic', required: true },
+        { blockType: 'productGrid', intent: 'browse-and-buy-products', required: true },
+        { blockType: 'brandNarrative', intent: 'differentiate-from-alternatives', required: true },
+        { blockType: 'faq', intent: 'address-top-objections', required: true },
+        { blockType: 'closingBanner', intent: 'closing-direct-cta', required: true },
+      ],
+    }
+  }
 
   const sections: SectionSpec[] = [
     { blockType: 'hero', intent: 'frame-the-page-topic', required: true },

@@ -112,6 +112,29 @@ free-trial, demo-booking, purchase, subscription, inquiry, reservation, applicat
 - For pattern: pick ONE primary; secondary is optional.
 - For alternatives: must be MATERIALLY different from primary (different pattern OR different segment OR different revenue logic). "Same plan but with a different name" is invalid.
 
+## E-commerce Skill (apply ONLY when archetype = product)
+
+E-commerce exists to let two strangers exchange value without meeting. The buyer
+cannot touch the product or assess the seller, so the site must reconstruct the
+signals physical retail gives for free. Your job at this stage: extract the
+SELLABLE INVENTORY so downstream agents can build a real catalog, not a brochure.
+
+- Populate \`productInventory\` with 4-8 concrete items. Extract them from the
+  brief when named; when the brief only implies a product line ("handmade soy
+  candles"), INFER a plausible, internally consistent inventory — specific
+  evocative names ("Amber & Oak", not "Candle 1"), realistic USD retail prices
+  for the category, and a shortDescription that closes the "what is it like to
+  own this?" gap (materials, scent, feel — sensory specifics, not marketing filler).
+- details[] rows substitute for physical inspection: Materials, Dimensions,
+  Burn Time, Care — 2-4 rows per item where the category makes them meaningful.
+- Use badge sparingly (1-2 items max): "Best Seller", "Small Batch".
+- Differentiated DTC goods follow the LISTING model (seller-as-brand, Etsy
+  quadrant): provenance and process ARE evaluation data, so carry the brand
+  story into descriptions.
+- Price coherence beats price ambition: a coherent $18-$65 artisan range
+  converts; one $400 outlier erodes trust in every other price.
+- For NON-product archetypes: omit productInventory entirely (empty array).
+
 ## Critical Rules
 
 - DO NOT regurgitate the user's BMC. Derive a strategically richer model from first principles.
@@ -326,6 +349,30 @@ const STRATEGY_BRIEF_TOOL: Anthropic.Tool = {
         },
       },
       recommendedExperiments: { type: 'array', items: { type: 'string' }, description: '2-4 cheapest validations.' },
+
+      productInventory: {
+        type: 'array',
+        description:
+          'ONLY for product archetype: 4-8 sellable items extracted or plausibly inferred from the brief. Empty for all other archetypes.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Specific evocative product name, not "Product 1".' },
+            priceUSD: { type: 'number', description: 'Realistic retail price in USD.' },
+            shortDescription: { type: 'string', description: '1-2 sentences, sensory specifics.' },
+            description: { type: 'string', description: 'Longer copy — materials, process, provenance.' },
+            category: { type: 'string' },
+            badge: { type: 'string', description: 'Sparingly: "Best Seller", "Small Batch".' },
+            details: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { label: { type: 'string' }, value: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
     },
     required: ['businessName', 'industry', 'archetype', 'brandPersona', 'primaryPersona', 'conversionGoal', 'pattern'],
   },
@@ -490,7 +537,50 @@ function ensureCompleteBrief(
     stressTest: ensureStressTest(raw.stressTest),
     alternativesConsidered: Array.isArray(raw.alternativesConsidered) ? raw.alternativesConsidered : [],
     recommendedExperiments: Array.isArray(raw.recommendedExperiments) ? raw.recommendedExperiments : [],
+    productInventory: ensureProductInventory(raw.productInventory, raw.archetype || archetype, bmc),
   }
+}
+
+/**
+ * PR-Commerce — sanitize the extracted inventory; for product-archetype
+ * tenants with nothing usable, synthesize a small placeholder line so the
+ * generated shop is never an empty shell. Placeholder items are honest
+ * scaffolding: clearly editable, plausibly priced for an artisan range.
+ */
+function ensureProductInventory(
+  raw: unknown,
+  archetype: StrategyBriefV2['archetype'],
+  bmc: BMC
+): import('./strategy-v2').ProductInventoryItem[] | undefined {
+  if (archetype !== 'product') return undefined
+
+  const items = (Array.isArray(raw) ? raw : [])
+    .filter((p): p is Record<string, unknown> => Boolean(p) && typeof p === 'object')
+    .map(p => ({
+      name: typeof p.name === 'string' ? p.name.trim() : '',
+      priceUSD: Number(p.priceUSD),
+      shortDescription: typeof p.shortDescription === 'string' ? p.shortDescription : '',
+      description: typeof p.description === 'string' ? p.description : undefined,
+      category: typeof p.category === 'string' ? p.category : undefined,
+      badge: typeof p.badge === 'string' ? p.badge : undefined,
+      details: Array.isArray(p.details)
+        ? (p.details as { label?: unknown; value?: unknown }[])
+            .filter(d => d && typeof d.label === 'string' && typeof d.value === 'string')
+            .map(d => ({ label: String(d.label), value: String(d.value) }))
+        : undefined,
+    }))
+    .filter(p => p.name.length > 0 && Number.isFinite(p.priceUSD) && p.priceUSD > 0)
+    .slice(0, 12)
+
+  if (items.length > 0) return items
+
+  const name = bmc.businessName
+  return [
+    { name: `${name} Signature`, priceUSD: 48, shortDescription: `The piece ${name} is known for — our flagship, made in small batches.`, badge: 'Best Seller' },
+    { name: `${name} Classic`, priceUSD: 32, shortDescription: 'The everyday favorite — simple, well-made, built to be used.' },
+    { name: `${name} Limited Edition`, priceUSD: 64, shortDescription: 'A seasonal small-batch run. When it sells out, it’s gone.' },
+    { name: `${name} Starter Set`, priceUSD: 56, shortDescription: 'The easiest way in — a curated introduction to the collection.' },
+  ]
 }
 
 /** Deep-fill a Persona — handles both fully-missing AND partially-filled cases. */

@@ -520,6 +520,8 @@ export type SectionType =
   | 'menuPreview'
   | 'openingHoursWidget'
   | 'reservationWidget'
+  // PR-Commerce — live catalog grid backed by the tenant Products collection
+  | 'productGrid'
 
 // ── BMC (input from Strategy phase) ──
 
@@ -668,6 +670,42 @@ export interface ContentPackage {
       bottomMessage?: string
     }
   }
+  /**
+   * PR-Commerce — seeded into the tenant Products collection for `product`
+   * archetype tenants. Optional: non-commerce tenants omit it entirely.
+   */
+  products?: ProductSeed[]
+  /**
+   * PR-Commerce — seeded into the tenant store-settings global. Tenant owns
+   * the Stripe account; we ship the store pre-enabled with policies written,
+   * and the tenant pastes their own keys in the admin UI to go live.
+   */
+  storeSettings?: {
+    storeEnabled: boolean
+    currency: string
+    shipping?: {
+      flatRate?: number
+      freeShippingThreshold?: number
+      shippingPolicy?: string
+    }
+    returnsPolicy?: string
+  }
+}
+
+/** PR-Commerce — one sellable item, written by the swarm, seeded via REST. */
+export interface ProductSeed {
+  title: string
+  slug: string
+  price: number
+  compareAtPrice?: number
+  shortDescription?: string
+  description?: string
+  imageUrl?: string
+  category?: string
+  badge?: string
+  details?: { label: string; value: string }[]
+  available?: boolean
+  shippingNote?: string
 }
 
 /** Lightweight consensus artifact — structure only, no content values. */

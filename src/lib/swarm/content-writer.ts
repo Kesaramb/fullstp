@@ -95,6 +95,13 @@ PREMIUM ENRICHMENT (write these for primary heroes — they're what makes the pa
 ### mediaBlock
 - (no copy needed, just include type)
 
+### productGrid
+The shoppable catalog — actual products render from the database, so you write ONLY the section framing:
+- eyebrow: 2-3 word label, e.g. "The Collection" / "Shop Small Batch"
+- heading: Section heading that frames the act of browsing, e.g. "Find Your Scent" / "The Autumn Collection"
+- subheading: One sentence that lowers purchase anxiety or sets provenance, e.g. "Hand-poured weekly in our Portland studio — free shipping over $50."
+Do NOT invent product names or prices here — the catalog is seeded separately.
+
 Output JSON:
 {
   "pages": [
@@ -116,8 +123,15 @@ The strategy brief includes a businessArchetype. This MUST drive your entire cop
 - Hero: Lead with the PRODUCT, not the company. "Small-batch soy candles crafted for slow living" NOT "Welcome to Ember & Wick"
 - Features: Describe PRODUCT QUALITIES (materials, process, ingredients), NOT company values (Excellence, Passion, Trust)
 - CTAs: "Shop Now", "Browse Collection", "Find Your Scent" — NEVER "Get Started" or "Schedule Consultation"
+- CTA links: primary purchase CTAs MUST point to "/products" (the live shop) — never "/contact" or "/pricing"
 - Testimonials: Customers reviewing the PRODUCT ("The amber candle transformed my living room") NOT the company ("Great team to work with")
 - Testimonial roles: "Loyal Customer", "Repeat Buyer" — NOT "Operations Director", "Business Owner"
+
+E-COMMERCE SKILL — every element of a store substitutes for a physical-world signal a buyer loses online:
+- Copy closes the EVALUATION gap: sensory specifics (weight, scent, texture, materials) substitute for touch. "Hand-poured 9oz soy wax, 50-hour burn" beats "premium quality" every time.
+- Trust is the conversion rate. Weave transaction-stage reassurance into copy near CTAs: shipping speed, return window, secure checkout. trustPills for product brands should be commerce signals: { value: "Free", label: "shipping over $50" } / { value: "30-day", label: "easy returns" } / { value: "4.9★", label: "from 2,100 buyers" } (only if plausible from the brief).
+- FAQ on shop pages must answer PURCHASE objections (How long does shipping take? What if it arrives damaged? Can I return it?) — not philosophical questions.
+- The buyer pays before holding the goods — every sentence either builds the trust that makes that feel safe, or it's filler.
 
 ### service (sells expertise)
 - Hero: Lead with the OUTCOME the client gets, not features
