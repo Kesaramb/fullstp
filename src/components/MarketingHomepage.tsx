@@ -465,7 +465,7 @@ export default function MarketingHomepage() {
             <a href="/terms" className="text-gray-500 hover:text-gray-900 transition-colors">
               Terms
             </a>
-            <p className="text-gray-400">© {new Date().getFullYear()} FullStop. All rights reserved.</p>
+            <p className="text-gray-400">© {new Date().getFullYear()} FullStop. By BrandFactory LLC. All rights reserved.</p>
           </div>
         </div>
       </footer>
