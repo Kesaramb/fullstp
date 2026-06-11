@@ -76,11 +76,18 @@ export async function GET(req: Request) {
     if (owned.docs[0]) return Response.json({ session: serialize(owned.docs[0]) })
   }
 
-  // 2. Fall back to anonKey-matched session.
+  // 2. Fall back to anonKey-matched session — but ONLY if it hasn't been
+  //    claimed by a customer. Once a session is owned, it must reach the caller
+  //    only through the authenticated owner path above. Otherwise a logged-out
+  //    visitor on the same browser would resume the owner's in-progress build
+  //    (the "logout → Hire your team drops me back into the team" bug), because
+  //    the anonKey lingers in localStorage and stays stamped on the doc.
   if (anonKey) {
     const byAnon = await payload.find({
       collection: 'studio-sessions',
-      where: { anonKey: { equals: anonKey } },
+      where: {
+        and: [{ anonKey: { equals: anonKey } }, { owner: { exists: false } }],
+      },
       sort: '-updatedAt',
       limit: 1,
       overrideAccess: true,

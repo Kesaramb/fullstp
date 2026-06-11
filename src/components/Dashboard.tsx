@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ConnectExistingSiteModal from './ConnectExistingSiteModal'
 import { useCart } from './CartProvider'
+import { clearAnonKey } from '@/lib/studio/session-client'
 
 interface CustomerData {
   id: string | number
@@ -53,6 +54,10 @@ export default function Dashboard({ customer, deployments }: Props) {
     setLoggingOut(true)
     try {
       await fetch('/api/customers/logout', { method: 'POST', credentials: 'include' })
+      // Retire the studio anonKey so the next visit starts clean. Without this,
+      // loadStudioSession() still matches the prior in-progress build by anonKey
+      // and /launch resumes it — dropping a logged-out user back into "the team".
+      clearAnonKey()
       router.push('/launch')
     } finally {
       setLoggingOut(false)
