@@ -95,6 +95,23 @@ export async function loginToTenant(
   return data.token
 }
 
+/** Unauthenticated GET against a deployed tenant — for public-surface assertions. */
+export async function publicGet(domain: string, path: string): Promise<Response> {
+  const base = await getBaseUrl(domain)
+  return fetch(`${base}${path}`, { signal: AbortSignal.timeout(20000) })
+}
+
+/** Unauthenticated POST against a deployed tenant — for public-surface assertions. */
+export async function publicPost(domain: string, path: string, body: unknown): Promise<Response> {
+  const base = await getBaseUrl(domain)
+  return fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20000),
+  })
+}
+
 /** Fetch all pages from a deployed tenant. */
 export async function fetchPages(domain: string, token: string) {
   const base = await getBaseUrl(domain)

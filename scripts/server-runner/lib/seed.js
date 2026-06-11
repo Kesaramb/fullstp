@@ -122,5 +122,54 @@ export async function seedContent(port, domain, adminEmail, adminPass, contentPa
   logger.emit('seeding', 'runner', pagesSeeded > 0 ? 'done' : 'error',
     `${pagesSeeded}/${contentPackage.pages.length} pages seeded, ${globalsSeeded}/3 globals configured`)
 
+  // ── PR-Commerce: store settings + product catalog (product tenants only) ──
+  // Seeded after the gate inputs above — commerce results never touch
+  // pagesSeeded/globalsSeeded, so a flaky product POST can't fail the deploy.
+  if (contentPackage.storeSettings) {
+    try {
+      const b64 = Buffer.from(JSON.stringify(contentPackage.storeSettings)).toString('base64')
+      const tmpFile = `/tmp/seed-store-${domain.split('.')[0]}.json`
+      run(`echo '${b64}' | base64 -d > ${tmpFile}`)
+      const status = run(
+        `curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${port}/api/globals/store-settings ${authArgs} -d @${tmpFile}`
+      )
+      run(`rm -f ${tmpFile}`)
+      if (['200', '201'].includes(status)) {
+        logger.emit('seeding', 'runner', 'done', 'Store settings configured (connect Stripe keys in /admin to accept payments)')
+      } else {
+        logger.emit('seeding', 'runner', 'error', `Store settings returned HTTP ${status}`)
+      }
+    } catch (err) {
+      logger.emit('seeding', 'runner', 'error', `Store settings error: ${err.message.slice(0, 200)}`)
+    }
+  }
+
+  const products = Array.isArray(contentPackage.products) ? contentPackage.products : []
+  if (products.length > 0) {
+    let productsSeeded = 0
+    for (const product of products) {
+      try {
+        const b64 = Buffer.from(JSON.stringify(product)).toString('base64')
+        const tmpFile = `/tmp/seed-product-${domain.split('.')[0]}.json`
+        run(`echo '${b64}' | base64 -d > ${tmpFile}`)
+        const seedResult = run(
+          `curl -s -w '\\n%{http_code}' -X POST http://127.0.0.1:${port}/api/products ${authArgs} -d @${tmpFile}`
+        )
+        run(`rm -f ${tmpFile}`)
+        const seedLines = seedResult.split('\n')
+        const seedStatus = seedLines[seedLines.length - 1]
+        if (['200', '201'].includes(seedStatus.trim())) {
+          productsSeeded++
+        } else {
+          logger.emit('seeding', 'runner', 'error', `Product "${product.slug}" failed (HTTP ${seedStatus}): ${seedLines.slice(0, -1).join('').slice(0, 200)}`)
+        }
+      } catch (err) {
+        logger.emit('seeding', 'runner', 'error', `Product "${product.slug}" error: ${err.message.slice(0, 200)}`)
+      }
+    }
+    logger.emit('seeding', 'runner', productsSeeded > 0 ? 'done' : 'error',
+      `${productsSeeded}/${products.length} products stocked in the shop`)
+  }
+
   return { pagesSeeded, globalsSeeded }
 }

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest'
-import { waitForDomainReachable, loginToTenant, fetchPages, fetchGlobal, cleanupTestTenant, checkHealth } from './helpers'
+import { waitForDomainReachable, loginToTenant, fetchPages, fetchGlobal, cleanupTestTenant, checkHealth, publicGet, publicPost } from './helpers'
 import {
   isDeploymentConfigured,
   deployTenantViaBridge as deployTenant,
@@ -28,12 +28,14 @@ const state: {
   adminEmail: string
   adminPassword: string
   pagesSeeded: number
+  productId: string
 } = {
   domain: '',
   port: 0,
   adminEmail: '',
   adminPassword: '',
   pagesSeeded: 0,
+  productId: '',
 }
 
 /** Deterministic content package for reproducible E2E tests (no Claude dependency). */
@@ -62,6 +64,33 @@ function buildTestContentPackage(): ContentPackage {
       siteSettings: { siteName: 'E2E Test Site', siteDescription: 'Automated E2E test deployment' },
       header: { navLinks: [{ label: 'Home', url: '/' }, { label: 'About', url: '/about' }] },
       footer: { footerLinks: [{ label: 'Privacy', url: '/privacy' }], copyright: '2026 E2E Test Corp' },
+    },
+    // PR-Commerce — exercise the tenant shop path end-to-end
+    products: [
+      {
+        title: 'E2E Amber Candle',
+        slug: 'e2e-amber-candle',
+        price: 42,
+        shortDescription: 'Hand-poured 9oz soy wax — 50-hour burn.',
+        category: 'Candles',
+        badge: 'Best Seller',
+        available: true,
+        shippingNote: 'Ships in 2-3 days',
+      },
+      {
+        title: 'E2E Cedar Soap',
+        slug: 'e2e-cedar-soap',
+        price: 14,
+        shortDescription: 'Cold-process cedar and oat bar.',
+        category: 'Soap',
+        available: true,
+      },
+    ],
+    storeSettings: {
+      storeEnabled: true,
+      currency: 'usd',
+      shipping: { flatRate: 0, shippingPolicy: 'Free shipping on every order.' },
+      returnsPolicy: '30-day returns, no questions asked.',
     },
   }
 }
@@ -190,6 +219,51 @@ describe.skipIf(!SSH_CONFIGURED)('Real Server E2E', () => {
     expect(footer.copyright).toContain('2026')
   }, 30000)
 
+  // ─────────── Commerce (PR-Commerce) ───────────
+
+  it('seeded products are publicly browsable', async () => {
+    const res = await publicGet(state.domain, '/api/products?limit=10')
+    expect(res.ok).toBe(true)
+    const data = await res.json()
+    expect(data.docs.length).toBeGreaterThanOrEqual(2)
+
+    const candle = data.docs.find((d: { slug: string }) => d.slug === 'e2e-amber-candle')
+    expect(candle).toBeTruthy()
+    expect(candle.price).toBe(42)
+    expect(candle.badge).toBe('Best Seller')
+    state.productId = String(candle.id)
+  }, 30000)
+
+  it('product detail page renders with JSON-LD', async () => {
+    const res = await publicGet(state.domain, '/products/e2e-amber-candle')
+    expect(res.ok).toBe(true)
+    const html = await res.text()
+    expect(html).toContain('E2E Amber Candle')
+    expect(html).toContain('application/ld+json')
+    expect(html).toContain('schema.org')
+  }, 30000)
+
+  it('checkout degrades gracefully until the tenant connects Stripe', async () => {
+    expect(state.productId).toBeTruthy()
+    const res = await publicPost(state.domain, '/api/checkout', {
+      items: [{ id: state.productId, quantity: 1 }],
+    })
+    // Store is enabled but no Stripe keys seeded — tenant owns the keys.
+    expect(res.status).toBe(503)
+    const data = await res.json()
+    expect(data.error).toBe('checkout-not-configured')
+  }, 30000)
+
+  it('store secrets never leak through the public API', async () => {
+    const res = await publicGet(state.domain, '/api/globals/store-settings')
+    expect(res.ok).toBe(true)
+    const data = await res.json()
+    expect(data.storeEnabled).toBe(true)
+    expect(data.returnsPolicy).toContain('30-day')
+    expect(data.stripe?.secretKey).toBeUndefined()
+    expect(data.stripe?.webhookSecret).toBeUndefined()
+  }, 30000)
+
   // ─────────── Operations Mutations ───────────
 
   it.skipIf(!API_KEY)('operations chat mutates hero heading', async () => {
@@ -296,7 +370,8 @@ describe.skipIf(!SSH_CONFIGURED)('Real Server E2E', () => {
       ),
     ])
     expect(result.success).toBe(false)
-    expect(result.error).toContain('already exists')
+    // Direct-SSH path says "already exists"; bridge runner says "already registered".
+    expect(result.error).toMatch(/already (exists|registered)/i)
   }, 60000)
 
   it('failed deployments never persist as running', async () => {
