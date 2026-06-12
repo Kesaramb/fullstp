@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { PERSONAS, TEAM_ORDER, type Persona } from '@/lib/swarm/personas'
+import { LiquidRoot, AgentPuck, Wordmark, PUCK_GRADIENTS } from './ui/LiquidGlass'
 import OfficeFloor from './OfficeFloor'
 import { translateEvent } from '@/lib/swarm/build-translator'
 import { pickTypingLine, pickChatterBubble } from '@/lib/swarm/chatter'
@@ -471,41 +472,40 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
     || (lastMessage && lastMessage.status !== 'error' ? lastMessage.text : null)
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center px-6 py-10 font-sans">
+    <LiquidRoot className="lg-dark min-h-screen flex flex-col items-center px-6 py-10" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="w-full max-w-2xl">
 
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-baseline gap-3 mb-1">
-            <h1 className="text-zinc-100 text-2xl font-semibold tracking-tight">FullStop</h1>
-            <span className="text-zinc-600 text-sm">·</span>
-            <span className="text-zinc-400 text-sm">Building {bmc.businessName}</span>
+            <Wordmark size={24} />
+            <span className="text-sm" style={{ color: 'var(--lg-text-dim)' }}>·</span>
+            <span className="text-sm" style={{ color: 'var(--lg-text-mut)' }}>Building {bmc.businessName}</span>
           </div>
-          <p className="text-zinc-500 text-xs">
+          <p className="text-xs" style={{ color: 'var(--lg-text-dim)' }}>
             {isDone
               ? <>Complete in {formatTime(elapsed)} · Handing off to your team…</>
               : <>Your team is on it · {formatTime(elapsed)}</>}
           </p>
         </div>
 
-        {/* Team online row */}
-        <div className="mb-4 flex items-center gap-6 px-5 py-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/60 backdrop-blur">
+        {/* Team online row — backlit glass pucks */}
+        <div className="lg-glass lg-glass-rim mb-4 flex items-center gap-6 px-5 py-4" style={{ borderRadius: 'var(--lg-r-md)' }}>
           {TEAM_ORDER.map(id => {
             const p = PERSONAS[id]
             const isActive = activePersonaIds.has(id)
             return (
               <div key={id} className="flex items-center gap-2.5">
-                <div className="relative">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center ${p.accentBg} ${isActive ? `ring-2 ${p.accentRing} ring-offset-2 ring-offset-zinc-950` : ''} transition-all duration-300`}>
-                    <span className={`text-sm font-medium ${p.accentText}`}>{p.initials}</span>
-                  </div>
-                  {isActive && (
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${p.accentDot} ring-2 ring-zinc-950 animate-pulse`} />
-                  )}
-                </div>
+                <AgentPuck
+                  small
+                  initial={p.initials}
+                  gradient={PUCK_GRADIENTS[id] ?? PUCK_GRADIENTS.owen}
+                  active={isActive}
+                  style={{ width: 38, height: 38, fontSize: 13 }}
+                />
                 <div className="hidden md:flex flex-col leading-tight">
-                  <span className="text-zinc-200 text-xs font-medium">{p.name}</span>
-                  <span className="text-zinc-500 text-[10px]">{p.role}</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--lg-text)' }}>{p.name}</span>
+                  <span className="text-[10px]" style={{ color: 'var(--lg-text-dim)' }}>{p.role}</span>
                 </div>
               </div>
             )
@@ -522,7 +522,7 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
         )}
 
         {/* Chat panel */}
-        <div className="bg-zinc-900/40 backdrop-blur rounded-2xl border border-zinc-800/60 overflow-hidden">
+        <div className="lg-glass overflow-hidden" style={{ borderRadius: 'var(--lg-r-md)' }}>
           <div className="p-6 min-h-[420px] max-h-[540px] overflow-y-auto space-y-5">
 
             {messages.length === 0 && typing.length === 0 && !isDone && (
@@ -563,7 +563,7 @@ export default function FactoryBuild({ bmc, customer, strategyHistory, onComplet
           {isDone ? 'Site is live.' : 'Your site usually takes 2–4 minutes to build.'}
         </p>
       </div>
-    </div>
+    </LiquidRoot>
   )
 }
 

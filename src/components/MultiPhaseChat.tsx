@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Loader2, ArrowRight, Paperclip } from 'lucide-react'
+import { Loader2, Paperclip } from 'lucide-react'
+import { LiquidRoot, StopButton, Wordmark } from './ui/LiquidGlass'
 import LandingChat from './LandingChat'
 import FactoryBuild from './FactoryBuild'
 import ChatInterface from './ChatInterface'
@@ -250,35 +251,34 @@ function StrategyChatPhase({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex flex-col items-center justify-center p-8 font-sans">
+    <LiquidRoot className="min-h-screen flex flex-col items-center justify-center p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="w-full max-w-2xl">
 
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-2xl">⚡</span>
-            <span className="text-2xl font-black text-gray-900 tracking-tight">FullStop</span>
-          </div>
-          <p className="text-sm text-gray-400">CEO Agent · Strategy Consultation</p>
+          <div className="mb-2"><Wordmark size={26} /></div>
+          <p className="text-sm" style={{ color: 'var(--lg-text-dim)' }}>CEO Agent · Strategy Consultation</p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgb(0,0,0,0.06)] overflow-hidden border border-gray-100">
+        <div className="lg-glass lg-glass-rim overflow-hidden">
           <div className="p-6 min-h-[400px] max-h-[500px] overflow-y-auto flex flex-col gap-4">
             {messages.map(msg => (
               <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'agent' && (
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold mr-3 flex-none mt-1 shadow-sm">
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold mr-3 flex-none mt-1"
+                    style={{
+                      background: 'radial-gradient(circle at 38% 30%, rgba(255,255,255,.85), rgba(255,255,255,.1) 42%, transparent 60%), radial-gradient(circle at 38% 30%, #8b7bf0, #5b4bd6)',
+                      boxShadow: '0 6px 14px -4px rgba(0,0,0,.45), inset 0 -4px 8px rgba(0,0,0,.35), inset 0 3px 6px rgba(255,255,255,.5)',
+                    }}
+                  >
                     CEO
                   </div>
                 )}
-                <div className={`max-w-[80%] px-5 py-3.5 rounded-2xl text-[15px] leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-[#3b82f6] text-white rounded-tr-sm'
-                    : 'bg-[#f3f4f6] text-gray-800 rounded-tl-sm'
-                }`}>
+                <div className={msg.role === 'user' ? 'lg-bubble lg-bubble-ceo' : 'lg-bubble lg-bubble-agent'}>
                   {msg.isTyping ? (
                     <div className="flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin text-gray-400" />
-                      <span className="text-gray-500">{msg.text}</span>
+                      <Loader2 size={14} className="animate-spin" style={{ color: 'var(--lg-text-dim)' }} />
+                      <span style={{ color: 'var(--lg-text-mut)' }}>{msg.text}</span>
                     </div>
                   ) : (
                     <span className="whitespace-pre-wrap">{msg.text}</span>
@@ -289,8 +289,8 @@ function StrategyChatPhase({
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSend} className="p-5 border-t border-gray-100">
-            <div className="relative">
+          <form onSubmit={handleSend} className="p-5" style={{ borderTop: '1px solid var(--lg-glass-stroke)' }}>
+            <div className="lg-field" style={{ padding: '8px 8px 8px 8px' }}>
               {/* Hidden file input */}
               <input
                 ref={fileInputRef}
@@ -305,7 +305,8 @@ function StrategyChatPhase({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={logoUploading || isProcessing}
                 title={logo ? 'Replace logo' : 'Upload your logo (improves your palette)'}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+                className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-40 flex-none"
+                style={{ color: 'var(--lg-text-dim)' }}
               >
                 {logoUploading ? (
                   <Loader2 size={18} className="animate-spin" />
@@ -321,26 +322,20 @@ function StrategyChatPhase({
                 disabled={isProcessing}
                 autoFocus
                 placeholder={isProcessing ? 'CEO is thinking...' : (logo ? 'Logo received — keep chatting…' : 'Tell me more about your business…')}
-                className="w-full bg-[#f9fafb] border border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full pl-14 pr-14 py-4 text-[15px] text-gray-800 outline-none transition-all disabled:opacity-60"
+                style={{ fontSize: 15 }}
               />
-              <button
-                type="submit"
-                disabled={!inputValue.trim() || isProcessing}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#3b82f6] hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-full w-10 h-10 flex items-center justify-center transition-all"
-              >
-                <ArrowRight size={18} strokeWidth={2.5} />
-              </button>
+              <StopButton type="submit" size="sm" disabled={!inputValue.trim() || isProcessing} aria-label="Send" />
             </div>
             {logo && (
-              <div className="mt-2 px-2 flex items-center gap-2 text-xs text-gray-500">
+              <div className="mt-2 px-2 flex items-center gap-2 text-xs" style={{ color: 'var(--lg-text-mut)' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logo.logoUrl} alt="logo" className="w-5 h-5 rounded object-contain bg-white border border-gray-200" />
+                <img src={logo.logoUrl} alt="logo" className="w-5 h-5 rounded object-contain" style={{ background: 'var(--lg-field-fill)', border: '1px solid var(--lg-field-stroke)' }} />
                 <span>Logo attached.</span>
                 {logo.logoColors && (
                   <span className="flex items-center gap-1">
-                    <span className="inline-block w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: logo.logoColors.primary }} />
-                    <span className="inline-block w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: logo.logoColors.secondary }} />
-                    <span className="inline-block w-3 h-3 rounded-full border border-gray-200" style={{ backgroundColor: logo.logoColors.accent }} />
+                    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: logo.logoColors.primary, border: '1px solid var(--lg-field-stroke)' }} />
+                    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: logo.logoColors.secondary, border: '1px solid var(--lg-field-stroke)' }} />
+                    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: logo.logoColors.accent, border: '1px solid var(--lg-field-stroke)' }} />
                   </span>
                 )}
               </div>
@@ -348,7 +343,7 @@ function StrategyChatPhase({
           </form>
         </div>
       </div>
-    </div>
+    </LiquidRoot>
   )
 }
 
@@ -455,66 +450,74 @@ function AuthModal({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex items-center justify-center p-8 font-sans">
+    <LiquidRoot className="min-h-screen flex items-center justify-center p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">⚡</div>
-          <h2 className="text-2xl font-bold text-gray-900">Strategy locked.</h2>
-          <p className="text-gray-500 mt-2 text-[15px]">
-            We're ready to build <strong>{bmc.businessName}</strong>.<br />
+          <div
+            aria-hidden
+            className="mx-auto mb-5"
+            style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: 'radial-gradient(circle at 36% 28%, #f6ffe0 0%, #d4ff9a 18%, var(--lg-green) 44%, var(--lg-green-deep) 78%, #6fae00 100%)',
+              boxShadow: '0 12px 28px -6px rgba(154,230,0,.65), inset 0 -5px 10px rgba(31,58,0,.5), inset 0 3px 7px rgba(255,255,255,.85)',
+            }}
+          />
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--lg-text)' }}>Strategy locked.</h2>
+          <p className="mt-2 text-[15px]" style={{ color: 'var(--lg-text-mut)' }}>
+            We're ready to build <strong style={{ color: 'var(--lg-text)' }}>{bmc.businessName}</strong>.<br />
             Where should we send your site keys?
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-3xl shadow-[0_20px_50px_rgb(0,0,0,0.06)] p-8 space-y-4 border border-gray-100"
-        >
+        <form onSubmit={handleSubmit} className="lg-glass lg-glass-rim p-8 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Your name</label>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--lg-text-mut)' }}>Your name</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               autoFocus
               placeholder="Alex"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="lg-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--lg-text-mut)' }}>Email address</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="alex@rumba.co"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="lg-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--lg-text-mut)' }}>Password</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="At least 8 characters"
               minLength={8}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="lg-input"
             />
-            <p className="mt-1.5 text-xs text-gray-400">If you already have an account, this will sign you in.</p>
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--lg-text-dim)' }}>If you already have an account, this will sign you in.</p>
           </div>
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>
+            <div className="text-sm rounded-lg px-3 py-2" style={{ color: '#e5484d', background: 'rgba(229,72,77,.12)', border: '1px solid rgba(229,72,77,.3)' }}>{error}</div>
           )}
 
           {/* Logo upload (optional) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Logo <span className="text-gray-400 font-normal">(optional — improves your palette)</span>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--lg-text-mut)' }}>
+              Logo <span className="font-normal" style={{ color: 'var(--lg-text-dim)' }}>(optional — improves your palette)</span>
             </label>
             {!logo ? (
-              <label className="block cursor-pointer rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-400 bg-gray-50 hover:bg-blue-50/40 transition-colors px-4 py-5 text-center">
+              <label
+                className="block cursor-pointer rounded-xl px-4 py-5 text-center transition-colors"
+                style={{ border: '2px dashed var(--lg-field-stroke)', background: 'var(--lg-field-fill)' }}
+              >
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -522,18 +525,18 @@ function AuthModal({
                   className="sr-only"
                 />
                 {logoUploading ? (
-                  <span className="text-sm text-gray-500">Reading colors from your logo…</span>
+                  <span className="text-sm" style={{ color: 'var(--lg-text-mut)' }}>Reading colors from your logo…</span>
                 ) : (
                   <>
-                    <span className="block text-sm font-medium text-gray-700">Drop a logo or click to upload</span>
-                    <span className="block text-xs text-gray-400 mt-1">PNG, JPG, WebP, or SVG · up to 4MB</span>
+                    <span className="block text-sm font-medium" style={{ color: 'var(--lg-text)' }}>Drop a logo or click to upload</span>
+                    <span className="block text-xs mt-1" style={{ color: 'var(--lg-text-dim)' }}>PNG, JPG, WebP, or SVG · up to 4MB</span>
                   </>
                 )}
               </label>
             ) : (
-              <div className="rounded-xl border border-gray-200 bg-white p-3 flex items-center gap-3">
+              <div className="rounded-xl p-3 flex items-center gap-3" style={{ border: '1px solid var(--lg-field-stroke)', background: 'var(--lg-field-fill)' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logo.logoUrl} alt="logo preview" className="w-14 h-14 object-contain rounded bg-gray-50" />
+                <img src={logo.logoUrl} alt="logo preview" className="w-14 h-14 object-contain rounded" style={{ background: 'rgba(255,255,255,.5)' }} />
                 <div className="flex-1 min-w-0">
                   {logo.logoColors ? (
                     <>
@@ -541,41 +544,43 @@ function AuthModal({
                         <Swatch hex={logo.logoColors.primary} />
                         <Swatch hex={logo.logoColors.secondary} />
                         <Swatch hex={logo.logoColors.accent} />
-                        <span className="text-xs text-gray-500 truncate">
+                        <span className="text-xs truncate" style={{ color: 'var(--lg-text-mut)' }}>
                           {logo.logoColors.description || 'Brand palette extracted'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400">We&apos;ll use these colors in your design.</p>
+                      <p className="text-xs" style={{ color: 'var(--lg-text-dim)' }}>We&apos;ll use these colors in your design.</p>
                     </>
                   ) : (
-                    <p className="text-xs text-gray-500">Uploaded. We couldn&apos;t auto-extract colors — your mood palette will be used.</p>
+                    <p className="text-xs" style={{ color: 'var(--lg-text-mut)' }}>Uploaded. We couldn&apos;t auto-extract colors — your mood palette will be used.</p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={() => { setLogo(null); setLogoError(null) }}
-                  className="text-xs text-gray-400 hover:text-gray-700"
+                  className="lg-navlink text-xs"
+                  style={{ color: 'var(--lg-text-dim)' }}
                 >
                   Replace
                 </button>
               </div>
             )}
             {logoError && (
-              <p className="mt-1.5 text-xs text-red-600">{logoError}</p>
+              <p className="mt-1.5 text-xs" style={{ color: '#e5484d' }}>{logoError}</p>
             )}
           </div>
 
           <button
             type="submit"
             disabled={!name.trim() || !email.trim() || password.length < 8 || submitting || logoUploading}
-            className="w-full bg-[#3b82f6] hover:bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-xl py-3.5 transition-all text-[15px]"
+            className="lg-btn w-full disabled:opacity-50"
+            style={{ padding: '14px 26px' }}
           >
             {submitting ? 'One sec…' : 'Start the build →'}
           </button>
-          <p className="text-center text-xs text-gray-400">No spam. Manage everything from your account.</p>
+          <p className="text-center text-xs" style={{ color: 'var(--lg-text-dim)' }}>No spam. Manage everything from your account.</p>
         </form>
       </div>
-    </div>
+    </LiquidRoot>
   )
 }
 
@@ -766,9 +771,9 @@ export default function MultiPhaseChat({
   // doesn't flash the landing page first. (Skip the wait when deep-linked.)
   if (!hydrated && !prefilledInitial) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex items-center justify-center">
-        <Loader2 className="animate-spin text-blue-500" size={28} />
-      </div>
+      <LiquidRoot className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin" size={28} style={{ color: 'var(--lg-green-deep)' }} />
+      </LiquidRoot>
     )
   }
 

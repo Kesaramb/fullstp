@@ -129,6 +129,21 @@ export const PUCK_GRADIENTS: Record<string, string> = {
   owen: 'radial-gradient(circle at 38% 30%, #b6f36e, #7fae00)',
 }
 
+/** The fullstp. wordmark with the glowing gel dot. */
+export function Wordmark({ size = 22 }: { size?: number }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', fontWeight: 800, fontSize: size, letterSpacing: '-.02em' }}>
+      <span style={{ color: 'var(--lg-text)' }}>full</span>
+      <span style={{ color: 'var(--lg-green-deep)' }}>stp</span>
+      <span aria-hidden style={{
+        display: 'inline-block', width: '.4em', height: '.4em', marginLeft: '.04em', borderRadius: '50%', transform: 'translateY(.02em)',
+        background: 'radial-gradient(circle at 35% 30%, #f4ffd9, var(--lg-green) 45%, var(--lg-green-deep) 80%)',
+        boxShadow: '0 0 12px 1px rgba(154,230,0,.7), inset 0 -2px 4px rgba(31,58,0,.5), inset 0 2px 3px rgba(255,255,255,.8)',
+      }} />
+    </span>
+  )
+}
+
 type Mode = 'system' | 'dark' | 'light'
 const THEME_KEY = 'fullstp.theme'
 
