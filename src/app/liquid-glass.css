@@ -1,0 +1,234 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Liquid Glass Studio — FullStop design language
+   First principle: morphed from the real world. Obsidian studio + molten
+   neon-green glass. The brand's green full-stop becomes a pressable gel orb.
+   Adaptive: full token parity across light (porcelain) and dark (obsidian),
+   driven by prefers-color-scheme with a [data-theme] manual override.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --lg-green: #b6f36e;
+  --lg-green-deep: #9ae600;
+  --lg-green-ink: #1f3a00;
+  --lg-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --lg-ease: cubic-bezier(.4, 0, .2, 1);
+  --lg-r-sm: 14px; --lg-r-md: 20px; --lg-r-lg: 28px; --lg-r-xl: 40px;
+
+  /* light / porcelain (default) */
+  --lg-bg-0: #e9ece8;
+  --lg-bg-1: #f1f4f0;
+  --lg-bg-2: #f8faf7;
+  --lg-aurora: .22;
+  --lg-text: #0d1311;
+  --lg-text-mut: rgba(13, 19, 17, .58);
+  --lg-text-dim: rgba(13, 19, 17, .34);
+  --lg-glass-fill: linear-gradient(160deg, rgba(255,255,255,.85), rgba(255,255,255,.5) 60%, rgba(255,255,255,.7));
+  --lg-glass-stroke: rgba(13, 25, 20, .10);
+  --lg-glass-rim: rgba(255, 255, 255, .95);
+  --lg-glass-shadow: 0 22px 50px -20px rgba(40,60,50,.45), 0 2px 6px rgba(40,60,50,.12);
+  --lg-glass-inner: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -10px 24px -12px rgba(40,60,50,.10);
+}
+
+.lg-dark {
+  --lg-bg-0: #07090c;
+  --lg-bg-1: #0b0e13;
+  --lg-bg-2: #11151c;
+  --lg-aurora: .55;
+  --lg-text: #eef2f0;
+  --lg-text-mut: rgba(238,242,240,.58);
+  --lg-text-dim: rgba(238,242,240,.34);
+  --lg-glass-fill: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03) 60%, rgba(255,255,255,.05));
+  --lg-glass-stroke: rgba(255,255,255,.14);
+  --lg-glass-rim: rgba(255,255,255,.45);
+  --lg-glass-shadow: 0 24px 60px -18px rgba(0,0,0,.85), 0 2px 8px rgba(0,0,0,.5);
+  --lg-glass-inner: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lg-bg-0: #07090c; --lg-bg-1: #0b0e13; --lg-bg-2: #11151c; --lg-aurora: .55;
+    --lg-text: #eef2f0; --lg-text-mut: rgba(238,242,240,.58); --lg-text-dim: rgba(238,242,240,.34);
+    --lg-glass-fill: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03) 60%, rgba(255,255,255,.05));
+    --lg-glass-stroke: rgba(255,255,255,.14); --lg-glass-rim: rgba(255,255,255,.45);
+    --lg-glass-shadow: 0 24px 60px -18px rgba(0,0,0,.85), 0 2px 8px rgba(0,0,0,.5);
+    --lg-glass-inner: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"] {
+  --lg-bg-0: #07090c; --lg-bg-1: #0b0e13; --lg-bg-2: #11151c; --lg-aurora: .55;
+  --lg-text: #eef2f0; --lg-text-mut: rgba(238,242,240,.58); --lg-text-dim: rgba(238,242,240,.34);
+  --lg-glass-fill: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03) 60%, rgba(255,255,255,.05));
+  --lg-glass-stroke: rgba(255,255,255,.14); --lg-glass-rim: rgba(255,255,255,.45);
+  --lg-glass-shadow: 0 24px 60px -18px rgba(0,0,0,.85), 0 2px 8px rgba(0,0,0,.5);
+  --lg-glass-inner: inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.4);
+}
+
+/* ── Studio backdrop: obsidian/porcelain + neon aurora + film grain ── */
+.lg-root {
+  position: relative;
+  color: var(--lg-text);
+  background:
+    radial-gradient(120% 80% at 18% -10%, rgba(154,230,0,calc(var(--lg-aurora) * .5)), transparent 42%),
+    radial-gradient(90% 70% at 95% 6%, rgba(110,200,255,calc(var(--lg-aurora) * .35)), transparent 46%),
+    radial-gradient(120% 100% at 50% 118%, rgba(154,230,0,calc(var(--lg-aurora) * .22)), transparent 55%),
+    linear-gradient(180deg, var(--lg-bg-1), var(--lg-bg-0));
+  transition: background .6s var(--lg-ease), color .4s var(--lg-ease);
+}
+.lg-root::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  mix-blend-mode: overlay; opacity: .5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+.lg-root > * { position: relative; z-index: 1; }
+
+/* ── Liquid-glass surface ── */
+.lg-glass {
+  background: var(--lg-glass-fill);
+  border: 1px solid var(--lg-glass-stroke);
+  box-shadow: var(--lg-glass-shadow), var(--lg-glass-inner);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  backdrop-filter: blur(22px) saturate(165%);
+  border-radius: var(--lg-r-lg);
+}
+.lg-glass-rim { position: relative; }
+.lg-glass-rim::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 48%;
+  border-radius: inherit; pointer-events: none; opacity: .5;
+  background: linear-gradient(180deg, var(--lg-glass-rim), transparent);
+}
+
+/* ── Pills ── */
+.lg-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px;
+  border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--lg-text-mut);
+  background: var(--lg-glass-fill); border: 1px solid var(--lg-glass-stroke);
+  box-shadow: var(--lg-glass-inner);
+  -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+}
+.lg-live { width: 8px; height: 8px; border-radius: 50%; background: var(--lg-green);
+  box-shadow: 0 0 10px 2px var(--lg-green); animation: lg-pulse 2.4s var(--lg-ease) infinite; }
+@keyframes lg-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.8); } }
+
+/* ── The Stop — gel orb primary action ── */
+.lg-stop {
+  position: relative; border: 0; cursor: pointer; flex: none; isolation: isolate;
+  width: 58px; height: 58px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 36% 28%, #f6ffe0 0%, #d4ff9a 18%, var(--lg-green) 44%, var(--lg-green-deep) 78%, #6fae00 100%);
+  box-shadow: 0 10px 26px -6px rgba(154,230,0,.65), 0 2px 6px rgba(0,0,0,.35),
+    inset 0 -6px 12px rgba(31,58,0,.55), inset 0 4px 8px rgba(255,255,255,.85);
+  transition: transform .22s var(--lg-spring), box-shadow .22s var(--lg-ease);
+}
+.lg-stop::after {
+  content: ""; position: absolute; left: var(--lg-hx, 32%); top: var(--lg-hy, 22%);
+  width: 34%; height: 26%; border-radius: 50%; pointer-events: none; filter: blur(1px);
+  background: radial-gradient(circle, rgba(255,255,255,.95), transparent 70%);
+  transition: left .08s linear, top .08s linear;
+}
+.lg-stop > * { position: relative; color: var(--lg-green-ink); }
+.lg-stop:hover { transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 16px 34px -6px rgba(154,230,0,.8), inset 0 -6px 12px rgba(31,58,0,.55), inset 0 4px 8px rgba(255,255,255,.9); }
+.lg-stop:active { transform: scale(.9) scaleY(.84);
+  box-shadow: 0 4px 12px -4px rgba(154,230,0,.6), inset 0 -3px 8px rgba(31,58,0,.6), inset 0 6px 10px rgba(255,255,255,.7); }
+.lg-stop:disabled { filter: grayscale(.5) brightness(.85); cursor: not-allowed; opacity: .6; box-shadow: inset 0 -4px 10px rgba(0,0,0,.2), inset 0 3px 6px rgba(255,255,255,.4); }
+.lg-stop-sm { width: 44px; height: 44px; }
+.lg-stop-lg { width: 72px; height: 72px; }
+
+/* ── Brief field: glass slab holding the orb ── */
+.lg-field {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  padding: 11px 11px 11px 24px; border-radius: var(--lg-r-xl);
+  background: var(--lg-glass-fill); border: 1px solid var(--lg-glass-stroke);
+  box-shadow: var(--lg-glass-shadow), var(--lg-glass-inner);
+  -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
+}
+.lg-field input, .lg-field textarea {
+  flex: 1; min-width: 0; background: none; border: 0; outline: 0;
+  color: var(--lg-text); font: inherit; font-size: 17px; resize: none;
+}
+.lg-field input::placeholder, .lg-field textarea::placeholder { color: var(--lg-text-dim); }
+
+/* ── Agent puck ── */
+.lg-puck {
+  position: relative; width: 74px; height: 74px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 24px; letter-spacing: -.02em;
+  background:
+    radial-gradient(circle at 38% 30%, rgba(255,255,255,.9), rgba(255,255,255,.15) 40%, transparent 62%),
+    var(--lg-puck, #4a5568);
+  box-shadow: 0 12px 26px -8px rgba(0,0,0,.55), inset 0 -8px 16px rgba(0,0,0,.4), inset 0 5px 10px rgba(255,255,255,.5);
+  transition: transform .4s var(--lg-spring), box-shadow .4s var(--lg-ease);
+}
+.lg-puck-sm { width: 48px; height: 48px; font-size: 16px; }
+.lg-puck.is-active {
+  transform: translateY(-4px) scale(1.06);
+  box-shadow: 0 14px 30px -6px rgba(154,230,0,.55), 0 0 0 4px rgba(154,230,0,.18),
+    inset 0 -8px 16px rgba(31,58,0,.4), inset 0 5px 10px rgba(255,255,255,.6);
+}
+
+/* ── Chat bubbles ── */
+.lg-bubble {
+  max-width: 80%; padding: 13px 17px; border-radius: var(--lg-r-md);
+  font-size: 15px; line-height: 1.5; border: 1px solid var(--lg-glass-stroke);
+  box-shadow: var(--lg-glass-shadow), var(--lg-glass-inner);
+  -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
+}
+.lg-bubble-agent { align-self: flex-start; background: var(--lg-glass-fill); color: var(--lg-text); border-top-left-radius: 7px; }
+.lg-bubble-ceo {
+  align-self: flex-end; color: var(--lg-green-ink); border-top-right-radius: 7px;
+  background: linear-gradient(160deg, #d6ff9e, var(--lg-green) 55%, var(--lg-green-deep));
+  border-color: rgba(154,230,0,.5);
+  box-shadow: 0 16px 34px -12px rgba(154,230,0,.55), inset 0 1px 0 rgba(255,255,255,.7);
+}
+
+/* ── Liquid CTA button (glass, not orb) ── */
+.lg-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 26px; border-radius: 999px; font-weight: 600; font-size: 15px; cursor: pointer;
+  color: var(--lg-green-ink); border: 1px solid rgba(154,230,0,.5);
+  background: linear-gradient(160deg, #d6ff9e, var(--lg-green) 55%, var(--lg-green-deep));
+  box-shadow: 0 12px 28px -10px rgba(154,230,0,.6), inset 0 1px 0 rgba(255,255,255,.7);
+  transition: transform .2s var(--lg-spring), box-shadow .2s var(--lg-ease);
+}
+.lg-btn:hover { transform: translateY(-1px); box-shadow: 0 16px 34px -10px rgba(154,230,0,.75), inset 0 1px 0 rgba(255,255,255,.8); }
+.lg-btn:active { transform: scale(.97); }
+.lg-btn-ghost {
+  color: var(--lg-text); background: var(--lg-glass-fill); border: 1px solid var(--lg-glass-stroke);
+  box-shadow: var(--lg-glass-inner); -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+}
+
+/* ── FluidMorphism handoff droplet ── */
+.lg-goo { filter: url(#lg-goo); }
+.lg-droplet {
+  position: absolute; top: -4px; width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f4ffd9, var(--lg-green) 50%, var(--lg-green-deep));
+  box-shadow: 0 0 14px 3px rgba(154,230,0,.7); filter: url(#lg-goo);
+  animation: lg-flow 4.5s var(--lg-ease) infinite;
+}
+@keyframes lg-flow { 0% { left: 14%; opacity: 0; } 10% { opacity: 1; } 50% { left: 50%; } 90% { opacity: 1; } 100% { left: 84%; opacity: 0; } }
+
+/* ── Liquid gradient display text — theme-aware stops for contrast ── */
+.lg-liquid-text {
+  background: linear-gradient(110deg, #5a9e00 5%, var(--lg-green-deep) 38%, #4a8500 75%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lg-dark .lg-liquid-text,
+:root[data-theme="dark"] .lg-liquid-text {
+  background: linear-gradient(110deg, var(--lg-green) 10%, #d6ffa1 40%, var(--lg-green-deep) 70%);
+  -webkit-background-clip: text; background-clip: text;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lg-liquid-text {
+    background: linear-gradient(110deg, var(--lg-green) 10%, #d6ffa1 40%, var(--lg-green-deep) 70%);
+    -webkit-background-clip: text; background-clip: text;
+  }
+}
+
+/* ── Nav links ── */
+.lg-navlink { transition: color .2s var(--lg-ease); text-decoration: none; }
+.lg-navlink:hover { color: var(--lg-text) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-live, .lg-droplet { animation: none; }
+  .lg-stop, .lg-puck, .lg-btn, .lg-root { transition: none; }
+}
