@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import ConnectExistingSiteModal from './ConnectExistingSiteModal'
 import { useCart } from './CartProvider'
 import { clearAnonKey } from '@/lib/studio/session-client'
+import { LiquidRoot, GlassPanel, Wordmark, ThemeToggle } from './ui/LiquidGlass'
 
 interface CustomerData {
   id: string | number
@@ -31,13 +32,23 @@ interface Props {
   deployments: DeploymentSummary[]
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  running: 'bg-emerald-100 text-emerald-700',
-  provisioning: 'bg-amber-100 text-amber-700',
-  simulated: 'bg-slate-100 text-slate-600',
-  error: 'bg-rose-100 text-rose-700',
-  stopped: 'bg-slate-100 text-slate-600',
+/** Semantic status pill — translucent fills that read on both obsidian and porcelain glass. */
+function statusStyle(status: string): React.CSSProperties {
+  switch (status) {
+    case 'running':
+      return { background: 'rgba(154,230,0,.16)', color: 'var(--lg-green-deep)', border: '1px solid rgba(154,230,0,.32)' }
+    case 'provisioning':
+      return { background: 'rgba(245,180,40,.16)', color: '#e0a020', border: '1px solid rgba(245,180,40,.3)' }
+    case 'error':
+      return { background: 'rgba(229,72,77,.16)', color: '#e5666b', border: '1px solid rgba(229,72,77,.3)' }
+    default:
+      return { background: 'var(--lg-field-fill)', color: 'var(--lg-text-mut)', border: '1px solid var(--lg-field-stroke)' }
+  }
 }
+
+const T = { color: 'var(--lg-text)' }
+const TM = { color: 'var(--lg-text-mut)' }
+const TD = { color: 'var(--lg-text-dim)' }
 
 function tierLabel(tier: string): string {
   if (tier === 'pro') return 'Pro'
@@ -71,29 +82,25 @@ export default function Dashboard({ customer, deployments }: Props) {
   const atBuildLimit = buildsRemaining === 0
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] font-sans">
+    <LiquidRoot className="min-h-screen" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="max-w-6xl mx-auto px-6 py-10">
         {/* Header */}
         <header className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">⚡</span>
-            <span className="text-xl font-bold text-gray-900">FullStop</span>
-          </div>
+          <Wordmark size={22} />
           <div className="flex items-center gap-4 text-sm">
-            <a
-              href="/components"
-              className="hidden sm:inline-block px-3 py-2 rounded-lg text-gray-700 hover:bg-white/60 transition font-medium"
-            >
-              🧩 Components
+            <a href="/components" className="hidden sm:inline-flex lg-pill" style={{ padding: '8px 14px' }}>
+              Components
             </a>
+            <ThemeToggle />
             <div className="text-right">
-              <div className="text-gray-800 font-medium">{customer.name || customer.email}</div>
-              <div className="text-gray-500 text-xs">{tierLabel(customer.tier)} plan</div>
+              <div className="font-medium" style={T}>{customer.name || customer.email}</div>
+              <div className="text-xs" style={TD}>{tierLabel(customer.tier)} plan</div>
             </div>
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-gray-700 hover:bg-white transition text-sm disabled:opacity-50"
+              className="lg-btn lg-btn-ghost disabled:opacity-50"
+              style={{ padding: '9px 16px', fontSize: 14 }}
             >
               {loggingOut ? '…' : 'Sign out'}
             </button>
@@ -126,8 +133,8 @@ export default function Dashboard({ customer, deployments }: Props) {
         <section>
           <div className="flex items-end justify-between mb-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Your sites</h2>
-              <p className="text-gray-500 text-sm mt-1">
+              <h2 className="text-2xl font-bold" style={T}>Your sites</h2>
+              <p className="text-sm mt-1" style={TM}>
                 {deployments.length === 0
                   ? "You haven't built anything yet. Let's change that."
                   : `${deployments.length} site${deployments.length === 1 ? '' : 's'}`}
@@ -137,18 +144,19 @@ export default function Dashboard({ customer, deployments }: Props) {
               <button
                 onClick={() => setConnectOpen(true)}
                 disabled={atDeploymentLimit}
-                className="px-4 py-2.5 rounded-xl border border-gray-300 bg-white/70 text-gray-800 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm transition"
+                className="lg-btn lg-btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ padding: '11px 18px', fontSize: 14 }}
                 title={atDeploymentLimit ? 'At your plan\'s site limit' : 'Connect an existing Payload site'}
               >
                 Connect existing
               </button>
               <a
                 href="/launch?new=1"
-                className={
-                  atDeploymentLimit || atBuildLimit
-                    ? 'px-4 py-2.5 rounded-xl bg-gray-200 text-gray-400 font-semibold text-sm cursor-not-allowed pointer-events-none'
-                    : 'px-4 py-2.5 rounded-xl bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold text-sm transition'
-                }
+                className="lg-btn disabled:opacity-50"
+                style={{
+                  padding: '11px 18px', fontSize: 14,
+                  ...(atDeploymentLimit || atBuildLimit ? { opacity: .45, pointerEvents: 'none' } : {}),
+                }}
               >
                 + New business
               </a>
@@ -156,16 +164,21 @@ export default function Dashboard({ customer, deployments }: Props) {
           </div>
 
           {deployments.length === 0 ? (
-            <div className="rounded-2xl bg-white/60 border border-gray-100 p-12 text-center">
-              <div className="text-5xl mb-3">✨</div>
-              <p className="text-gray-600 mb-6">Your first FullStop site is one chat away.</p>
-              <a
-                href="/launch?new=1"
-                className="inline-block px-5 py-3 rounded-xl bg-[#3b82f6] hover:bg-blue-600 text-white font-semibold text-sm transition"
-              >
+            <GlassPanel className="p-12 text-center">
+              <div
+                aria-hidden
+                className="mx-auto mb-4"
+                style={{
+                  width: 44, height: 44, borderRadius: '50%',
+                  background: 'radial-gradient(circle at 36% 28%, #f6ffe0 0%, #d4ff9a 18%, var(--lg-green) 44%, var(--lg-green-deep) 78%, #6fae00 100%)',
+                  boxShadow: '0 12px 28px -6px rgba(154,230,0,.6), inset 0 -5px 10px rgba(31,58,0,.5), inset 0 3px 7px rgba(255,255,255,.85)',
+                }}
+              />
+              <p className="mb-6" style={TM}>Your first FullStop site is one chat away.</p>
+              <a href="/launch?new=1" className="lg-btn" style={{ padding: '13px 22px', fontSize: 14 }}>
                 Start building
               </a>
-            </div>
+            </GlassPanel>
           ) : (
             <div className="grid gap-3">
               {deployments.map((d) => (
@@ -184,7 +197,7 @@ export default function Dashboard({ customer, deployments }: Props) {
           }}
         />
       )}
-    </div>
+    </LiquidRoot>
   )
 }
 
@@ -202,25 +215,21 @@ function UsageCard({
   cta?: { label: string; href: string }
 }) {
   return (
-    <div className="rounded-2xl bg-white/70 border border-gray-100 p-5 shadow-sm">
-      <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">{label}</div>
-      <div className="text-2xl font-bold text-gray-900 mb-1">{primary}</div>
-      <div className={`text-sm ${warn ? 'text-rose-600' : 'text-gray-500'}`}>{sub}</div>
+    <GlassPanel className="p-5">
+      <div className="text-xs uppercase tracking-wider mb-2" style={TD}>{label}</div>
+      <div className="text-2xl font-bold mb-1" style={T}>{primary}</div>
+      <div className="text-sm" style={warn ? { color: '#e5666b' } : TM}>{sub}</div>
       {cta && (
-        <a
-          href={cta.href}
-          className="inline-block mt-3 text-sm font-semibold text-[#3b82f6] hover:text-blue-600"
-        >
+        <a href={cta.href} className="inline-block mt-3 text-sm font-semibold" style={{ color: 'var(--lg-green-deep)' }}>
           {cta.label} →
         </a>
       )}
-    </div>
+    </GlassPanel>
   )
 }
 
 function DeploymentCard({ deployment }: { deployment: DeploymentSummary }) {
   const cart = useCart()
-  const statusClass = STATUS_COLOR[deployment.status] || 'bg-slate-100 text-slate-600'
   const isLive = deployment.status === 'running' && deployment.seedStatus === 'success'
   const isManaged = deployment.connectionType !== 'external'
   const canAddComponents = cart.count > 0 && isLive && isManaged
@@ -252,56 +261,40 @@ function DeploymentCard({ deployment }: { deployment: DeploymentSummary }) {
     }
   }
 
+  const badge = (text: string, style: React.CSSProperties) => (
+    <span className="text-xs px-2 py-0.5 rounded-full" style={style}>{text}</span>
+  )
+
   return (
-    <div className="rounded-2xl bg-white/80 border border-gray-100 p-5 shadow-sm flex items-center justify-between gap-4">
+    <GlassPanel className="p-5 flex items-center justify-between gap-4">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-gray-900 font-semibold truncate">{deployment.domain}</span>
-          <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{deployment.status}</span>
-          {deployment.connectionType === 'external' && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">connected</span>
-          )}
-          {deployment.seedStatus === 'partial' && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">partial seed</span>
-          )}
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-semibold truncate" style={T}>{deployment.domain}</span>
+          {badge(deployment.status, statusStyle(deployment.status))}
+          {deployment.connectionType === 'external' && badge('connected', { background: 'rgba(139,123,240,.16)', color: '#a99bf5', border: '1px solid rgba(139,123,240,.3)' })}
+          {deployment.seedStatus === 'partial' && badge('partial seed', statusStyle('provisioning'))}
         </div>
-        <div className="text-xs text-gray-500">
-          {new Date(deployment.createdAt).toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
+        <div className="text-xs" style={TD}>
+          {new Date(deployment.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
           {deployment.stage && deployment.stage !== 'completed' && ` · ${deployment.stage}`}
         </div>
-        {result && <div className="mt-2 text-xs font-medium text-gray-600">{result}</div>}
+        {result && <div className="mt-2 text-xs font-medium" style={TM}>{result}</div>}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {canAddComponents && (
-          <button
-            onClick={addComponents}
-            disabled={adding}
-            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-300 text-white text-sm font-medium transition"
-          >
+          <button onClick={addComponents} disabled={adding} className="lg-btn disabled:opacity-50" style={{ padding: '9px 14px', fontSize: 13 }}>
             {adding ? 'Adding…' : `Add ${cart.count} component${cart.count === 1 ? '' : 's'}`}
           </button>
         )}
         {isLive && deployment.siteUrl && (
-          <a
-            href={deployment.siteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition"
-          >
+          <a href={deployment.siteUrl} target="_blank" rel="noopener noreferrer" className="lg-navlink px-3 py-2 rounded-lg text-sm" style={TM}>
             Visit ↗
           </a>
         )}
-        <a
-          href={`/dashboard/${deployment.id}`}
-          className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition"
-        >
+        <a href={`/dashboard/${deployment.id}`} className="lg-btn lg-btn-ghost" style={{ padding: '9px 16px', fontSize: 14 }}>
           Manage
         </a>
       </div>
-    </div>
+    </GlassPanel>
   )
 }
