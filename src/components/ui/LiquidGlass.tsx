@@ -45,17 +45,18 @@ export function LiquidRoot({
   )
 }
 
-/** Frosted refractive glass surface. */
+/** Frosted refractive glass surface. `as` lets it render as li/article/etc. */
 export function GlassPanel({
   children,
   className,
   rim = true,
+  as: Tag = 'div',
   ...rest
-}: React.HTMLAttributes<HTMLDivElement> & { rim?: boolean }) {
+}: React.HTMLAttributes<HTMLElement> & { rim?: boolean; as?: React.ElementType }) {
   return (
-    <div className={cx('lg-glass', rim && 'lg-glass-rim', className)} {...rest}>
+    <Tag className={cx('lg-glass', rim && 'lg-glass-rim', className)} {...rest}>
       {children}
-    </div>
+    </Tag>
   )
 }
 
