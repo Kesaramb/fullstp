@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { AtSign, Smile, CheckCheck, SendHorizontal, MoreHorizontal, Loader2 } from 'lucide-react'
+import { AtSign, Smile, CheckCheck, MoreHorizontal, Loader2 } from 'lucide-react'
+import { LiquidRoot, GlassPanel, StopButton, AgentPuck, Wordmark, PUCK_GRADIENTS } from './ui/LiquidGlass'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,12 +36,6 @@ interface ConversationEntry {
 
 function now(): string {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
-
-function getBubbleRadius(isUser: boolean, position: MessagePosition): string {
-  if (!isUser) return 'rounded-2xl rounded-tl-sm'
-  if (position === 'top') return 'rounded-2xl rounded-tr-sm'
-  return 'rounded-2xl rounded-br-sm'
 }
 
 interface HandoffData {
@@ -262,50 +257,36 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex items-center justify-center p-8 font-sans">
+    <LiquidRoot className="min-h-screen flex items-center justify-center p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="flex items-end gap-6 w-full max-w-5xl h-[800px]">
 
         {/* Floating Sidebar Toolbar */}
-        <div className="bg-white rounded-[2rem] p-4 py-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center gap-6 mb-4">
-          <button className="text-gray-700 hover:text-black transition-colors" title="Mention">
-            <AtSign strokeWidth={2.5} size={24} />
-          </button>
-          <button className="text-gray-700 hover:text-black transition-colors" title="Emoji">
-            <Smile strokeWidth={2.5} size={24} />
-          </button>
-          <button className="text-gray-700 hover:text-black transition-colors" title="Mark read">
-            <CheckCheck strokeWidth={2.5} size={24} />
-          </button>
-          <button
-            onClick={() => handleSend()}
-            disabled={isProcessing}
-            className="text-gray-700 hover:text-black transition-colors mt-2 disabled:opacity-40"
-            title="Send"
-          >
-            <SendHorizontal strokeWidth={2.5} size={24} className="ml-1" />
-          </button>
-        </div>
+        <GlassPanel className="p-4 py-6 flex flex-col items-center gap-6 mb-4" style={{ borderRadius: 32 }}>
+          {[
+            { icon: <AtSign strokeWidth={2.5} size={22} />, title: 'Mention' },
+            { icon: <Smile strokeWidth={2.5} size={22} />, title: 'Emoji' },
+            { icon: <CheckCheck strokeWidth={2.5} size={22} />, title: 'Mark read' },
+          ].map((b) => (
+            <button key={b.title} className="lg-navlink" style={{ color: 'var(--lg-text-mut)' }} title={b.title}>
+              {b.icon}
+            </button>
+          ))}
+          <StopButton size="sm" onClick={() => handleSend()} disabled={isProcessing} aria-label="Send" className="mt-2" />
+        </GlassPanel>
 
         {/* Main Chat Interface */}
-        <div className="flex-1 bg-white rounded-t-[32px] shadow-[0_20px_50px_rgb(0,0,0,0.06)] h-full flex flex-col overflow-hidden border border-gray-100">
+        <GlassPanel className="flex-1 h-full flex flex-col overflow-hidden" style={{ borderRadius: 32 }}>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100">
-            <div className="flex -space-x-3">
-              <img src="https://i.pravatar.cc/150?img=47" alt="User 1" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm z-40" />
-              <img src="https://i.pravatar.cc/150?img=32" alt="User 2" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm z-30" />
-              <img src="https://i.pravatar.cc/150?img=12" alt="User 3" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm z-20" />
-            </div>
+          <div className="flex items-center justify-between px-8 py-6" style={{ borderBottom: '1px solid var(--lg-glass-stroke)' }}>
+            <AgentPuck small initial="AI" gradient={PUCK_GRADIENTS.laura} style={{ width: 40, height: 40, fontSize: 13 }} />
             <div className="flex flex-col items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">⚡</span>
-                <h1 className="text-xl font-bold text-gray-900 tracking-tight">FullStop AI</h1>
-              </div>
-              <span className="text-sm text-gray-400 font-medium mt-0.5">
+              <Wordmark size={18} />
+              <span className="text-sm font-medium mt-0.5" style={{ color: 'var(--lg-text-dim)' }}>
                 {isProcessing ? 'Working on your site...' : 'Your digital team · always online'}
               </span>
             </div>
-            <button className="text-gray-400 hover:text-gray-600 p-2">
+            <button className="lg-navlink p-2" style={{ color: 'var(--lg-text-dim)' }}>
               <MoreHorizontal size={24} />
             </button>
           </div>
@@ -316,7 +297,7 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
               if (msg.kind === 'date') {
                 return (
                   <div key={msg.id} className="flex justify-center my-2">
-                    <span className="text-xs font-medium text-gray-400">{msg.text}</span>
+                    <span className="text-xs font-medium" style={{ color: 'var(--lg-text-dim)' }}>{msg.text}</span>
                   </div>
                 )
               }
@@ -326,32 +307,26 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
                 <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start w-full max-w-2xl'}`}>
                   {!isUser && (
                     <div className="flex-none mr-4 mt-1">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">
-                        AI
-                      </div>
+                      <AgentPuck small initial="AI" gradient={PUCK_GRADIENTS.laura} style={{ width: 40, height: 40, fontSize: 13 }} />
                     </div>
                   )}
                   <div className="flex flex-col max-w-[70%]">
                     {!isUser && (
                       <div className="flex items-baseline gap-2 mb-1.5 ml-1">
-                        <span className="font-bold text-gray-900 text-sm">FullStop AI</span>
-                        <span className="text-xs text-gray-400">Digital Team</span>
+                        <span className="font-bold text-sm" style={{ color: 'var(--lg-text)' }}>FullStop AI</span>
+                        <span className="text-xs" style={{ color: 'var(--lg-text-dim)' }}>Digital Team</span>
                       </div>
                     )}
-                    <div className={`relative px-5 py-3.5 shadow-sm ${getBubbleRadius(isUser, msg.position)} ${
-                      isUser ? 'bg-[#3b82f6] text-white self-end' : 'bg-[#f3f4f6] text-[#111827] self-start'
-                    }`}>
+                    <div className={isUser ? 'lg-bubble lg-bubble-ceo self-end' : 'lg-bubble lg-bubble-agent self-start'}>
                       {msg.isTyping ? (
                         <div className="flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin text-gray-400" />
-                          <p className="text-[15px] leading-relaxed text-gray-500">{msg.text}</p>
+                          <Loader2 size={14} className="animate-spin" style={{ color: 'var(--lg-text-dim)' }} />
+                          <p className="text-[15px] leading-relaxed" style={{ color: 'var(--lg-text-mut)' }}>{msg.text}</p>
                         </div>
                       ) : (
                         <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                       )}
-                      <div className={`flex items-center justify-end gap-1 mt-1.5 text-[11px] font-medium ${
-                        isUser ? 'text-blue-200' : 'text-gray-400'
-                      }`}>
+                      <div className="flex items-center justify-end gap-1 mt-1.5 text-[11px] font-medium" style={{ opacity: .7 }}>
                         <span>{msg.time}</span>
                         {isUser && msg.read && <CheckCheck size={14} className="ml-0.5" />}
                         {isUser && !msg.read && <CheckCheck size={14} className="ml-0.5 opacity-50" />}
@@ -365,19 +340,22 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSend} className="p-6 bg-white border-t border-gray-50">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isProcessing}
-              placeholder={isProcessing ? 'AI is working...' : 'Tell me what to change on your site...'}
-              className="w-full bg-[#f9fafb] border border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-full px-6 py-4 text-[15px] text-gray-800 outline-none transition-all shadow-sm disabled:opacity-60 disabled:cursor-wait"
-            />
+          <form onSubmit={handleSend} className="p-6" style={{ borderTop: '1px solid var(--lg-glass-stroke)' }}>
+            <div className="lg-field" style={{ padding: '8px 8px 8px 22px' }}>
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isProcessing}
+                placeholder={isProcessing ? 'AI is working...' : 'Tell me what to change on your site...'}
+                style={{ fontSize: 15 }}
+              />
+              <StopButton type="submit" size="sm" disabled={isProcessing || !inputValue.trim()} aria-label="Send" />
+            </div>
           </form>
-        </div>
+        </GlassPanel>
       </div>
-    </div>
+    </LiquidRoot>
   )
 }

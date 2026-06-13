@@ -10,7 +10,6 @@
  */
 
 import { PERSONAS, TEAM_ORDER } from '@/lib/swarm/personas'
-import PersonaAvatar from './PersonaAvatar'
 
 type PersonaId = 'laura' | 'aria' | 'theo' | 'maya' | 'owen'
 
@@ -46,24 +45,29 @@ const DESKS: DeskLayout[] = [
 const COLLAB_CENTER = { x: 240, y: 130 }
 
 const ACCENT_HEX: Record<PersonaId, string> = {
-  laura: '#818cf8', // indigo-400
-  aria:  '#fb7185', // rose-400
-  theo:  '#fbbf24', // amber-400
-  maya:  '#2dd4bf', // teal-400
-  owen:  '#34d399', // emerald-400
+  laura: '#8b7bf0', // indigo
+  aria:  '#f06ba0', // rose
+  theo:  '#f0c24a', // amber
+  maya:  '#4ad6b0', // teal
+  owen:  '#b6f36e', // brand green
+}
+
+// Darker shade per puck for the domed-gradient bottom.
+const ACCENT_DEEP: Record<PersonaId, string> = {
+  laura: '#5b4bd6', aria: '#c63b73', theo: '#c89a1a', maya: '#1a9e78', owen: '#7fae00',
 }
 
 export default function OfficeFloor({ activePersonaIds, recentSpeakerId, status }: Props) {
   return (
-    <div className="mb-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/60 backdrop-blur overflow-hidden">
+    <div className="lg-glass lg-glass-rim mb-4 overflow-hidden" style={{ borderRadius: 'var(--lg-r-md)' }}>
       <div className="px-5 pt-4 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-300 text-xs font-medium tracking-wide uppercase">Studio floor</span>
-          <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-zinc-500 text-[11px]">live</span>
+          <span className="text-xs font-medium tracking-wide uppercase" style={{ color: 'var(--lg-text-mut)' }}>Studio floor</span>
+          <span className="lg-live" style={{ width: 6, height: 6 }} />
+          <span className="text-[11px]" style={{ color: 'var(--lg-text-dim)' }}>live</span>
         </div>
         {status && (
-          <span className="text-zinc-500 text-[11px] truncate max-w-[60%]">{status}</span>
+          <span className="text-[11px] truncate max-w-[60%]" style={{ color: 'var(--lg-text-dim)' }}>{status}</span>
         )}
       </div>
 
@@ -76,32 +80,41 @@ export default function OfficeFloor({ activePersonaIds, recentSpeakerId, status 
         {/* Floor */}
         <defs>
           <pattern id="floorTile" width="20" height="20" patternUnits="userSpaceOnUse">
-            <rect width="20" height="20" fill="#0a0a0a" />
-            <path d="M 20 0 L 0 0 0 20" stroke="#18181b" strokeWidth="0.5" fill="none" />
+            <rect width="20" height="20" fill="#07090c" />
+            <path d="M 20 0 L 0 0 0 20" stroke="#11161d" strokeWidth="0.5" fill="none" />
           </pattern>
           <radialGradient id="ambient" cx="50%" cy="50%" r="60%">
-            <stop offset="0%" stopColor="#27272a" stopOpacity="0.6" />
+            <stop offset="0%" stopColor="#9ae600" stopOpacity="0.12" />
             <stop offset="100%" stopColor="#09090b" stopOpacity="0" />
           </radialGradient>
           {/* Subtle desk gradient */}
           <linearGradient id="deskTop" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3f3f46" />
-            <stop offset="100%" stopColor="#27272a" />
+            <stop offset="0%" stopColor="#2a313b" />
+            <stop offset="100%" stopColor="#161b22" />
           </linearGradient>
+          {/* Per-persona domed puck gradients */}
+          {TEAM_ORDER.map((id) => (
+            <radialGradient key={`pg-${id}`} id={`puck-${id}`} cx="38%" cy="30%" r="75%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+              <stop offset="32%" stopColor={ACCENT_HEX[id as PersonaId]} />
+              <stop offset="100%" stopColor={ACCENT_DEEP[id as PersonaId]} />
+            </radialGradient>
+          ))}
         </defs>
 
         <rect x="0" y="0" width="480" height="240" fill="url(#floorTile)" />
         <ellipse cx="240" cy="130" rx="200" ry="90" fill="url(#ambient)" />
 
         {/* Collaboration table in the center */}
-        <ellipse cx={COLLAB_CENTER.x} cy={COLLAB_CENTER.y} rx="50" ry="22" fill="#1f2937" stroke="#3f3f46" strokeWidth="1" />
-        <ellipse cx={COLLAB_CENTER.x} cy={COLLAB_CENTER.y - 2} rx="46" ry="18" fill="#27272a" />
+        <ellipse cx={COLLAB_CENTER.x} cy={COLLAB_CENTER.y} rx="50" ry="22" fill="#11161d" stroke="#9ae600" strokeOpacity="0.18" strokeWidth="1" />
+        <ellipse cx={COLLAB_CENTER.x} cy={COLLAB_CENTER.y - 2} rx="46" ry="18" fill="#0c1014" />
         <text
           x={COLLAB_CENTER.x}
           y={COLLAB_CENTER.y + 2}
           textAnchor="middle"
           fontSize="8"
-          fill="#52525b"
+          fill="#9ae600"
+          fillOpacity="0.5"
           fontFamily="ui-sans-serif, system-ui"
         >
           handoff
@@ -170,14 +183,19 @@ export default function OfficeFloor({ activePersonaIds, recentSpeakerId, status 
                   </circle>
                 )}
 
-                {/* Humanoid avatar — replaces the colored-circle-with-initial */}
-                <PersonaAvatar
-                  personaId={d.id}
-                  cx={d.characterX}
-                  cy={d.characterY - 3}
-                  size={20}
-                  active={isActive}
-                />
+                {/* Backlit glass puck — the Liquid Glass agent token */}
+                <g transform={`translate(${d.characterX}, ${d.characterY - 3})`}>
+                  {/* drop shadow */}
+                  <ellipse cx="0" cy="9" rx="8" ry="2.5" fill="#000" opacity="0.4" />
+                  {/* dome */}
+                  <circle r="9" fill={`url(#puck-${d.id})`} stroke={isActive ? ACCENT_HEX[d.id] : '#000'} strokeOpacity={isActive ? 0.5 : 0.25} strokeWidth="0.5" />
+                  {/* specular highlight */}
+                  <ellipse cx="-2.6" cy="-3" rx="3" ry="2" fill="#fff" opacity="0.6" />
+                  {/* initial */}
+                  <text x="0" y="3" textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff" fillOpacity="0.92" fontFamily="ui-sans-serif, system-ui">
+                    {persona.initials}
+                  </text>
+                </g>
 
                 {/* Thinking dots when active */}
                 {isActive && (
