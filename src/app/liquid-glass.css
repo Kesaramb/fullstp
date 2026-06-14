@@ -215,6 +215,39 @@
 }
 @keyframes lg-flow { 0% { left: 14%; opacity: 0; } 10% { opacity: 1; } 50% { left: 50%; } 90% { opacity: 1; } 100% { left: 84%; opacity: 0; } }
 
+/* ── Swarm floor — live agent mesh ── */
+.lg-swarm-edge {
+  stroke: rgba(154,230,0,.16); stroke-width: 1.5; stroke-linecap: round;
+  stroke-dasharray: 4 8; animation: lg-dash 1.6s linear infinite;
+  transition: stroke .5s var(--lg-ease), stroke-width .5s var(--lg-ease);
+}
+.lg-swarm-edge.is-active { stroke: rgba(154,230,0,.75); stroke-width: 2.5; animation-duration: .7s; }
+@keyframes lg-dash { to { stroke-dashoffset: -12; } }
+
+.lg-swarm-node { position: absolute; transform: translate(-50%, -50%); }
+.lg-swarm-orb { position: relative; animation: lg-float 5.5s var(--lg-ease) infinite; }
+@keyframes lg-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+.lg-swarm-label {
+  position: absolute; top: calc(100% + 7px); left: 50%; transform: translateX(-50%);
+  white-space: nowrap; text-align: center; line-height: 1.15; pointer-events: none;
+}
+
+.lg-swarm-ticker { display: inline-block; animation: lg-ticker-in .5s var(--lg-ease); }
+@keyframes lg-ticker-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Radar "working" pulse behind the active agent. */
+.lg-swarm-pulse {
+  position: absolute; left: 50%; top: 50%; width: 48px; height: 48px;
+  border-radius: 50%; border: 2px solid rgba(154,230,0,.55); z-index: -1;
+  transform: translate(-50%, -50%); pointer-events: none;
+  animation: lg-swarm-pulse 1.8s var(--lg-ease) infinite;
+}
+@keyframes lg-swarm-pulse {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: .75; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+
 /* ── Liquid gradient display text — theme-aware stops for contrast ── */
 .lg-liquid-text {
   background: linear-gradient(110deg, #5a9e00 5%, var(--lg-green-deep) 38%, #4a8500 75%);
@@ -247,6 +280,6 @@
 .lg-navlink:hover { color: var(--lg-text) !important; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lg-live, .lg-droplet { animation: none; }
+  .lg-live, .lg-droplet, .lg-swarm-edge, .lg-swarm-orb, .lg-swarm-ticker, .lg-swarm-pulse { animation: none; }
   .lg-stop, .lg-puck, .lg-btn, .lg-root { transition: none; }
 }

@@ -5,18 +5,23 @@ import { useRouter } from 'next/navigation'
 import {
   Check, Users, TrendingUp, Shield,
   Pen, Layout, Server, Brain,
+  Search, ShoppingCart, GraduationCap, Share2, Rocket,
 } from 'lucide-react'
 import {
-  LiquidRoot, GlassPanel, StopButton, AgentPuck, ThemeToggle, PUCK_GRADIENTS,
+  LiquidRoot, GlassPanel, StopButton, ThemeToggle,
 } from './ui/LiquidGlass'
+import SwarmFloor from './SwarmFloor'
+import { ROSTER_AGENTS, MISSIONS, STUDIO_BASE } from '@/lib/billing/roster'
 
-const STUDIO = [
-  { id: 'laura', initial: 'L', name: 'Laura', role: 'Strategy' },
-  { id: 'aria', initial: 'A', name: 'Aria', role: 'Design' },
-  { id: 'theo', initial: 'T', name: 'Theo', role: 'Copy' },
-  { id: 'maya', initial: 'M', name: 'Maya', role: 'Pages' },
-  { id: 'owen', initial: 'O', name: 'Owen', role: 'Engineering' },
-]
+// Presentation only — billing data (id, role, price, blurb) comes from the catalog.
+const AGENT_ICONS: Record<string, React.ReactNode> = {
+  seo: <Search size={20} />,
+  content: <Pen size={20} />,
+  commerce: <ShoppingCart size={20} />,
+  lms: <GraduationCap size={20} />,
+  social: <Share2 size={20} />,
+  growth: <TrendingUp size={20} />,
+}
 
 const TEAM_MEMBERS = [
   { role: 'CEO Agent', icon: <Brain size={20} />, description: 'Leads brand discovery. Extracts your positioning, voice, and strategy from plain conversation.' },
@@ -27,11 +32,13 @@ const TEAM_MEMBERS = [
   { role: 'Digital Team', icon: <Users size={20} />, description: 'Your permanent crew. Updates content, runs SEO, publishes pages — via chat, forever.' },
 ]
 
-const PRICING_TIERS = [
-  { name: 'Starter', price: 99, description: 'Hire your build team and core digital crew.', features: ['Full AI team onboarding session', '5-page professional website', 'Ongoing content updates via chat', 'SSL + custom domain', 'Your code, always — ejectable repo'], cta: 'Hire your team', highlight: false },
-  { name: 'Growth', price: 249, description: 'A full team with content and SEO firepower.', features: ['Everything in Starter', 'Up to 15 pages', 'AI-written blog content', 'SEO — technical, on-page, metadata', 'Monthly performance report', 'Your code, always — ejectable repo'], cta: 'Hire your team', highlight: true },
-  { name: 'Scale', price: 499, description: 'Dedicated agents evolving your full digital operation.', features: ['Everything in Growth', 'Unlimited pages', 'Weekly content sprints', 'Custom block components', 'E-commerce integration', 'Your code, always — ejectable repo'], cta: 'Hire your team', highlight: false },
+const STUDIO_INCLUDED = [
+  'Builder agent included',
+  'Unlimited chat — evolve anytime',
+  'SSL + custom domain',
+  'Your code, always — ejectable repo',
 ]
+
 
 const FAQS = [
   { q: 'What does "Zero-Human Digital Agency" actually mean?', a: 'It means your digital team — the people who build your website, write your content, handle your SEO, and update your pages — are AI agents. They work 24/7, exclusively for your business, at a fraction of what a human team costs. You direct them via chat. They execute.' },
@@ -121,26 +128,8 @@ export default function MarketingHomepage() {
           </div>
         </div>
 
-        {/* Studio floor — live agent pucks with a flowing handoff droplet */}
-        <div className="max-w-3xl mx-auto mt-16">
-          <p style={{ ...label, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }} className="mb-5">
-            <span className="lg-live" /> Studio floor · live
-          </p>
-          <GlassPanel className="relative px-6 py-9" rim={false}>
-            <div className="absolute left-0 right-0" style={{ top: 56, height: 4, pointerEvents: 'none' }}>
-              <div className="lg-droplet" />
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              {STUDIO.map((m, i) => (
-                <div key={m.id} className="flex flex-col items-center gap-2.5">
-                  <AgentPuck initial={m.initial} gradient={PUCK_GRADIENTS[m.id]} active={i === STUDIO.length - 1} className="lg-goo" />
-                  <span className="text-[13px] font-bold" style={T}>{m.name}</span>
-                  <span className="text-[11px]" style={{ ...TD, marginTop: -6 }}>{m.role}</span>
-                </div>
-              ))}
-            </div>
-          </GlassPanel>
-        </div>
+        {/* Live agent swarm — the studio as a connected, working mesh */}
+        <SwarmFloor />
       </section>
 
       {/* ── The Shift ── */}
@@ -157,7 +146,7 @@ export default function MarketingHomepage() {
             {[
               { label: 'Before FullStop', items: ['Agency retainer: $2,000–$10,000/mo', 'Freelancer: slow, expensive, inconsistent', 'DIY page builder: you do all the work', 'Nothing: site goes stale, business suffers'], dim: true },
               { label: 'The cost of a team', items: ['Strategist: $4,000/mo', 'Designer: $4,500/mo', 'Developer: $6,000/mo', 'Copywriter + SEO: $3,500/mo'], dim: true },
-              { label: 'With FullStop', items: ['Full AI team: from $99/mo', 'Onboarded today, live tomorrow', 'Updates via chat, not tickets', 'Code ownership — eject anytime'], dim: false },
+              { label: 'With FullStop', items: ['Free to build — pay only to publish', 'Hire specialist agents as you grow', 'Updates via chat, not tickets', 'Code ownership — eject anytime'], dim: false },
             ].map(col => (
               <GlassPanel key={col.label} className="p-6" style={col.dim ? { opacity: .72 } : { boxShadow: '0 22px 50px -18px rgba(154,230,0,.35), var(--lg-glass-inner)', borderColor: 'rgba(154,230,0,.4)' }}>
                 <p className="text-xs font-bold uppercase tracking-widest mb-4" style={col.dim ? TD : ACCENT}>{col.label}</p>
@@ -251,31 +240,76 @@ export default function MarketingHomepage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
             <p style={label} className="mb-3">Pricing</p>
-            <h2 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.02em', ...T }}>Less than one junior hire.</h2>
-            <p className="mt-3 text-lg" style={TM}>No setup fees. No contracts. Your team, from today.</p>
+            <h2 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-.02em', ...T }}>Start free. Hire as you grow.</h2>
+            <p className="mt-3 text-lg max-w-2xl mx-auto" style={TM}>
+              Build your whole site by chatting — for free. Pay only when you publish, then grow your team one agent at a time. Your bill grows because your business did.
+            </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {PRICING_TIERS.map(tier => (
-              <GlassPanel key={tier.name} className="relative p-8 flex flex-col" style={tier.highlight ? { borderColor: 'rgba(154,230,0,.5)', boxShadow: '0 26px 60px -20px rgba(154,230,0,.45), var(--lg-glass-inner)' } : undefined}>
-                {tier.highlight && (
-                  <div className="lg-btn" style={{ position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)', padding: '5px 16px', fontSize: 12 }}>Most popular</div>
-                )}
-                <div className="mb-6">
-                  <p className="font-bold text-lg mb-1" style={T}>{tier.name}</p>
-                  <div className="flex items-end gap-1 mb-2">
-                    <span style={{ fontSize: 38, fontWeight: 800, ...T }}>${tier.price}</span>
-                    <span style={TD} className="mb-1">/mo</span>
-                  </div>
-                  <p className="text-sm" style={TM}>{tier.description}</p>
+
+          {/* Entry — free to build, pay to publish */}
+          <GlassPanel className="relative p-8 md:p-10 mb-16 flex flex-col md:flex-row md:items-center gap-8" style={{ borderColor: 'rgba(154,230,0,.45)', boxShadow: '0 26px 60px -20px rgba(154,230,0,.4), var(--lg-glass-inner)' }}>
+            <div className="flex-1">
+              <div className="lg-pill mb-4"><span className="lg-live" /> Free to build</div>
+              <h3 className="text-2xl font-black mb-3" style={T}>Open your Studio. Build the whole thing free.</h3>
+              <p className="leading-relaxed mb-6" style={TM}>
+                Brief your team and watch your site come together — strategy, design, copy, pages, all of it. No card, no commitment. You only pay when you&apos;re ready to go live, and unlimited chat to keep evolving it is always included.
+              </p>
+              <a href="/launch" className="lg-btn" style={{ padding: '13px 26px' }}>Start building free →</a>
+            </div>
+            <div className="flex-none w-full md:w-72">
+              <div style={{ background: 'rgba(0,0,0,.18)', borderRadius: 18, padding: 22, border: '1px solid var(--lg-glass-stroke)' }}>
+                <div className="flex items-baseline justify-between pb-3 mb-3" style={{ borderBottom: '1px solid var(--lg-glass-stroke)' }}>
+                  <span className="text-[14px]" style={TM}>Build &amp; chat</span>
+                  <span style={{ fontSize: 28, fontWeight: 800, ...T }}>$0</span>
                 </div>
-                <ul className="space-y-3 mb-8 flex-1">
-                  {tier.features.map(f => (
-                    <li key={f} className="flex items-start gap-2.5 text-[15px]" style={TM}>
-                      <Check size={16} style={{ ...ACCENT, marginTop: 2, flex: 'none' }} /> {f}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[14px]" style={TM}>Publish &amp; keep live</span>
+                  <span><span style={{ fontSize: 28, fontWeight: 800, ...T }}>${STUDIO_BASE.monthly}</span><span style={TD} className="text-sm">/mo</span></span>
+                </div>
+                <ul className="space-y-2.5 mt-5">
+                  {STUDIO_INCLUDED.map(f => (
+                    <li key={f} className="flex items-start gap-2 text-[13px]" style={TM}>
+                      <Check size={15} style={{ ...ACCENT, marginTop: 1, flex: 'none' }} /> {f}
                     </li>
                   ))}
                 </ul>
-                <a href="/launch" className={tier.highlight ? 'lg-btn' : 'lg-btn lg-btn-ghost'} style={{ width: '100%' }}>{tier.cta}</a>
+              </div>
+            </div>
+          </GlassPanel>
+
+          {/* The Roster */}
+          <div className="text-center mb-8">
+            <p style={label} className="mb-2">The Roster</p>
+            <h3 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em', ...T }}>Build your team — hire specialists by the month</h3>
+            <p className="mt-2 max-w-xl mx-auto" style={TM}>Add an agent when you need the firepower. Drop them anytime. They show up in your chat the moment they&apos;d help.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5 mb-16">
+            {ROSTER_AGENTS.map(a => (
+              <GlassPanel key={a.role} className="p-6 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(154,230,0,.14)', color: 'var(--lg-green-deep)', border: '1px solid rgba(154,230,0,.25)' }}>{AGENT_ICONS[a.id]}</div>
+                  <div className="text-right"><span style={{ fontSize: 22, fontWeight: 800, ...T }}>+${a.monthly}</span><span style={TD} className="text-sm">/mo</span></div>
+                </div>
+                <h4 className="font-bold mb-1.5" style={T}>{a.role}</h4>
+                <p className="text-[14px] leading-relaxed flex-1" style={TM}>{a.blurb}</p>
+                <a href="/launch" className="lg-btn lg-btn-ghost mt-5" style={{ width: '100%' }}>Hire {a.short}</a>
+              </GlassPanel>
+            ))}
+          </div>
+
+          {/* Missions */}
+          <div className="text-center mb-8">
+            <p style={label} className="mb-2">Missions</p>
+            <h3 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.02em', ...T }}>Need a leap? Commission a mission.</h3>
+            <p className="mt-2 max-w-xl mx-auto" style={TM}>A big one-off build, fixed price, done in a sprint — then handed to the agent who keeps it running.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-5">
+            {MISSIONS.map(m => (
+              <GlassPanel key={m.name} className="p-6 flex flex-col">
+                <div className="flex items-center gap-2 mb-3" style={ACCENT}><Rocket size={18} /><span className="text-xs font-bold uppercase tracking-widest">One-off</span></div>
+                <div className="flex items-baseline gap-1 mb-3"><span style={{ fontSize: 26, fontWeight: 800, ...T }}>${m.price}</span><span style={TD} className="text-sm">once</span></div>
+                <h4 className="font-bold mb-1.5" style={T}>{m.name}</h4>
+                <p className="text-[14px] leading-relaxed flex-1" style={TM}>{m.blurb}</p>
               </GlassPanel>
             ))}
           </div>

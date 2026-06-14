@@ -95,9 +95,11 @@ export function StopButton({
   )
 }
 
-/** Backlit agent puck. `gradient` is a CSS background (radial-gradient recommended). */
+/** Backlit agent puck. `gradient` is a CSS background (radial-gradient recommended).
+ *  Pass `icon` to render a glyph (e.g. a lucide icon) instead of an `initial`. */
 export function AgentPuck({
   initial,
+  icon,
   gradient,
   active = false,
   small = false,
@@ -105,7 +107,8 @@ export function AgentPuck({
   style,
   ...rest
 }: React.HTMLAttributes<HTMLDivElement> & {
-  initial: string
+  initial?: string
+  icon?: React.ReactNode
   gradient: string
   active?: boolean
   small?: boolean
@@ -116,7 +119,7 @@ export function AgentPuck({
       style={{ ['--lg-puck' as string]: gradient, ...style }}
       {...rest}
     >
-      {initial}
+      {icon ?? initial}
     </div>
   )
 }

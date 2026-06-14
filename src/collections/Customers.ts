@@ -1,5 +1,6 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
 import { quotasForTier } from '@/lib/billing/tiers'
+import { ROSTER_AGENT_OPTIONS, MISSION_OPTIONS } from '@/lib/billing/roster'
 import { forgotPasswordEmailHTML } from '@/lib/email/templates'
 
 /**
@@ -159,6 +160,71 @@ export const Customers: CollectionConfig = {
           name: 'lastResetAt',
           type: 'date',
           admin: { description: 'Timestamp of the last monthly usage reset.' },
+        },
+      ],
+    },
+    {
+      name: 'roster',
+      type: 'array',
+      labels: { singular: 'Hired agent', plural: 'Roster' },
+      admin: {
+        description: 'Specialist agents this customer has hired. Each active row is a recurring monthly charge (see lib/billing/roster.ts for prices).',
+      },
+      fields: [
+        {
+          name: 'agent',
+          type: 'select',
+          required: true,
+          options: ROSTER_AGENT_OPTIONS,
+        },
+        {
+          name: 'status',
+          type: 'select',
+          defaultValue: 'active',
+          options: [
+            { label: 'Active', value: 'active' },
+            { label: 'Canceled', value: 'canceled' },
+          ],
+        },
+        { name: 'hiredAt', type: 'date' },
+        { name: 'canceledAt', type: 'date' },
+        {
+          name: 'stripeSubscriptionItemId',
+          type: 'text',
+          admin: { description: 'Stripe seam — set when per-agent billing is wired.' },
+        },
+      ],
+    },
+    {
+      name: 'missions',
+      type: 'array',
+      labels: { singular: 'Mission', plural: 'Missions' },
+      admin: {
+        description: 'One-off builds this customer has commissioned (fixed price).',
+      },
+      fields: [
+        {
+          name: 'mission',
+          type: 'select',
+          required: true,
+          options: MISSION_OPTIONS,
+        },
+        {
+          name: 'status',
+          type: 'select',
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'In progress', value: 'in_progress' },
+            { label: 'Completed', value: 'completed' },
+          ],
+        },
+        { name: 'amount', type: 'number', admin: { description: 'One-off amount charged, in USD.' } },
+        { name: 'commissionedAt', type: 'date' },
+        {
+          name: 'stripePaymentIntentId',
+          type: 'text',
+          admin: { description: 'Stripe seam — set when mission payment is wired.' },
         },
       ],
     },
