@@ -44,7 +44,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex items-center justify-center p-8 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-[#cbe5ff] via-[#e5f5f0] to-[#f8edda] flex items-center justify-center p-4 sm:p-8 font-sans">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">⚡</div>
@@ -53,7 +53,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
         </div>
 
         {!token ? (
-          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgb(0,0,0,0.06)] p-8 border border-gray-100 text-center">
+          <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgb(0,0,0,0.06)] p-6 sm:p-8 border border-gray-100 text-center">
             <div className="text-4xl mb-3">🔗</div>
             <h2 className="text-lg font-semibold text-gray-900">Invalid reset link</h2>
             <p className="text-gray-500 mt-2 text-[15px]">
@@ -69,7 +69,7 @@ export default function ResetPasswordForm({ token }: { token: string }) {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="bg-white rounded-3xl shadow-[0_20px_50px_rgb(0,0,0,0.06)] p-8 space-y-4 border border-gray-100"
+            className="bg-white rounded-3xl shadow-[0_20px_50px_rgb(0,0,0,0.06)] p-6 sm:p-8 space-y-4 border border-gray-100"
           >
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">New password</label>

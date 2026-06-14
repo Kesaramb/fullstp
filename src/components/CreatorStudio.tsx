@@ -151,13 +151,13 @@ export default function CreatorStudio({ isCreator, mine, gallery }: Props) {
 
   return (
     <LiquidRoot className="min-h-screen" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-10">
-        <header className="flex items-start justify-between gap-4">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-8 sm:space-y-10">
+        <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <Wordmark size={20} />
               <span style={TD}>·</span>
-              <h1 className="text-3xl font-bold" style={T}>Creator Studio</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold" style={T}>Creator Studio</h1>
             </div>
             <p style={TM}>
               Build and publish page templates. Approved templates appear in the gallery and can be

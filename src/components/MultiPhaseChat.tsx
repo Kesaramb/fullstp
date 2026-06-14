@@ -251,7 +251,7 @@ function StrategyChatPhase({
   }
 
   return (
-    <LiquidRoot className="min-h-screen flex flex-col items-center justify-center p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <LiquidRoot className="min-h-screen flex flex-col items-center justify-center p-5 sm:p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="w-full max-w-2xl">
 
         <div className="text-center mb-8">
@@ -450,7 +450,7 @@ function AuthModal({
   }
 
   return (
-    <LiquidRoot className="min-h-screen flex items-center justify-center p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <LiquidRoot className="min-h-screen flex items-center justify-center p-5 sm:p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
@@ -470,7 +470,7 @@ function AuthModal({
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="lg-glass lg-glass-rim p-8 space-y-4">
+        <form onSubmit={handleSubmit} className="lg-glass lg-glass-rim p-6 sm:p-8 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--lg-text-mut)' }}>Your name</label>
             <input

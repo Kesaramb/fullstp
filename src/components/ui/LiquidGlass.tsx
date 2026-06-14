@@ -172,9 +172,9 @@ export function ThemeToggle({ className }: { className?: string }) {
   const label = mode === 'system' ? 'Auto' : mode === 'dark' ? 'Dark' : 'Light'
 
   return (
-    <button type="button" onClick={next} className={cx('lg-pill', className)} aria-label={`Theme: ${label}. Click to change.`}>
+    <button type="button" onClick={next} className={cx('lg-pill', className)} aria-label={`Theme: ${label}. Click to change.`} title={`Theme: ${label}`}>
       <span style={{ fontSize: 14, lineHeight: 0 }} aria-hidden>{mode === 'light' ? '☀' : mode === 'dark' ? '☾' : '◐'}</span>
-      {label}
+      <span className="hidden sm:inline">{label}</span>
     </button>
   )
 }

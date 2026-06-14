@@ -83,16 +83,16 @@ export default function Dashboard({ customer, deployments }: Props) {
 
   return (
     <LiquidRoot className="min-h-screen" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         {/* Header */}
-        <header className="flex items-center justify-between mb-10">
+        <header className="flex items-center justify-between gap-2 mb-8 sm:mb-10">
           <Wordmark size={22} />
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2 sm:gap-4 text-sm">
             <a href="/components" className="hidden sm:inline-flex lg-pill" style={{ padding: '8px 14px' }}>
               Components
             </a>
             <ThemeToggle />
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <div className="font-medium" style={T}>{customer.name || customer.email}</div>
               <div className="text-xs" style={TD}>{tierLabel(customer.tier)} plan</div>
             </div>

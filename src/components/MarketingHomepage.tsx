@@ -83,16 +83,19 @@ export default function MarketingHomepage() {
       {/* ── Nav ── */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 50 }} className="px-6 py-3">
         <div className="max-w-6xl mx-auto">
-          <GlassPanel className="flex items-center justify-between px-5 py-2.5" style={{ borderRadius: 999 }}>
+          <GlassPanel className="flex items-center justify-between px-4 sm:px-5 py-2.5 gap-2" style={{ borderRadius: 999 }}>
             <Wordmark />
             <div className="hidden md:flex items-center gap-8 text-sm font-medium" style={TM}>
               <a href="#team" className="lg-navlink" style={TM}>Your Team</a>
               <a href="#pricing" className="lg-navlink" style={TM}>Pricing</a>
               <a href="#faq" className="lg-navlink" style={TM}>FAQ</a>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
-              <a href="/launch" className="lg-btn" style={{ padding: '10px 18px' }}>Hire your team →</a>
+              <a href="/launch" className="lg-btn whitespace-nowrap" style={{ padding: '10px 16px' }}>
+                <span className="sm:hidden">Hire team →</span>
+                <span className="hidden sm:inline">Hire your team →</span>
+              </a>
             </div>
           </GlassPanel>
         </div>

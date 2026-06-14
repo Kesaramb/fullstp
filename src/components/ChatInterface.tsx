@@ -257,11 +257,11 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
   }
 
   return (
-    <LiquidRoot className="min-h-screen flex items-center justify-center p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div className="flex items-end gap-6 w-full max-w-5xl h-[800px]">
+    <LiquidRoot className="min-h-screen flex items-center justify-center p-0 sm:p-8" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div className="flex items-end gap-3 sm:gap-6 w-full max-w-5xl h-[100dvh] sm:h-[800px]">
 
-        {/* Floating Sidebar Toolbar */}
-        <GlassPanel className="p-4 py-6 flex flex-col items-center gap-6 mb-4" style={{ borderRadius: 32 }}>
+        {/* Floating Sidebar Toolbar — hidden on mobile to give the chat full width */}
+        <GlassPanel className="hidden sm:flex p-4 py-6 flex-col items-center gap-6 mb-4" style={{ borderRadius: 32 }}>
           {[
             { icon: <AtSign strokeWidth={2.5} size={22} />, title: 'Mention' },
             { icon: <Smile strokeWidth={2.5} size={22} />, title: 'Emoji' },
@@ -278,7 +278,7 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
         <GlassPanel className="flex-1 h-full flex flex-col overflow-hidden" style={{ borderRadius: 32 }}>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-8 py-6" style={{ borderBottom: '1px solid var(--lg-glass-stroke)' }}>
+          <div className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6" style={{ borderBottom: '1px solid var(--lg-glass-stroke)' }}>
             <AgentPuck small initial="AI" gradient={PUCK_GRADIENTS.laura} style={{ width: 40, height: 40, fontSize: 13 }} />
             <div className="flex flex-col items-center">
               <Wordmark size={18} />
@@ -292,7 +292,7 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-4">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex flex-col gap-4">
             {messages.map((msg) => {
               if (msg.kind === 'date') {
                 return (
@@ -340,7 +340,7 @@ export default function ChatInterface({ handoff }: { handoff?: HandoffData } = {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSend} className="p-6" style={{ borderTop: '1px solid var(--lg-glass-stroke)' }}>
+          <form onSubmit={handleSend} className="p-3 sm:p-6" style={{ borderTop: '1px solid var(--lg-glass-stroke)' }}>
             <div className="lg-field" style={{ padding: '8px 8px 8px 22px' }}>
               <input
                 type="text"
